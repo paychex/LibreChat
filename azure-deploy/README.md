@@ -14,7 +14,7 @@ Before running this script, make sure you have the following prerequisites in pl
 
 4. **Azure Key Vault**: The script creates a new Azure Key Vault without Private Endpoints. Please make sure you have contributor permissions on the Resource Group. If an existing AKV is used, provide the same name in the config file. 
 
-5. **Azure Cosmos DB**: Azure Cosmos DB Mongo API is required to connect Librechat to conversations database. Please make sure it is provisioned. 
+5. **Azure CosmosDB**: Azure Cosmos DB Mongo API is required to connect Librechat to conversations database. Please make sure it is provisioned. 
 
 6. **Docker Image**: This script builds a Docker image and pushed it to the Azure Container Registry. Please make sure you have access to ACR and have logged in using docker login. 
 
@@ -23,6 +23,8 @@ Before running this script, make sure you have the following prerequisites in pl
 8. **AAD Grant Consent**: Please make that the App ID that has been provided has Admin Consent grant to the Microsoft Graph User.Read API. 
 
 9. **Network Security**: This script deploys Azure Resources such as Container Apps inside Virtual Network with private IP address. Necessary DNS configuration must be made if custom DNS server is used. 
+
+10. **API Management**: In this repo, API Management is used an interface to connect to Azure OpenAI endpoint. The APIM endpoint needs to point to AZURE_OPENAI_API_INSTANCE_NAME="<APIM Instance name>.azure-api.net/AzureOpenAI/deployments" in the containerapp-config.env. The APIM needs to use Key Authentication with key name being "api-key".
 
 ## Execution with Secrets and Config Files
 
