@@ -1,0 +1,40 @@
+# Azure Resource Group and Network Configuration
+RESOURCE_GROUP="librechat1-rg"
+VNET_RG="vnet"
+VNET_NAME="vnet-westus"
+SUBNET_NAME="containerapp"
+ENVIRONMENT="librechat2-env"
+LOCATION="westus"
+
+# Container App Configuration
+FRONTEND_NAME="librechat2-ui"
+FRONTEND_IMAGE="anildwaamlacr.azurecr.io/librechat:1.0"
+ACR_NAME="anildwaamlacr"
+APP_TITLE="LibreChat on Azure"
+
+# OpenAI Configuration
+AZURE_OPENAI_API_INSTANCE_NAME="librechat-apim.azure-api.net/AzureOpenAI/deployments"
+AZURE_OPENAI_API_DEPLOYMENT_NAME="gpt-35-turbo-16k"
+AZURE_OPENAI_API_VERSION="2023-03-15-preview"
+AZURE_OPENAI_API_COMPLETIONS_DEPLOYMENT_NAME="gpt-35-turbo-16k"
+AZURE_OPENAI_API_EMBEDDINGS_DEPLOYMENT_NAME="text-embedding-ada-002"
+AZURE_OPENAI_MODELS="gpt-3.5-turbo,gpt-4"
+
+# Azure AD Configuration
+OPENID_CLIENT_ID="380e1e61-bd22-44fe-b310-af2adebea1f1"
+OPENID_ISSUER="https://login.microsoftonline.com/<tenant-id>/v2.0/"
+OPENID_SESSION_SECRET="somerandomstring"
+OPENID_SCOPE="openid profile email"
+OPENID_CALLBACK_URL="/oauth/openid/callback"
+
+# Encryption and Security
+CREDS_KEY="f34be427ebb29de8d88c107a71546019685ed8b241d8f2ed00c3df97ad2566f0"
+ALLOW_SOCIAL_LOGIN="true"
+HOST="0.0.0.0"
+NODE_ENV="production"
+CREDS_IV="e2341419ec3dd3d19b13a1a87fafcbfb"
+
+# JWT and Session Configuration
+JWT_SECRET="secret"
+JWT_REFRESH_SECRET="secret"
+SESSION_EXPIRY="(1000 * 60 * 60 * 24) * 7"

@@ -1,5 +1,5 @@
 const genAzureEndpoint = ({ azureOpenAIApiInstanceName, azureOpenAIApiDeploymentName }) => {
-  return `https://${azureOpenAIApiInstanceName}.openai.azure.com/openai/deployments/${azureOpenAIApiDeploymentName}`;
+  return `https://${azureOpenAIApiInstanceName}/${azureOpenAIApiDeploymentName}`;
 };
 
 const genAzureChatCompletion = ({
@@ -7,7 +7,7 @@ const genAzureChatCompletion = ({
   azureOpenAIApiDeploymentName,
   azureOpenAIApiVersion,
 }) => {
-  return `https://${azureOpenAIApiInstanceName}.openai.azure.com/openai/deployments/${azureOpenAIApiDeploymentName}/chat/completions?api-version=${azureOpenAIApiVersion}`;
+  return `https://${azureOpenAIApiInstanceName}/${azureOpenAIApiDeploymentName}/chat/completions?api-version=${azureOpenAIApiVersion}`;
 };
 
 const getAzureCredentials = () => {
