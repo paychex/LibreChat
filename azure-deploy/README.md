@@ -24,7 +24,7 @@ Before running this script, make sure you have the following prerequisites in pl
 
 9. **Network Security**: This script deploys Azure Resources such as Container Apps inside Virtual Network with private IP address. Necessary DNS configuration must be made if custom DNS server is used. 
 
-10. **API Management**: In this repo, API Management is used as an interface to connect to Azure OpenAI endpoint. The APIM endpoint needs to point to AZURE_OPENAI_API_INSTANCE_NAME="<APIM Instance name>.azure-api.net/AzureOpenAI/deployments" in the containerapp-config.env. The APIM needs to use Key Authentication with key name being "api-key".
+10. **API Management**: In this repo, API Management is used as an interface to connect to Azure OpenAI endpoint. The APIM endpoint needs to point to AZURE_OPENAI_API_INSTANCE_NAME="[APIM Instance name].azure-api.net/AzureOpenAI/deployments" in the containerapp-config.env. The APIM needs to use Key Authentication with key name being "api-key".
 
 ## Execution with Secrets and Config Files
 
