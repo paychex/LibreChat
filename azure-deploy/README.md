@@ -16,7 +16,7 @@ Before running this script, make sure you have the following prerequisites in pl
 
 5. **Azure CosmosDB**: Azure Cosmos DB Mongo API is required to connect Librechat to conversations database. Please make sure it is provisioned. 
 
-6. **Docker Image**: This script builds a Docker image and pushed it to the Azure Container Registry. Please make sure you have access to ACR and have logged in using docker login. 
+6. **Docker Image**: This script builds a Docker image and pushes it to the Azure Container Registry. Please make sure you have access to ACR and have logged in using docker login. 
 
 7. **Configuration and Secrets Files**: You need to create two files, `containerapp-config.env` and `secrets.env`, with the required environment variables and secrets. Ensure that these files are present in the same directory as this script.
 
