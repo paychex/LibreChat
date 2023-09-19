@@ -1,6 +1,9 @@
 # Librechat Deployment Script
 
 This Bash script automates the deployment of Librechat to Azure Container App with the required configuration and secrets. It ensures that all prerequisites are met and sets up the necessary resources in Microsoft Azure. 
+## Azure Architecture
+
+[](https://github.com/anildwarepo/draw.io-artifacts/blob/main/LibreChat%20on%20Azure.drawio.png)
 
 ## Prerequisites
 
