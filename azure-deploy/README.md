@@ -15,11 +15,11 @@ Before running this script, make sure you have the following prerequisites in pl
 
 3. **Azure Container App**: Creates and Container App environment in a Azure Virtual Network with subnet /23. Please make sure that the subnet is /23.
 
-4. **Azure Key Vault**: The script creates a new Azure Key Vault without Private Endpoints. Please make sure you have contributor permissions on the Resource Group. If an existing AKV is used, provide the same name in the config file. 
+4. **Azure Key Vault**: The script creates a new Azure Key Vault without Private Endpoint. Please make sure you have contributor permissions on the Resource Group. If an existing AKV is used, provide the same name in the config file.
 
 5. **Azure CosmosDB**: Azure Cosmos DB Mongo API is required to connect Librechat to conversations database. Please make sure it is provisioned. 
 
-6. **Docker Image**: This script builds a Docker image and pushes it to the Azure Container Registry. Please make sure you have access to ACR and have logged in using docker login. 
+6. **Docker Image**: This script builds a Docker image and pushes it to the Azure Container Registry. Please make sure that ACR is provisioned and you have access to ACR and have logged in using docker login. 
 
 7. **Configuration and Secrets Files**: You need to create two files, `containerapp-config.env` and `secrets.env`, with the required environment variables and secrets. Ensure that these files are present in the same directory as this script.
 
