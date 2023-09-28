@@ -178,3 +178,12 @@ export type TUserContext = {
 export type TAuthConfig = {
   loginRedirect: string;
 };
+
+export type IconProps = Pick<TMessage, 'isCreatedByUser' | 'model' | 'error'> &
+  Pick<TConversation, 'chatGptLabel' | 'modelLabel' | 'jailbreak'> & {
+    size?: number;
+    button?: boolean;
+    message?: boolean;
+    className?: string;
+    endpoint?: string | null;
+  };
