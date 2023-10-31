@@ -27,8 +27,6 @@ jobs:
 
             - name: build and push docker container
               run: |
-                cd Docker
-                
                 docker build . -t ${{ env.ACR_HOST }}/librechat:n2a.${{ github.sha }}
                 docker push ${{ env.ACR_HOST }}/librechat:n2a.${{ github.sha }}
 
