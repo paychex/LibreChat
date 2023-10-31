@@ -58,7 +58,7 @@ print_status "Deploying Container App..."
 #build frontend image
 print_status "Building frontend image..."
 cd ..
-docker build -t librechat:1.0 -f Dockerfile .
+docker build --build-arg HTTPS_PROXY="http://proxyweb-automation.paychex.com:80" -t librechat:1.0 -f Dockerfile .
 docker tag librechat:1.0 $FRONTEND_IMAGE
 docker push $FRONTEND_IMAGE
 
@@ -87,7 +87,7 @@ fi
 
 
 #check if containerapp environment exists
-print_status "Checking if containerapp environment $ENVIRONMENT exists..."
+print_status "Checking if container environment $ENVIRONMENT exists..."
 containerapp_environment=$(az containerapp env show -n $ENVIRONMENT -g $RESOURCE_GROUP | jq -r '.id')
 
 if [ -z "${containerapp_environment}" ]
@@ -159,17 +159,17 @@ az containerapp identity assign -n $FRONTEND_NAME -g $RESOURCE_GROUP --user-assi
 
 
 #check if key vault exists
-print_status "Checking if key vault $FRONTEND_NAME-keyvault exists..."
-frontend_keyvault=$(az keyvault show -g $RESOURCE_GROUP -n $FRONTEND_NAME-keyvault | jq -r '.id')
+print_status "Checking if key vault $KV_NAME exists..."
+frontend_keyvault=$(az keyvault show -g $RESOURCE_GROUP -n $KV_NAME | jq -r '.id')
 
 if [ -z "${frontend_keyvault}" ]
 then
-    print_status "\e[32m\nKey vault $FRONTEND_NAME-keyvault not found. Creating...\n\e[0m"
-    az keyvault create -g $RESOURCE_GROUP -n $FRONTEND_NAME-keyvault
+    print_status "\e[32m\nKey vault $KV_NAME not found. Creating...\n\e[0m"
+    az keyvault create -g $RESOURCE_GROUP -n $KV_NAME
 fi
 #assign managed identity to key vault access policy read secrets
 frontend_principal_id=$(az identity show -g $RESOURCE_GROUP -n $FRONTEND_NAME-identity | jq -r '.principalId')
-az keyvault set-policy -n $FRONTEND_NAME-keyvault -g $RESOURCE_GROUP --secret-permissions get --object-id $frontend_principal_id
+az keyvault set-policy -n $KV_NAME -g $RESOURCE_GROUP --secret-permissions get list --object-id $frontend_principal_id
 
 
 # add secrets to key vault
@@ -182,16 +182,16 @@ exec 3<"secrets.env"
 while read -u 3 line; do
     IFS='=' read -r key value <<< "$line"
     echo "Key: $key"
-    az keyvault secret set --vault-name $FRONTEND_NAME-keyvault -n $key --value ${value//\"/}
+    az keyvault secret set --vault-name $KV_NAME -n $key --value ${value//\"/}
 done
 
 
 #update container app with key vault secret references
 print_status "Updating container app with key vault secret references..."
 az containerapp secret set -n $FRONTEND_NAME -g $RESOURCE_GROUP  \
---secrets mongouri=keyvaultref:https://$FRONTEND_NAME-keyvault.vault.azure.net/secrets/mongouri,identityref:$frontend_identity \
-azureapikey=keyvaultref:https://$FRONTEND_NAME-keyvault.vault.azure.net/secrets/azureapikey,identityref:$frontend_identity  \
-openidclientsecret=keyvaultref:https://$FRONTEND_NAME-keyvault.vault.azure.net/secrets/openidclientsecret,identityref:$frontend_identity 
+--secrets mongouri=keyvaultref:https://$KV_NAME.vault.azure.net/secrets/mongouri,identityref:$frontend_identity \
+azureapikey=keyvaultref:https://$KV_NAME.vault.azure.net/secrets/azureapikey,identityref:$frontend_identity  \
+openidclientsecret=keyvaultref:https://$KV_NAME.vault.azure.net/secrets/openidclientsecret,identityref:$frontend_identity 
 
 #update container app with key vault secret references
 print_status "Updating container app with secrets..."

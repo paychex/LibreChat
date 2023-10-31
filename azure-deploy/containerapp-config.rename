@@ -1,24 +1,24 @@
 # Azure Resource Group and Network Configuration
-RESOURCE_GROUP="librechat1-rg"
-VNET_RG="vnet"
-VNET_NAME="vnet-westus"
-SUBNET_NAME="containerapp"
-ENVIRONMENT="librechat2-env"
-LOCATION="westus"
+RESOURCE_GROUP="rg-playai-eastus-n2a-001"
+VNET_RG="rg-paychexai-shared-eastus-nonprod-001"
+VNET_NAME="vnet-paychexai-eastus-nonprod-001"
+SUBNET_NAME="snet-paychexai-conapps-n2a-002"
+ENVIRONMENT="cenv-playai-eastus-n2a-001"
+LOCATION="eastus"
 
 # Container App Configuration
-FRONTEND_NAME="librechat2-ui"
-FRONTEND_IMAGE="anildwaamlacr.azurecr.io/librechat:1.0"
-ACR_NAME="anildwaamlacr"
-APP_TITLE="LibreChat on Azure"
+FRONTEND_NAME="conplayaieastusn2a001"
+FRONTEND_IMAGE="conpaychexaiprod001.azurecr.io/librechat:latest"
+ACR_NAME="conpaychexaiprod001"
+APP_TITLE="Vanilla ChatGPT"
 
 # OpenAI Configuration
-AZURE_OPENAI_API_INSTANCE_NAME="librechat-apim.azure-api.net/AzureOpenAI/deployments"
-AZURE_OPENAI_API_DEPLOYMENT_NAME="gpt-35-turbo-16k"
-AZURE_OPENAI_API_VERSION="2023-03-15-preview"
-AZURE_OPENAI_API_COMPLETIONS_DEPLOYMENT_NAME="gpt-35-turbo-16k"
+AZURE_OPENAI_API_INSTANCE_NAME="pyxoain2a.azure-api.net/openai/deployments"
+AZURE_OPENAI_API_DEPLOYMENT_NAME="gpt-35-turbo"
+AZURE_OPENAI_API_VERSION="2023-08-01-preview"
+AZURE_OPENAI_API_COMPLETIONS_DEPLOYMENT_NAME="gpt-35-turbo"
 AZURE_OPENAI_API_EMBEDDINGS_DEPLOYMENT_NAME="text-embedding-ada-002"
-AZURE_OPENAI_MODELS="gpt-3.5-turbo,gpt-4"
+AZURE_OPENAI_MODELS="gpt-3.5-turbo"
 
 # Azure AD Configuration
 OPENID_CLIENT_ID="380e1e61-bd22-44fe-b310-af2adebea1f1"
