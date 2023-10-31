@@ -1,3 +1,8 @@
+import React from 'react';
+import type { TOpenAIMessage } from 'librechat-data-provider';
+import { formatJSON, extractJson } from '~/utils/json';
+import CodeBlock from './CodeBlock';
+
 const isJson = (str: string) => {
   try {
     JSON.parse(str);
@@ -14,6 +19,17 @@ type TConcurrent = {
 type TMessageLimit = {
   max: number;
   windowInMinutes: number;
+};
+
+type TTokenBalance = {
+  type: 'token_balance';
+  balance: number;
+  tokenCost: number;
+  promptTokens: number;
+  prev_count: number;
+  violation_count: number;
+  date: Date;
+  generations?: TOpenAIMessage[];
 };
 
 const errorMessages = {
@@ -34,12 +50,33 @@ const errorMessages = {
       windowInMinutes > 1 ? `${windowInMinutes} minutes` : 'minute'
     }.`;
   },
+  token_balance: (json: TTokenBalance) => {
+    const { balance, tokenCost, promptTokens, generations } = json;
+    const message = `Insufficient Funds! Balance: ${balance}. Prompt tokens: ${promptTokens}. Cost: ${tokenCost}.`;
+    return (
+      <>
+        {message}
+        {generations && (
+          <>
+            <br />
+            <br />
+          </>
+        )}
+        {generations && (
+          <CodeBlock
+            lang="Generations"
+            error={true}
+            codeChildren={formatJSON(JSON.stringify(generations))}
+          />
+        )}
+      </>
+    );
+  },
 };
 
-const getMessageError = (text: string) => {
-  const errorMessage = text.length > 512 ? text.slice(0, 512) + '...' : text;
-  const match = text.match(/\{[^{}]*\}/);
-  const jsonString = match ? match[0] : '';
+const Error = ({ text }: { text: string }) => {
+  const jsonString = extractJson(text);
+  const errorMessage = text.length > 512 && !jsonString ? text.slice(0, 512) + '...' : text;
   const defaultResponse = `Something went wrong. Here's the specific error message we encountered: ${errorMessage}`;
 
   if (!isJson(jsonString)) {
@@ -59,4 +96,4 @@ const getMessageError = (text: string) => {
   }
 };
 
-export default getMessageError;
+export default Error;

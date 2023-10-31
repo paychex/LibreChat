@@ -8,11 +8,12 @@ import {
   useOnClickOutside,
   useConversation,
   useConversations,
+  useLocalStorage,
 } from '~/hooks';
 import type { TDangerButtonProps } from '~/common';
+import AutoScrollSwitch from './AutoScrollSwitch';
 import DangerButton from './DangerButton';
 import store from '~/store';
-import useLocalStorage from '~/hooks/useLocalStorage';
 
 export const ThemeSelector = ({
   theme,
@@ -27,7 +28,7 @@ export const ThemeSelector = ({
     <div className="flex items-center justify-between">
       <div>{localize('com_nav_theme')}</div>
       <select
-        className="w-24 rounded border border-black/10 bg-transparent text-sm dark:border-white/20 dark:bg-gray-900"
+        className="w-24 rounded border border-black/10 bg-transparent px-3 py-2 text-sm dark:border-white/20 dark:bg-gray-900"
         onChange={(e) => onChange(e.target.value)}
         value={theme}
       >
@@ -79,13 +80,14 @@ export const LangSelector = ({
     <div className="flex items-center justify-between">
       <div>{localize('com_nav_language')}</div>
       <select
-        className="w-24 rounded border border-black/10 bg-transparent text-sm dark:border-white/20 dark:bg-gray-900"
+        className="w-24 rounded border border-black/10 bg-transparent px-3 py-2 text-sm dark:border-white/20 dark:bg-gray-900"
         onChange={(e) => onChange(e.target.value)}
         value={langcode}
       >
         <option value="auto">{localize('com_nav_lang_auto')}</option>
         <option value="en-US">{localize('com_nav_lang_english')}</option>
         <option value="zh-CN">{localize('com_nav_lang_chinese')}</option>
+        <option value="zh-TC">{localize('com_nav_lang_traditionalchinese')}</option>
         <option value="de-DE">{localize('com_nav_lang_german')}</option>
         <option value="es-ES">{localize('com_nav_lang_spanish')}</option>
         <option value="fr-FR">{localize('com_nav_lang_french')}</option>
@@ -173,6 +175,9 @@ function General() {
             showText={true}
             mutation={clearConvosMutation}
           />
+        </div>
+        <div className="border-b pb-3 last-of-type:border-b-0 dark:border-gray-700">
+          <AutoScrollSwitch />
         </div>
       </div>
     </Tabs.Content>

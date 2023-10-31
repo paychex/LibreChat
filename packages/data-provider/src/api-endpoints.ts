@@ -1,5 +1,7 @@
 export const user = () => '/api/user';
 
+export const balance = () => '/api/balance';
+
 export const userPlugins = () => '/api/user/plugins';
 
 export const messages = (conversationId: string, messageId?: string) =>
@@ -50,7 +52,7 @@ export const loginFacebook = () => '/api/auth/facebook';
 
 export const loginGoogle = () => '/api/auth/google';
 
-export const refreshToken = () => '/api/auth/refresh';
+export const refreshToken = (retry?: boolean) => `/api/auth/refresh${retry ? '?retry=true' : ''}`;
 
 export const requestPasswordReset = () => '/api/auth/requestPasswordReset';
 

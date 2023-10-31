@@ -3,17 +3,17 @@ import { useEffect, useState } from 'react';
 import { useRecoilValue, useSetRecoilState } from 'recoil';
 import { Outlet } from 'react-router-dom';
 import {
-  useGetEndpointsQuery,
   useGetModelsQuery,
   useGetPresetsQuery,
   useGetSearchEnabledQuery,
 } from 'librechat-data-provider';
 
 import { Nav, MobileNav } from '~/components/Nav';
-import { useAuthContext, useServerStream } from '~/hooks';
+import { useAuthContext, useServerStream, useConversation } from '~/hooks';
 import store from '~/store';
 
 export default function Root() {
+  const { newConversation } = useConversation();
   const { user, isAuthenticated } = useAuthContext();
   const [navVisible, setNavVisible] = useState(() => {
     const savedNavVisible = localStorage.getItem('navVisible');
@@ -25,12 +25,10 @@ export default function Root() {
 
   const setPresets = useSetRecoilState(store.presets);
   const setIsSearchEnabled = useSetRecoilState(store.isSearchEnabled);
-  const setEndpointsConfig = useSetRecoilState(store.endpointsConfig);
   const setModelsConfig = useSetRecoilState(store.modelsConfig);
 
-  const searchEnabledQuery = useGetSearchEnabledQuery();
-  const endpointsQuery = useGetEndpointsQuery();
-  const modelsQuery = useGetModelsQuery();
+  const searchEnabledQuery = useGetSearchEnabledQuery({ enabled: isAuthenticated });
+  const modelsQuery = useGetModelsQuery({ enabled: isAuthenticated });
   const presetsQuery = useGetPresetsQuery({ enabled: !!user });
 
   useEffect(() => {
@@ -38,16 +36,9 @@ export default function Root() {
   }, [navVisible]);
 
   useEffect(() => {
-    if (endpointsQuery.data) {
-      setEndpointsConfig(endpointsQuery.data);
-    } else if (endpointsQuery.isError) {
-      console.error('Failed to get endpoints', endpointsQuery.error);
-    }
-  }, [endpointsQuery.data, endpointsQuery.isError]);
-
-  useEffect(() => {
     if (modelsQuery.data) {
       setModelsConfig(modelsQuery.data);
+      newConversation(modelsQuery.data);
     } else if (modelsQuery.isError) {
       console.error('Failed to get models', modelsQuery.error);
     }
