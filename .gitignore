@@ -1,5 +1,6 @@
 ### node etc ###
 
+
 # Logs
 data-node
 meili_data
@@ -80,3 +81,6 @@ auth.json
 /packages/ux-shared/
 /images
 azure-deploy/azure-deploy.sh
+
+secrets.env
+containerapp-config.env
