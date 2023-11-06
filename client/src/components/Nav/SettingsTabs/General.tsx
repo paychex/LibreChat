@@ -1,6 +1,6 @@
 import { useRecoilState } from 'recoil';
 import * as Tabs from '@radix-ui/react-tabs';
-import React, { useState, useContext, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useContext, useCallback, useRef } from 'react';
 import { useClearConversationsMutation } from 'librechat-data-provider';
 import {
   ThemeContext,
@@ -98,6 +98,7 @@ export const LangSelector = ({
         <option value="ja-JP">{localize('com_nav_lang_japanese')}</option>
         <option value="sv-SE">{localize('com_nav_lang_swedish')}</option>
         <option value="ko-KR">{localize('com_nav_lang_korean')}</option>
+        <option value="vi-VN">{localize('com_nav_lang_vietnamese')}</option>
       </select>
     </div>
   );
@@ -115,22 +116,23 @@ function General() {
   const contentRef = useRef(null);
   useOnClickOutside(contentRef, () => confirmClear && setConfirmClear(false), []);
 
-  useEffect(() => {
-    if (clearConvosMutation.isSuccess) {
-      newConversation();
-      refreshConversations();
-    }
-  }, [clearConvosMutation.isSuccess, newConversation, refreshConversations]);
-
-  const clearConvos = useCallback(() => {
+  const clearConvos = () => {
     if (confirmClear) {
       console.log('Clearing conversations...');
-      clearConvosMutation.mutate({});
       setConfirmClear(false);
+      clearConvosMutation.mutate(
+        {},
+        {
+          onSuccess: () => {
+            newConversation();
+            refreshConversations();
+          },
+        },
+      );
     } else {
       setConfirmClear(true);
     }
-  }, [confirmClear, clearConvosMutation]);
+  };
 
   const changeTheme = useCallback(
     (value: string) => {
