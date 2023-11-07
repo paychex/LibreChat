@@ -3,12 +3,12 @@ import { TEndpointsConfig } from 'librechat-data-provider';
 
 const defaultConfig: TEndpointsConfig = {
   azureOpenAI: null,
-  openAI: null,
-  bingAI: null,
-  chatGPTBrowser: null,
-  gptPlugins: null,
-  google: null,
-  anthropic: null,
+  //openAI: null,
+  //bingAI: null,
+  //chatGPTBrowser: null,
+  //gptPlugins: null,
+  //google: null,
+  //anthropic: null,
 };
 
 const endpointsConfig = atom<TEndpointsConfig>({
