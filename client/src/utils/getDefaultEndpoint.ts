@@ -47,7 +47,7 @@ const getEndpointFromLocalStorage = (endpointsConfig: TEndpointsConfig) => {
 };
 
 const getDefinedEndpoint = (endpointsConfig: TEndpointsConfig) => {
-  return defaultEndpoints.find((e) => Object.hasOwn(endpointsConfig ?? {}, e)) ?? 'openAI';
+  return defaultEndpoints.find((e) => Object.hasOwn(endpointsConfig ?? {}, e)) ?? 'azureOpenAI';
 };
 
 const getDefaultEndpoint = ({ convoSetup, endpointsConfig }: TDefaultEndpoint) => {
