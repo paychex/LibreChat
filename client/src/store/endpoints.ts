@@ -42,12 +42,12 @@ const availableEndpoints = selector({
   get: ({ get }) => {
     const endpoints = [
       'azureOpenAI',
-      'openAI',
-      'chatGPTBrowser',
-      'gptPlugins',
-      'bingAI',
-      'google',
-      'anthropic',
+      //'openAI',
+      //'chatGPTBrowser',
+      //'gptPlugins',
+      //'bingAI',
+     // 'google',
+      //'anthropic',
     ];
     const f = get(endpointsFilter);
     return endpoints.filter((endpoint) => f[endpoint]);
