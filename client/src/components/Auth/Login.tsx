@@ -34,7 +34,10 @@ function Login() {
             {localize(getLoginError(error))}
           </div>
         )}
-        <LoginForm onSubmit={login} />
+        {startupConfig?.registrationEnabled && (
+          <LoginForm onSubmit={login} />
+        )}
+        
         {startupConfig?.registrationEnabled && (
           <p className="my-4 text-center text-sm font-light text-gray-700">
             {' '}
