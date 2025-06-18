@@ -10,10 +10,8 @@ endpoints:
     # Group-level configuration
     - group: "N2A East US"
       instanceName: "N2A OpenAI"
-        #apiKey: "${AZURE_OPENAI_API_KEY}"
-        #baseURL: "${AZURE_OPENAI_BASEURL}"
-      apiKey: "1a68856a20fe4c99b8e7781214f3ad9a"
-      baseURL: "https://service-internal-n2a.paychex.com/is/librechat/azure/openai/deployments/${DEPLOYMENT_NAME}"
+      apiKey: "${AZURE_OPENAI_API_KEY}"
+      baseURL: "${AZURE_OPENAI_BASEURL}"
 
       version: "2024-02-01"
       # Model-level configuration
@@ -24,8 +22,8 @@ endpoints:
 
     - group: "N2A East US2"
       instanceName: "N2A OpenAI"
-      apiKey: "1a68856a20fe4c99b8e7781214f3ad9a"
-      baseURL: "https://service-internal-n2a.paychex.com/is/librechat/llama-3-3-70b-instruct"
+      apiKey: "${AZURE_OPENAI_API_KEY}"
+      baseURL: "${AZURE_OPENAI_BASEURL}"
 
       version: "2024-06-01"
       models:
@@ -37,8 +35,8 @@ endpoints:
 
     - group: "N2A East US3"
       instanceName: "N2A OpenAI"
-      apiKey: "1a68856a20fe4c99b8e7781214f3ad9a"
-      baseURL: "https://service-internal-n2a.paychex.com/is/librechat/mistral-large-2411"
+      apiKey: "${AZURE_OPENAI_API_KEY}"
+      baseURL: "${AZURE_OPENAI_BASEURL}"
 
       models:
         mistral-large-2411:
