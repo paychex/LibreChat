@@ -1,0 +1,50 @@
+version: 1.0.0
+cache: true
+endpoints:
+  azureOpenAI:
+    # Endpoint-level configuration
+    titleModel: "gpt-4o"
+    plugins: false
+    assistants: false
+    groups:
+    # Group-level configuration
+    - group: "N2A East US"
+      instanceName: "N2A OpenAI"
+        #apiKey: "${AZURE_OPENAI_API_KEY}"
+        #baseURL: "${AZURE_OPENAI_BASEURL}"
+      apiKey: "1a68856a20fe4c99b8e7781214f3ad9a"
+      baseURL: "https://service-internal-n2a.paychex.com/is/librechat/azure/openai/deployments/${DEPLOYMENT_NAME}"
+
+      version: "2024-02-01"
+      # Model-level configuration
+      models:
+        gpt-4o:
+          deploymentName: gpt-4o
+          version: "2024-02-01"
+
+    - group: "N2A East US2"
+      instanceName: "N2A OpenAI"
+      apiKey: "1a68856a20fe4c99b8e7781214f3ad9a"
+      baseURL: "https://service-internal-n2a.paychex.com/is/librechat/llama-3-3-70b-instruct"
+
+      version: "2024-06-01"
+      models:
+        llama-3-3-70b-instruct:
+          deploymentName: llama-3-3-70b-instruct
+          version: "2024-06-01"
+          model_vendor: "meta"  # optional, validate compatibility
+          model_provider: "azure"  # check if your backend expects this value or "openai"
+
+    - group: "N2A East US3"
+      instanceName: "N2A OpenAI"
+      apiKey: "1a68856a20fe4c99b8e7781214f3ad9a"
+      baseURL: "https://service-internal-n2a.paychex.com/is/librechat/mistral-large-2411"
+
+      models:
+        mistral-large-2411:
+          deploymentName: mistral-large-2411
+          version: "2024-08-06"
+          model_vendor: "mistral"
+          model_type: "llm"
+          model_provider: "custom"
+
