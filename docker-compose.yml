@@ -17,6 +17,7 @@ services:
     environment:
       - HOST=0.0.0.0
       - MONGO_URI=mongodb://mongodb:27017/LibreChat
+      - NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
       - MEILI_HOST=http://meilisearch:7700
       - RAG_PORT=${RAG_PORT:-8000}
       - RAG_API_URL=http://rag_api:${RAG_PORT:-8000}
@@ -24,12 +25,16 @@ services:
       - type: bind
         source: ./.env
         target: /app/.env
+      - type: bind
+        source: ./paychex-root.pem
+        target: /app/paychex-root.pem
       - ./images:/app/client/public/images
-      - ./uploads:/app/uploads
-      - ./logs:/app/api/logs
+      - logs:/app/api/logs
+      - /etc/ssl/certs:/etc/ssl/certs
+      - ./librechat.yaml:/app/librechat.yaml
   mongodb:
     container_name: chat-mongodb
-    image: mongo
+    image: mongo:4.4.18
     restart: always
     user: "${UID}:${GID}"
     volumes:
@@ -46,6 +51,8 @@ services:
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
     volumes:
       - ./meili_data_v1.12:/meili_data
+    networks:
+      - librechat-net
   vectordb:
     container_name: vectordb
     image: ankane/pgvector:latest
@@ -62,6 +69,9 @@ services:
     environment:
       - DB_HOST=vectordb
       - RAG_PORT=${RAG_PORT:-8000}
+      - POSTGRES_DB=mydatabase
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
     restart: always
     depends_on:
       - vectordb
@@ -70,3 +80,4 @@ services:
 
 volumes:
   pgdata2:
+  logs:
