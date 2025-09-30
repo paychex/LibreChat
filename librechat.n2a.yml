@@ -5,10 +5,10 @@ interface:
   webSearch: false
   runCode: false
 endpoints:
-  agents:
-    capabilities:
-      - "file_search"
-      - "context"
+  #agents:
+  #  capabilities:
+  #    - "file_search"
+  #    - "context"
     
   azureOpenAI:
     # Endpoint-level configuration
