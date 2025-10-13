@@ -4,6 +4,13 @@ interface:
   agents: false
   webSearch: false
   runCode: false
+modelSpecs:
+  list:
+    - name: "gpt-4o"
+      default: true
+      preset:
+        endpoint: "azureOpenAI"
+        model: "gpt-4o"
 endpoints:
   #agents:
   #  capabilities:
