@@ -21,6 +21,7 @@ import {
   useRefreshTokenMutation,
 } from '~/data-provider';
 import { TAuthConfig, TUserContext, TAuthContext, TResError } from '~/common';
+import { initializePendo } from '~/utils';
 import useTimeout from './useTimeout';
 import store from '~/store';
 
@@ -202,6 +203,13 @@ const AuthContextProvider = ({
       window.removeEventListener('tokenUpdated', handleTokenUpdate);
     };
   }, [setUserContext, user]);
+
+  // Initialize Pendo when user is authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      initializePendo(user);
+    }
+  }, [isAuthenticated, user]);
 
   // Make the provider update only when it should
   const memoedValue = useMemo(
