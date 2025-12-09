@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import type { ModelSelectorProps } from '~/common';
 import { ModelSelectorProvider, useModelSelectorContext } from './ModelSelectorContext';
 import { ModelSelectorChatProvider } from './ModelSelectorChatContext';
-import { renderEndpoints, renderSearchResults } from './components';
+import { renderEndpoints, renderSearchResults, renderModelSpecs } from './components';
 import { getSelectedIcon, getDisplayValue } from './utils';
 import { CustomMenu as Menu } from './CustomMenu';
 import DialogManager from './DialogManager';
@@ -67,6 +67,14 @@ function ModelSelectorContent() {
     </button>
   );
 
+  const hasMappedEndpoints = (mappedEndpoints?.length ?? 0) > 0;
+
+  const menuContent = searchResults
+    ? renderSearchResults(searchResults, localize, searchValue)
+    : hasMappedEndpoints
+      ? renderEndpoints(mappedEndpoints ?? [])
+      : renderModelSpecs(modelSpecs ?? [], selectedValues.modelSpec || '');
+
   return (
     <div className="relative flex w-full max-w-md flex-col items-center gap-2">
       <Menu
@@ -82,9 +90,7 @@ function ModelSelectorContent() {
         combobox={<input placeholder={localize('com_endpoint_search_models')} />}
         trigger={trigger}
       >
-        {searchResults
-          ? renderSearchResults(searchResults, localize, searchValue)
-          : renderEndpoints(mappedEndpoints ?? [])}
+        {menuContent}
       </Menu>
       <DialogManager
         keyDialogOpen={keyDialogOpen}

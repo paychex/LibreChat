@@ -97,12 +97,7 @@ const Menu: React.FC<MenuProps> = ({
           {item.icon}
         </span>
       )}
-      <div className="flex flex-1 flex-col text-left">
-        <span className="text-sm font-medium text-text-primary">{item.label}</span>
-        {item.description && (
-          <span className="text-xs leading-tight text-text-tertiary">{item.description}</span>
-        )}
-      </div>
+      <MenuItemText label={item.label} description={item.description} />
     </div>
   );
   return (

@@ -111,93 +111,42 @@ export function EndpointItem({ endpoint }: EndpointItemProps) {
     </div>
   );
 
-  if (hasSpecModels) {
-    const normalizedSearch = searchValue.trim().toLowerCase();
-    const visibleSpecs = normalizedSearch
+  const normalizedSearch = searchValue.trim().toLowerCase();
+  const visibleSpecs = hasSpecModels
+    ? normalizedSearch
       ? endpointSpecs.filter((spec) => {
           const label = spec.label?.toLowerCase() ?? '';
           const description = spec.description?.toLowerCase() ?? '';
           return label.includes(normalizedSearch) || description.includes(normalizedSearch);
         })
-      : endpointSpecs;
+      : endpointSpecs
+    : [];
 
-    return (
-      <Menu
-        id={`endpoint-${endpoint.value}-menu`}
-        key={`endpoint-${endpoint.value}-item`}
-        className="transition-opacity duration-200 ease-in-out"
-        defaultOpen={endpoint.value === selectedEndpoint}
-        searchValue={searchValue}
-        onSearch={(value) => setEndpointSearchValue(endpoint.value, value)}
-        combobox={<input placeholder={searchPlaceholder} />}
-        label={
-          <div
-            onClick={() => handleSelectEndpoint(endpoint)}
-            className="group flex w-full shrink cursor-pointer items-center justify-between rounded-xl px-1 py-1 text-sm"
-          >
-            {renderIconLabel()}
-            {isUserProvided && (
-              <SettingsButton endpoint={endpoint} handleOpenKeyDialog={handleOpenKeyDialog} />
-            )}
-          </div>
-        }
-      >
-        {visibleSpecs.length > 0 ? (
-          visibleSpecs.map((spec) => (
-            <ModelSpecItem key={spec.name} spec={spec} isSelected={selectedSpec === spec.name} />
-          ))
-        ) : (
-          <div className="cursor-default px-3 py-2 text-sm text-text-tertiary">
-            {localize('com_files_no_results')}
-          </div>
-        )}
-      </Menu>
-    );
-  }
+  const filteredModels = searchValue
+    ? filterModels(
+        endpoint,
+        (endpoint.models || []).map((model) => model.name),
+        searchValue,
+        agentsMap,
+        assistantsMap,
+      )
+    : null;
 
-  if (endpoint.hasModels) {
-    const filteredModels = searchValue
-      ? filterModels(
-          endpoint,
-          (endpoint.models || []).map((model) => model.name),
-          searchValue,
-          agentsMap,
-          assistantsMap,
-        )
-      : null;
-    return (
-      <Menu
-        id={`endpoint-${endpoint.value}-menu`}
-        key={`endpoint-${endpoint.value}-item`}
-        className="transition-opacity duration-200 ease-in-out"
-        defaultOpen={endpoint.value === selectedEndpoint}
-        searchValue={searchValue}
-        onSearch={(value) => setEndpointSearchValue(endpoint.value, value)}
-        combobox={<input placeholder={searchPlaceholder} />}
-        label={
-          <div
-            onClick={() => handleSelectEndpoint(endpoint)}
-            className="group flex w-full shrink cursor-pointer items-center justify-between rounded-xl px-1 py-1 text-sm"
-          >
-            {renderIconLabel()}
-            {isUserProvided && (
-              <SettingsButton endpoint={endpoint} handleOpenKeyDialog={handleOpenKeyDialog} />
-            )}
-          </div>
-        }
-      >
-        {isAssistantsEndpoint(endpoint.value) && endpoint.models === undefined ? (
-          <div className="flex items-center justify-center p-2">
-            <Spinner />
-          </div>
-        ) : filteredModels ? (
-          renderEndpointModels(endpoint, endpoint.models || [], selectedModel, filteredModels)
-        ) : (
-          endpoint.models && renderEndpointModels(endpoint, endpoint.models, selectedModel)
-        )}
-      </Menu>
-    );
-  } else {
+  const isAssistantsLoading =
+    endpoint.hasModels && isAssistantsEndpoint(endpoint.value) && endpoint.models === undefined;
+
+  const hasSpecMatches = visibleSpecs.length > 0;
+  const hasModelMatches = endpoint.hasModels
+    ? isAssistantsLoading
+      ? true
+      : filteredModels
+        ? filteredModels.length > 0
+        : (endpoint.models?.length ?? 0) > 0
+    : false;
+
+  const shouldShowEmptyState = !hasSpecMatches && !hasModelMatches;
+
+  if (!endpoint.hasModels && !hasSpecModels) {
     return (
       <MenuItem
         id={`endpoint-${endpoint.value}-menu`}
@@ -233,6 +182,51 @@ export function EndpointItem({ endpoint }: EndpointItemProps) {
       </MenuItem>
     );
   }
+
+  return (
+    <Menu
+      id={`endpoint-${endpoint.value}-menu`}
+      key={`endpoint-${endpoint.value}-item`}
+      className="transition-opacity duration-200 ease-in-out"
+      defaultOpen={endpoint.value === selectedEndpoint}
+      searchValue={searchValue}
+      onSearch={(value) => setEndpointSearchValue(endpoint.value, value)}
+      combobox={<input placeholder={searchPlaceholder} />}
+      label={
+        <div
+          onClick={() => handleSelectEndpoint(endpoint)}
+          className="group flex w-full shrink cursor-pointer items-center justify-between rounded-xl px-1 py-1 text-sm"
+        >
+          {renderIconLabel()}
+          {isUserProvided && (
+            <SettingsButton endpoint={endpoint} handleOpenKeyDialog={handleOpenKeyDialog} />
+          )}
+        </div>
+      }
+    >
+      {hasSpecMatches &&
+        visibleSpecs.map((spec) => (
+          <ModelSpecItem key={spec.name} spec={spec} isSelected={selectedSpec === spec.name} />
+        ))}
+      {endpoint.hasModels && (
+        isAssistantsLoading ? (
+          <div className="flex items-center justify-center p-2">
+            <Spinner />
+          </div>
+        ) : filteredModels ? (
+          filteredModels.length > 0 &&
+          renderEndpointModels(endpoint, endpoint.models || [], selectedModel, filteredModels)
+        ) : (
+          endpoint.models && renderEndpointModels(endpoint, endpoint.models, selectedModel)
+        )
+      )}
+      {shouldShowEmptyState && (
+        <div className="cursor-default px-3 py-2 text-sm text-text-tertiary">
+          {localize('com_files_no_results')}
+        </div>
+      )}
+    </Menu>
+  );
 }
 
 export function renderEndpoints(mappedEndpoints: Endpoint[]) {
