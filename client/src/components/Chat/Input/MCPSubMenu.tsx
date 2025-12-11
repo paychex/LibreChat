@@ -91,10 +91,9 @@ const MCPSubMenu = React.forwardRef<HTMLDivElement, MCPSubMenuProps>(
 
               const statusIcon = statusIconProps && <MCPServerStatusIcon {...statusIconProps} />;
 
-              const displayName = localize(
-                `com_ui_mcp_server_${serverName}` as any,
-                { defaultValue: serverName },
-              );
+              const displayName = localize(`com_ui_mcp_server_${serverName}` as any, {
+                defaultValue: serverName,
+              });
 
               return (
                 <Ariakit.MenuItem
