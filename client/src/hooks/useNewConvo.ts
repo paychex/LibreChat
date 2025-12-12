@@ -85,6 +85,16 @@ const useNewConvo = (index = 0) => {
           storedConversation?.model ?? storedConversation?.agentOptions?.model,
         );
         const buildDefaultConversation = (endpoint === null || buildDefault) ?? false;
+
+        // Check if the passed preset is the default spec preset (not a user-selected one)
+        const isDefaultSpecPreset = Boolean(
+          preset &&
+            defaultPreset &&
+            (preset.spec === defaultPreset.spec ||
+              (preset.presetId && preset.presetId === defaultPreset.presetId)),
+        );
+
+        // Don't use the default preset if user has a stored model selection
         const shouldUseDefaultPreset = Boolean(
           defaultPreset &&
             !preset &&
@@ -92,14 +102,20 @@ const useNewConvo = (index = 0) => {
             buildDefaultConversation &&
             !hasStoredModelSelection,
         );
+
+        // If the preset is the default spec and user has stored model, prefer stored conversation
+        const effectivePreset =
+          isDefaultSpecPreset && hasStoredModelSelection && buildDefaultConversation
+            ? null
+            : preset;
+
         const appliedPreset: Partial<TPreset> | null = shouldUseDefaultPreset
           ? defaultPreset
-          : preset ?? null;
+          : (effectivePreset ?? null);
         const conversationSetup = appliedPreset ?? storedConversation ?? null;
 
-        const disableParams =
-          _disableParams ??
-          (appliedPreset?.presetId != null &&
+        const _isDefaultPresetApplied = Boolean(
+          appliedPreset &&
             appliedPreset.presetId &&
             appliedPreset.presetId === defaultPreset?.presetId);
 
@@ -164,7 +180,7 @@ const useNewConvo = (index = 0) => {
           });
         }
 
-        if (disableParams === true) {
+        if (_disableParams === true) {
           conversation.disableParams = true;
         }
 
