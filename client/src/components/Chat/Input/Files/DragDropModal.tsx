@@ -24,6 +24,7 @@ interface FileOption {
   value?: EToolResources;
   icon: React.JSX.Element;
   condition?: boolean;
+  description?: string;
 }
 
 const DragDropModal = ({ onOptionSelect, setShowModal, files, isVisible }: DragDropModalProps) => {
@@ -45,6 +46,7 @@ const DragDropModal = ({ onOptionSelect, setShowModal, files, isVisible }: DragD
     const _options: FileOption[] = [
       {
         label: localize('com_ui_upload_image_input'),
+        description: localize('com_ui_upload_image_input_description'),
         value: undefined,
         icon: <ImageUpIcon className="icon-md" />,
         condition: files.every((file) => file.type?.startsWith('image/')),
@@ -53,6 +55,7 @@ const DragDropModal = ({ onOptionSelect, setShowModal, files, isVisible }: DragD
     if (capabilities.fileSearchEnabled && fileSearchAllowedByAgent) {
       _options.push({
         label: localize('com_ui_upload_file_search'),
+        description: localize('com_ui_upload_file_search_description'),
         value: EToolResources.file_search,
         icon: <FileSearch className="icon-md" />,
       });
@@ -60,6 +63,7 @@ const DragDropModal = ({ onOptionSelect, setShowModal, files, isVisible }: DragD
     if (capabilities.codeEnabled && codeAllowedByAgent) {
       _options.push({
         label: localize('com_ui_upload_code_files'),
+        description: localize('com_ui_upload_code_files_description'),
         value: EToolResources.execute_code,
         icon: <TerminalSquareIcon className="icon-md" />,
       });
@@ -67,6 +71,7 @@ const DragDropModal = ({ onOptionSelect, setShowModal, files, isVisible }: DragD
     if (capabilities.contextEnabled) {
       _options.push({
         label: localize('com_ui_upload_ocr_text'),
+        description: localize('com_ui_upload_ocr_text_description'),
         value: EToolResources.context,
         icon: <FileType2Icon className="icon-md" />,
       });
@@ -92,10 +97,15 @@ const DragDropModal = ({ onOptionSelect, setShowModal, files, isVisible }: DragD
                   <button
                     key={index}
                     onClick={() => onOptionSelect(option.value)}
-                    className="flex items-center gap-2 rounded-lg p-2 hover:bg-surface-active-alt"
+                    className="hover:bg-surface-active-al flex items-start gap-2 rounded-lg p-2 text-left"
                   >
                     {option.icon}
-                    <span>{option.label}</span>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{option.label}</span>
+                      {option.description && (
+                        <span className="sm text-muted-foreground">{option.description}</span>
+                      )}
+                    </div>
                   </button>
                 ),
             )}

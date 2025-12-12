@@ -14,49 +14,49 @@ modelSpecs:
     - name: azure-gpt-4o
       label: GPT-4o
       default: true
-      description: Everyday broad questions (What is…, How do I…, Explain this in simple terms)
+      description: For daily tasks with a quick response time.
       preset:
         endpoint: azureOpenAI
         model: gpt-4o
     - name: azure-gpt-4o-mini
       label: GPT-4o Mini
-      description: Quick simple answers (Summarize in one line, define this term)
+      description: Offers simpler, more instant responses.
       preset:
         endpoint: azureOpenAI
         model: gpt-4o-mini
     - name: azure-gpt-41
       label: GPT-4.1
-      description: Detailed complex tasks (multi-step, create a plan, analyze data trends)
+      description: For complex reasoning and coding.
       preset:
         endpoint: azureOpenAI
         model: gpt-41
     - name: azure-gpt-41-mini
       label: GPT-4.1 Mini
-      description: Fast routine tasks (Repetitive, straightforward, Summarize, rewrite, quick list)
+      description: A faster, more lightweight version of GPT-4.1.
       preset:
         endpoint: azureOpenAI
         model: gpt-41-mini
     - name: azure-gpt-5
       label: GPT-5
-      description: Creative technical tasks (Design new workflow, draft technical documentation, brainstorm solutions)
+      description: For advanced tasks with the highest accuracy and reasoning depth.
       preset:
         endpoint: azureOpenAI
         model: gpt-5
     - name: google-gemini-25-pro
       label: Gemini 2.5 Pro
-      description: Google's flagship multimodal reasoning (long context, structured analysis, polished summaries)
+      description: Quickly analyze complex, mixed media content.
       preset:
         endpoint: "Gemini 2.5 Pro"
         model: gemini-2.5-pro
     - name: google-gemini-25-flash
       label: Gemini 2.5 Flash
-      description: Fast lightweight responses for quick drafts, short answers, and iterative edits
+      description: A faster, more lightweight version of Gemini 2.5 Pro.
       preset:
         endpoint: "Gemini 2.5 Flash"
         model: gemini-2.5-flash
     - name: anthropic-claude-sonnet-45
       label: Claude Sonnet 4.5
-      description: Anthropic's balanced model for compliant reasoning, careful analysis, and enterprise-safe writing
+      description: Let the model plan, ideate, and execute for you. For extended reasoning, coding, and automation.
       preset:
         endpoint: "Claude Sonnet 4.5"
         model: claude-sonnet-4-5

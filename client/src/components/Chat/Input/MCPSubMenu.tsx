@@ -6,6 +6,7 @@ import MCPServerStatusIcon from '~/components/MCP/MCPServerStatusIcon';
 import MCPConfigDialog from '~/components/MCP/MCPConfigDialog';
 import { useBadgeRowContext } from '~/Providers';
 import { cn } from '~/utils';
+import { useLocalize } from '~/hooks';
 
 interface MCPSubMenuProps {
   children?: React.ReactNode;
@@ -31,6 +32,8 @@ const MCPSubMenu = React.forwardRef<HTMLDivElement, MCPSubMenuProps>(
       showTimeout: 100,
       placement: 'right',
     });
+
+    const localize = useLocalize();
 
     // Don't render if no MCP servers are configured
     if (!configuredServers || configuredServers.length === 0) {
@@ -88,6 +91,10 @@ const MCPSubMenu = React.forwardRef<HTMLDivElement, MCPSubMenuProps>(
 
               const statusIcon = statusIconProps && <MCPServerStatusIcon {...statusIconProps} />;
 
+              const displayName = localize('com_ui_mcp_server_tavily', {
+                defaultValue: serverName,
+              });
+
               return (
                 <Ariakit.MenuItem
                   key={serverName}
@@ -108,7 +115,7 @@ const MCPSubMenu = React.forwardRef<HTMLDivElement, MCPSubMenuProps>(
                 >
                   <div className="flex flex-grow items-center gap-2">
                     <Ariakit.MenuItemCheck checked={isSelected} />
-                    <span>{serverName}</span>
+                    <span>{displayName}</span>
                   </div>
                   {statusIcon && <div className="ml-2 flex items-center">{statusIcon}</div>}
                 </Ariakit.MenuItem>
