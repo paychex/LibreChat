@@ -111,7 +111,7 @@ const useNewConvo = (index = 0) => {
 
         const appliedPreset: Partial<TPreset> | null = shouldUseDefaultPreset
           ? defaultPreset
-          : effectivePreset ?? null;
+          : (effectivePreset ?? null);
         const conversationSetup = appliedPreset ?? storedConversation ?? null;
 
         const disableParams =
