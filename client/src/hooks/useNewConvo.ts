@@ -111,10 +111,10 @@ const useNewConvo = (index = 0) => {
 
         const appliedPreset: Partial<TPreset> | null = shouldUseDefaultPreset
           ? defaultPreset
-          : effectivePreset ?? null;
+          : (effectivePreset ?? null);
         const conversationSetup = appliedPreset ?? storedConversation ?? null;
 
-        const isDefaultPresetApplied = Boolean(
+        const _isDefaultPresetApplied = Boolean(
           appliedPreset &&
             appliedPreset.presetId &&
             appliedPreset.presetId === defaultPreset?.presetId);
