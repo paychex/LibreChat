@@ -91,7 +91,7 @@ const MCPSubMenu = React.forwardRef<HTMLDivElement, MCPSubMenuProps>(
 
               const statusIcon = statusIconProps && <MCPServerStatusIcon {...statusIconProps} />;
 
-              const displayName = localize(`com_ui_mcp_server_${serverName}` as any, {
+              const displayName = localize('com_ui_mcp_server_tavily', {
                 defaultValue: serverName,
               });
 
