@@ -61,7 +61,7 @@ modelSpecs:
         endpoint: "Claude Sonnet 4.5"
         model: claude-sonnet-4-5
 mcpServers:
-  tavily:
+  Internet Search (Tavily):
     type: streamable-http
     url: https://mcp.tavily.com/mcp/
     headers:
