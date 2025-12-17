@@ -178,6 +178,13 @@ const useNewConvo = (index = 0) => {
             endpoint: defaultEndpoint,
             models,
           });
+        } else if (appliedPreset) {
+          // When buildDefault is false but a preset is provided, merge preset properties
+          // This ensures modelLabel, spec, iconURL, etc. are applied to the conversation
+          conversation = {
+            ...conversation,
+            ...appliedPreset,
+          };
         }
 
         if (_disableParams === true) {
