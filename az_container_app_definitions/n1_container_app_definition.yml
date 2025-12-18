@@ -134,7 +134,7 @@ properties:
             value: https://service-internal-n1.paychex.com/is/librechat  
           - name: GCP_VERTEXAI_API_KEY
             secretRef: maas-api-key
-          - name: TAVILY-API-KEY
+          - name: TAVILY_API_KEY
             secretRef: tavily-api-key
           - name: ALLOW_REGISTRATION
             value: FALSE
