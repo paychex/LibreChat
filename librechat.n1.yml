@@ -56,8 +56,8 @@ modelSpecs:
         endpoint: "Gemini 2.5 Flash"
         model: gemini-2.5-flash
     - name: anthropic-claude-sonnet-45
-      label: Claude Sonnet 4.5
-      description: Let the model plan, ideate, and execute for you. For extended reasoning, coding, and automation.
+      label: Claude Sonnet 4.5 (Limited)
+      description: For extended reasoning, coding, and automation. This model is being evaluated. It can be used a limited number of times
       preset:
         endpoint: "Claude Sonnet 4.5"
         model: claude-sonnet-4-5
