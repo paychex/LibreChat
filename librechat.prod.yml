@@ -2,7 +2,6 @@ version: 1.0.0
 cache: true
 interface:
   agents: false
-  parameters: true
   modelSelect: true
   parameters: true
 modelSpecs:
