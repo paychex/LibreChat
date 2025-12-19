@@ -169,8 +169,8 @@ properties:
         - volumeName: fspaichateastusprod001
           mountPath: /app/uploads
     scale:
-      minReplicas: 6
-      maxReplicas: 24
+      minReplicas: 3
+      maxReplicas: 6
       rules:
       - name: httpscalingrule
         custom:
