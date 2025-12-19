@@ -3,6 +3,8 @@ cache: true
 interface:
   agents: false
   modelSelect: true
+  parameters: true
+  presets: true
 modelSpecs:
   addedEndpoints:
     - azureOpenAI
