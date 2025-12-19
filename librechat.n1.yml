@@ -5,6 +5,7 @@ interface:
   runCode: false
   modelSelect: true
   parameters: true
+  presets: true
 modelSpecs:
   addedEndpoints:
     - azureOpenAI
