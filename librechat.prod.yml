@@ -4,6 +4,7 @@ interface:
   agents: false
   parameters: true
   modelSelect: true
+  parameters: true
 modelSpecs:
   addedEndpoints:
     - azureOpenAI
