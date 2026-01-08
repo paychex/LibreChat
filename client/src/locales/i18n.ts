@@ -4,6 +4,7 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 
 // Import your JSON translations
 import translationEn from './en/translation.json';
+import translationEnOverride from './en/translation.override.json';
 import translationAr from './ar/translation.json';
 import translationCa from './ca/translation.json';
 import translationCs from './cs/translation.json';
@@ -43,8 +44,11 @@ import translationSl from './sl/translation.json';
 
 export const defaultNS = 'translation';
 
+// Merge override into base translation for English
+const mergedEn = { ...translationEn, ...translationEnOverride };
+
 export const resources = {
-  en: { translation: translationEn },
+  en: { translation: mergedEn },
   ar: { translation: translationAr },
   bs: { translation: translationBs },
   ca: { translation: translationCa },
