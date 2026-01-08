@@ -913,18 +913,18 @@ class BaseClient {
   }
   /**
    * Filters out tool-related content from messages created by a different provider.
-   * 
+   *
    * @param {TMessage[]} messages - Array of messages to filter
    * @returns {TMessage[]} Messages with tool content filtered based on endpoint
    */
   filterCrossProviderToolCalls(messages) {
     const currentEndpoint = this.options?.endpoint;
-    
+
     if (!currentEndpoint || !messages || messages.length === 0) {
       return messages;
     }
 
-    return messages.map(message => {
+    return messages.map((message) => {
       if (message.endpoint === currentEndpoint || !message.endpoint) {
         return message;
       }
@@ -934,7 +934,7 @@ class BaseClient {
       }
 
       // Filter out tool_call types from different endpoint
-      const filteredContent = message.content.filter(part => {
+      const filteredContent = message.content.filter((part) => {
         return part.type !== ContentTypes.TOOL_CALL;
       });
 
