@@ -935,8 +935,24 @@ class BaseClient {
 
       // Filter out tool_call types from different endpoint
       const filteredContent = message.content.filter((part) => {
-        return part.type !== ContentTypes.TOOL_CALL;
+        if (part.type === ContentTypes.TOOL_CALL) {
+          return false;
+        }
+        // Filter text parts that announce tool calls
+        if (part.type === ContentTypes.TEXT && part.tool_call_ids?.length) {
+          return false;
+        }
+        return true;
       });
+
+      if (filteredContent.length === 0) {
+        logger.debug('[BaseClient] Excluding message with only tool content from different provider:', {
+          messageId: message.messageId,
+          fromEndpoint: message.endpoint,
+          toEndpoint: currentEndpoint,
+        });
+        return null;
+      }
 
       if (filteredContent.length !== message.content.length) {
         logger.debug('[BaseClient] Filtered tool calls from message:', {
@@ -953,7 +969,7 @@ class BaseClient {
       }
 
       return message;
-    });
+    }).filter((message) => message !== null);
   }
 
   /**
