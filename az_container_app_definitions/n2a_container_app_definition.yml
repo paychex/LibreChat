@@ -167,10 +167,8 @@ properties:
         volumeMounts:
           - volumeName: fspaichateastusn2a001
             mountPath: /app/uploads
-            subPath: uploads
           - volumeName: fspaichateastusn2a001
             mountPath: /app/client/public/images
-            subPath: images
       - image: conpaychexaiprod001.azurecr.io/paychex/rag_api:n2a.latest
         name: conpairag
         env:
@@ -212,7 +210,6 @@ properties:
         volumeMounts:
           - volumeName: fspaichateastusn2a001
             mountPath: /app/uploads
-            subPath: uploads
     initContainers: null
     scale:
       minReplicas: 3
