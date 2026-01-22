@@ -164,6 +164,11 @@ properties:
           memory: 4Gi
           ephemeralStorage: 4Gi
         probes: []
+        volumeMounts:
+          - volumeName: fspaichateastusn2a001
+            mountPath: /app/uploads
+          - volumeName: fspaichateastusn2a001
+            mountPath: /app/client/public/images
       - image: conpaychexaiprod001.azurecr.io/paychex/rag_api:n2a.latest
         name: conpairag
         env:

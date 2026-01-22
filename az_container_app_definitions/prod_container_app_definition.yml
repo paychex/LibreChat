@@ -127,6 +127,11 @@ properties:
         cpu: 1
         memory: 8Gi
         ephemeralStorage: 4Gi
+      volumeMounts:
+        - volumeName: fspaichateastusprod001
+          mountPath: /app/uploads
+        - volumeName: fspaichateastusprod001
+          mountPath: /app/client/public/images
     - image: conpaychexaiprod001.azurecr.io/paychex/rag_api:prod.latest
       name: conpairag
       env:
