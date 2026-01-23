@@ -924,52 +924,57 @@ class BaseClient {
       return messages;
     }
 
-    return messages.map((message) => {
-      if (message.endpoint === currentEndpoint || !message.endpoint) {
-        return message;
-      }
-
-      if (!Array.isArray(message.content)) {
-        return message;
-      }
-
-      // Filter out tool_call types from different endpoint
-      const filteredContent = message.content.filter((part) => {
-        if (part.type === ContentTypes.TOOL_CALL) {
-          return false;
+    return messages
+      .map((message) => {
+        if (message.endpoint === currentEndpoint || !message.endpoint) {
+          return message;
         }
-        // Filter text parts that announce tool calls
-        if (part.type === ContentTypes.TEXT && part.tool_call_ids?.length) {
-          return false;
+
+        if (!Array.isArray(message.content)) {
+          return message;
         }
-        return true;
-      });
 
-      if (filteredContent.length === 0) {
-        logger.debug('[BaseClient] Excluding message with only tool content from different provider:', {
-          messageId: message.messageId,
-          fromEndpoint: message.endpoint,
-          toEndpoint: currentEndpoint,
-        });
-        return null;
-      }
-
-      if (filteredContent.length !== message.content.length) {
-        logger.debug('[BaseClient] Filtered tool calls from message:', {
-          messageId: message.messageId,
-          fromEndpoint: message.endpoint,
-          toEndpoint: currentEndpoint,
-          removedCount: message.content.length - filteredContent.length,
+        // Filter out tool_call types from different endpoint
+        const filteredContent = message.content.filter((part) => {
+          if (part.type === ContentTypes.TOOL_CALL) {
+            return false;
+          }
+          // Filter text parts that announce tool calls
+          if (part.type === ContentTypes.TEXT && part.tool_call_ids?.length) {
+            return false;
+          }
+          return true;
         });
 
-        return {
-          ...message,
-          content: filteredContent,
-        };
-      }
+        if (filteredContent.length === 0) {
+          logger.debug(
+            '[BaseClient] Excluding message with only tool content from different provider:',
+            {
+              messageId: message.messageId,
+              fromEndpoint: message.endpoint,
+              toEndpoint: currentEndpoint,
+            },
+          );
+          return null;
+        }
 
-      return message;
-    }).filter((message) => message !== null);
+        if (filteredContent.length !== message.content.length) {
+          logger.debug('[BaseClient] Filtered tool calls from message:', {
+            messageId: message.messageId,
+            fromEndpoint: message.endpoint,
+            toEndpoint: currentEndpoint,
+            removedCount: message.content.length - filteredContent.length,
+          });
+
+          return {
+            ...message,
+            content: filteredContent,
+          };
+        }
+
+        return message;
+      })
+      .filter((message) => message !== null);
   }
 
   /**
