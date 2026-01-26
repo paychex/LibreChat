@@ -23,6 +23,7 @@ type ModelSelectorContextType = {
   searchResults: (t.TModelSpec | Endpoint)[] | null;
   // LibreChat
   modelSpecs: t.TModelSpec[];
+  modelSpecsByEndpoint: Record<string, t.TModelSpec[]>;
   mappedEndpoints: Endpoint[];
   agentsMap: t.TAgentsMap | undefined;
   assistantsMap: t.TAssistantsMap | undefined;
@@ -57,7 +58,7 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
   const agentsMap = useAgentsMapContext();
   const assistantsMap = useAssistantsMapContext();
   const { data: endpointsConfig } = useGetEndpointsQuery();
-  const { endpoint, model, spec, agent_id, assistant_id, conversation, newConversation } =
+  const { endpoint, model, spec, agent_id, assistant_id, newConversation } =
     useModelSelectorChatContext();
   const modelSpecs = useMemo(() => {
     const specs = startupConfig?.modelSpecs?.list ?? [];
@@ -78,6 +79,24 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
     });
   }, [startupConfig, agentsMap]);
 
+  /**
+   * Group model specs by their endpoint for efficient lookup.
+   * This allows EndpointItem to quickly find all specs for a given endpoint.
+   */
+  const modelSpecsByEndpoint = useMemo(() => {
+    return modelSpecs.reduce<Record<string, t.TModelSpec[]>>((acc, spec) => {
+      const endpointKey = spec.preset?.endpoint;
+      if (!endpointKey) {
+        return acc;
+      }
+      if (!acc[endpointKey]) {
+        acc[endpointKey] = [];
+      }
+      acc[endpointKey].push(spec);
+      return acc;
+    }, {});
+  }, [modelSpecs]);
+
   const permissionLevel = useAgentDefaultPermissionLevel();
   const { data: agents = null } = useListAgentsQuery(
     { requiredPermission: permissionLevel },
@@ -96,7 +115,6 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
   const { onSelectEndpoint, onSelectSpec } = useSelectMention({
     // presets,
     modelSpecs,
-    conversation,
     assistantsMap,
     endpointsConfig,
     newConversation,
@@ -210,6 +228,7 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
     // LibreChat
     agentsMap,
     modelSpecs,
+    modelSpecsByEndpoint,
     assistantsMap,
     mappedEndpoints,
     endpointsConfig,
