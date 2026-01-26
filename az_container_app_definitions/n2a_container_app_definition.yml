@@ -163,7 +163,24 @@ properties:
           cpu: 2
           memory: 4Gi
           ephemeralStorage: 4Gi
-        probes: []
+        probes:
+          - type: Readiness
+            httpGet:
+              path: /health
+              port: 3080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+          - type: Liveness
+            httpGet:
+              path: /health
+              port: 3080
+            initialDelaySeconds: 45
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 5
         volumeMounts:
           - volumeName: fspaichateastusn2a001
             mountPath: /app/uploads
@@ -206,7 +223,16 @@ properties:
           cpu: 1
           memory: 4Gi
           ephemeralStorage: 4Gi
-        probes: []
+        probes:
+          - type: Readiness
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
         volumeMounts:
           - volumeName: fspaichateastusn2a001
             mountPath: /app/uploads
@@ -214,8 +240,8 @@ properties:
     scale:
       minReplicas: 3
       maxReplicas: 6
-      cooldownPeriod: 300
-      pollingInterval: 30
+      cooldownPeriod: 180
+      pollingInterval: 15
       rules:
       - name: httpscalingrule
         custom:

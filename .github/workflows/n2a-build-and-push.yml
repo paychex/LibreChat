@@ -49,6 +49,9 @@ jobs:
                 touch .dockerignore && chmod 755 .dockerignore |
                 cat .paychex.dockerignore >> .dockerignore
 
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
             - name: log in to ACR
               uses: azure/docker-login@v1
               with:
@@ -56,13 +59,16 @@ jobs:
                 username: ${{ env.ACR_USER }}
                 password: ${{ env.ACR_PASS }}
 
-            - name: build and push docker container
-              run: |
-                docker build . -t ${{ env.ACR_HOST }}/paychex/librechat:n2a.${{ env.COMMIT_SHA }}
-                docker push ${{ env.ACR_HOST }}/paychex/librechat:n2a.${{ env.COMMIT_SHA }}
-
-                docker build . -t ${{ env.ACR_HOST }}/paychex/librechat:n2a.latest
-                docker push ${{ env.ACR_HOST }}/paychex/librechat:n2a.latest
+            - name: Build and push docker container with caching
+              uses: docker/build-push-action@v5
+              with:
+                context: .
+                push: true
+                tags: |
+                  ${{ env.ACR_HOST }}/paychex/librechat:n2a.${{ env.COMMIT_SHA }}
+                  ${{ env.ACR_HOST }}/paychex/librechat:n2a.latest
+                cache-from: type=registry,ref=${{ env.ACR_HOST }}/paychex/librechat:n2a-cache
+                cache-to: type=registry,ref=${{ env.ACR_HOST }}/paychex/librechat:n2a-cache,mode=max
 
             - name: Trigger rag_api Workflow
               if: ${{ github.event.inputs.build_rag_api_image != 'false' }}
