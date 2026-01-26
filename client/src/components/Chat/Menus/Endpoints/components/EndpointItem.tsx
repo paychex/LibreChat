@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { SettingsIcon } from 'lucide-react';
 import { TooltipAnchor, Spinner } from '@librechat/client';
 import { EModelEndpoint, isAgentsEndpoint, isAssistantsEndpoint } from 'librechat-data-provider';
-import type { TModelSpec } from 'librechat-data-provider';
 import type { Endpoint } from '~/common';
 import { CustomMenu as Menu, CustomMenuItem as MenuItem } from '../CustomMenu';
 import { useModelSelectorContext } from '../ModelSelectorContext';
@@ -45,7 +44,7 @@ const SettingsButton = ({
       aria-label={`${text} ${endpoint.label}`}
     >
       <div className="flex w-[28px] items-center gap-1 whitespace-nowrap transition-all duration-300 ease-in-out group-hover:w-auto group-focus/button:w-auto">
-        <SettingsIcon className="h-4 w-4 flex-shrink-0" />
+        <SettingsIcon className="h-4 w-4 shrink-0" />
         <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-300 ease-in-out group-hover:max-w-[100px] group-hover:opacity-100 group-focus/button:max-w-[100px] group-focus/button:opacity-100">
           {text}
         </span>
@@ -59,13 +58,13 @@ export function EndpointItem({ endpoint }: EndpointItemProps) {
   const {
     agentsMap,
     assistantsMap,
-    modelSpecs,
     selectedValues,
     handleOpenKeyDialog,
     handleSelectEndpoint,
     endpointSearchValues,
     setEndpointSearchValue,
     endpointRequiresUserKey,
+    modelSpecsByEndpoint,
   } = useModelSelectorContext();
   const {
     model: selectedModel,
@@ -73,21 +72,19 @@ export function EndpointItem({ endpoint }: EndpointItemProps) {
     modelSpec: selectedSpec,
   } = selectedValues;
 
-  // Filter modelSpecs for this endpoint (by group matching endpoint value)
-  const endpointSpecs = useMemo(() => {
-    if (!modelSpecs || !modelSpecs.length) {
-      return [];
-    }
-    return modelSpecs.filter((spec: TModelSpec) => spec.group === endpoint.value);
-  }, [modelSpecs, endpoint.value]);
-
   const searchValue = endpointSearchValues[endpoint.value] || '';
   const isUserProvided = useMemo(() => endpointRequiresUserKey(endpoint.value), [endpoint.value]);
+  const endpointSpecs = modelSpecsByEndpoint?.[endpoint.value] ?? [];
+  const hasSpecModels = endpointSpecs.length > 0;
+  const searchPlaceholder =
+    isAgentsEndpoint(endpoint.value) || isAssistantsEndpoint(endpoint.value)
+      ? localize('com_endpoint_search_var', { 0: endpoint.label })
+      : localize('com_endpoint_search_endpoint_models', { 0: endpoint.label });
 
   const renderIconLabel = () => (
     <div className="flex items-center gap-2">
       {endpoint.icon && (
-        <div className="flex flex-shrink-0 items-center justify-center overflow-hidden">
+        <div className="flex shrink-0 items-center justify-center overflow-hidden">
           {endpoint.icon}
         </div>
       )}
@@ -114,6 +111,51 @@ export function EndpointItem({ endpoint }: EndpointItemProps) {
     </div>
   );
 
+  // If endpoint has model specs configured, render specs instead of raw models
+  if (hasSpecModels) {
+    const normalizedSearch = searchValue.trim().toLowerCase();
+    const visibleSpecs = normalizedSearch
+      ? endpointSpecs.filter((spec) => {
+          const label = spec.label?.toLowerCase() ?? '';
+          const description = spec.description?.toLowerCase() ?? '';
+          return label.includes(normalizedSearch) || description.includes(normalizedSearch);
+        })
+      : endpointSpecs;
+
+    return (
+      <Menu
+        id={`endpoint-${endpoint.value}-menu`}
+        key={`endpoint-${endpoint.value}-item`}
+        className="transition-opacity duration-200 ease-in-out"
+        defaultOpen={endpoint.value === selectedEndpoint}
+        searchValue={searchValue}
+        onSearch={(value) => setEndpointSearchValue(endpoint.value, value)}
+        combobox={<input placeholder={searchPlaceholder} />}
+        label={
+          <div
+            onClick={() => handleSelectEndpoint(endpoint)}
+            className="group flex w-full shrink cursor-pointer items-center justify-between rounded-xl px-1 py-1 text-sm"
+          >
+            {renderIconLabel()}
+            {isUserProvided && (
+              <SettingsButton endpoint={endpoint} handleOpenKeyDialog={handleOpenKeyDialog} />
+            )}
+          </div>
+        }
+      >
+        {visibleSpecs.length > 0 ? (
+          visibleSpecs.map((spec) => (
+            <ModelSpecItem key={spec.name} spec={spec} isSelected={selectedSpec === spec.name} />
+          ))
+        ) : (
+          <div className="cursor-default px-3 py-2 text-sm text-text-tertiary">
+            {localize('com_files_no_results')}
+          </div>
+        )}
+      </Menu>
+    );
+  }
+
   if (endpoint.hasModels) {
     const filteredModels = searchValue
       ? filterModels(
@@ -124,10 +166,6 @@ export function EndpointItem({ endpoint }: EndpointItemProps) {
           assistantsMap,
         )
       : null;
-    const placeholder =
-      isAgentsEndpoint(endpoint.value) || isAssistantsEndpoint(endpoint.value)
-        ? localize('com_endpoint_search_var', { 0: endpoint.label })
-        : localize('com_endpoint_search_endpoint_models', { 0: endpoint.label });
     return (
       <Menu
         id={`endpoint-${endpoint.value}-menu`}
@@ -136,11 +174,11 @@ export function EndpointItem({ endpoint }: EndpointItemProps) {
         defaultOpen={endpoint.value === selectedEndpoint}
         searchValue={searchValue}
         onSearch={(value) => setEndpointSearchValue(endpoint.value, value)}
-        combobox={<input placeholder={placeholder} />}
+        combobox={<input placeholder={searchPlaceholder} />}
         label={
           <div
             onClick={() => handleSelectEndpoint(endpoint)}
-            className="group flex w-full flex-shrink cursor-pointer items-center justify-between rounded-xl px-1 py-1 text-sm"
+            className="group flex w-full shrink cursor-pointer items-center justify-between rounded-xl px-1 py-1 text-sm"
           >
             {renderIconLabel()}
             {isUserProvided && (
@@ -153,17 +191,10 @@ export function EndpointItem({ endpoint }: EndpointItemProps) {
           <div className="flex items-center justify-center p-2">
             <Spinner />
           </div>
+        ) : filteredModels ? (
+          renderEndpointModels(endpoint, endpoint.models || [], selectedModel, filteredModels)
         ) : (
-          <>
-            {/* Render modelSpecs for this endpoint */}
-            {endpointSpecs.map((spec: TModelSpec) => (
-              <ModelSpecItem key={spec.name} spec={spec} isSelected={selectedSpec === spec.name} />
-            ))}
-            {/* Render endpoint models */}
-            {filteredModels
-              ? renderEndpointModels(endpoint, endpoint.models || [], selectedModel, filteredModels)
-              : endpoint.models && renderEndpointModels(endpoint, endpoint.models, selectedModel)}
-          </>
+          endpoint.models && renderEndpointModels(endpoint, endpoint.models, selectedModel)
         )}
       </Menu>
     );
