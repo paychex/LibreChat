@@ -76,10 +76,7 @@ export const genAzureChatCompletion = (
   } else {
     deploymentSegment = '';
   }
-  console.log('genAzureChatCompletion');
-  console.log(
-    `https://${azureOpenAIApiInstanceName}/openai/deployments/${deploymentSegment}/chat/completions?api-version=${azureOpenAIApiVersion}`,
-  );
+
   return `https://${azureOpenAIApiInstanceName}/openai/deployments/${deploymentSegment}/chat/completions?api-version=${azureOpenAIApiVersion}`;
 };
 
