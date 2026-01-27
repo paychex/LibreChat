@@ -29,8 +29,12 @@ permissions:
   id-token: write
 
 jobs:
-    build_and_push:
+    # Build job - can run in parallel (each builds its own commit)
+    build:
+        name: Build Docker Image
         runs-on: paychex-ai-platform-arc-nonprod
+        outputs:
+          commit_sha: ${{ steps.commit_sha.outputs.sha }}
         steps:
             - uses: actions/checkout@v3
               with:
@@ -39,7 +43,10 @@ jobs:
 
             - name: Get commit SHA
               id: commit_sha
-              run: echo "COMMIT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
+              run: |
+                SHA=$(git rev-parse HEAD)
+                echo "sha=$SHA" >> $GITHUB_OUTPUT
+                echo "COMMIT_SHA=$SHA" >> $GITHUB_ENV
 
             - name: Create Config File
               run: |
@@ -77,10 +84,25 @@ jobs:
                 github_token: ${{ secrets.CROSS_REPO_PAT }}
                 ref: 'main'
 
+    # Deploy job - serialized with concurrency control to prevent race conditions
+    deploy:
+        name: Deploy to N2A
+        needs: build
+        runs-on: paychex-ai-platform-arc-nonprod
+        # Ensures only one deploy runs at a time, queuing others in order
+        concurrency:
+          group: n2a-deploy
+          cancel-in-progress: false
+        steps:
+            - uses: actions/checkout@v3
+              with:
+                fetch-depth: 0
+                ref: ${{ github.event.inputs.branch || github.ref }}
+
             - name: Update librechat image in YAML
               uses: mikefarah/yq@master
               with:
-                cmd: yq -i '.properties.template.containers[] |= select(.name == "conpaichat").image = "${{ env.ACR_HOST }}/paychex/librechat:n2a.${{ env.COMMIT_SHA }}"' az_container_app_definitions/n2a_container_app_definition.yml
+                cmd: yq -i '.properties.template.containers[] |= select(.name == "conpaichat").image = "${{ env.ACR_HOST }}/paychex/librechat:n2a.${{ needs.build.outputs.commit_sha }}"' az_container_app_definitions/n2a_container_app_definition.yml
                     
             - name: Azure CLI script
               uses: azure/cli@v2
