@@ -1,0 +1,11 @@
+{
+	"com_agents_code_interpreter": "Run code safely in a sandboxed environment.",
+	"com_agents_mcp_info": "Connect to external tools and data stores or search the web.",
+	"com_assistants_file_search_info_short": "Analyze, compare, and contrast large documents.",
+	"com_files_upload_sharepoint_desc": "Browse SharePoint and import files using these same upload modes.",
+	"com_nav_info_code_artifacts": "Create shareable, interactive outputs like diagrams, documents, or mini apps.",
+	"com_ui_upload_code_files_description": "Execute files securely with the built-in code interpreter sandbox.",
+	"com_ui_upload_file_search_description": "Analyze, compare, and contrast large documents.",
+	"com_ui_upload_image_input_description": "Add an image for analysis.",
+	"com_ui_upload_ocr_text_description": "Copy and paste text from a document."
+}
