@@ -895,6 +895,8 @@ class BaseClient {
 
     _messages = await this.addPreviousAttachments(_messages);
 
+    _messages = this.filterCrossProviderToolCalls(_messages);
+
     if (!this.shouldSummarize) {
       return _messages;
     }
@@ -918,6 +920,79 @@ class BaseClient {
     }
 
     return _messages;
+  }
+
+  /**
+   * Filters out tool-related content from messages created by a different provider.
+   * This prevents errors when switching between providers (e.g., GPT to Gemini) mid-conversation
+   * where tool call formats are incompatible across providers.
+   *
+   * @param {TMessage[]} messages - Array of messages to filter
+   * @returns {TMessage[]} Messages with tool content filtered based on endpoint
+   * @author Gabriel Rosendo <gmarcelino@paychex.com>
+   */
+  filterCrossProviderToolCalls(messages) {
+    const currentEndpoint = this.options?.endpoint;
+
+    if (!currentEndpoint || !messages || messages.length === 0) {
+      return messages;
+    }
+
+    return messages
+      .map((message) => {
+        // Keep messages from the same endpoint or messages without endpoint info
+        if (message.endpoint === currentEndpoint || !message.endpoint) {
+          return message;
+        }
+
+        // Only process messages with array content
+        if (!Array.isArray(message.content)) {
+          return message;
+        }
+
+        // Filter out tool_call types and text parts that reference tool calls from different endpoint
+        const filteredContent = message.content.filter((part) => {
+          if (part.type === ContentTypes.TOOL_CALL) {
+            return false;
+          }
+          // Filter text parts that announce tool calls
+          if (part.type === ContentTypes.TEXT && part.tool_call_ids?.length) {
+            return false;
+          }
+          return true;
+        });
+
+        // Exclude messages that become empty after filtering tool content
+        if (filteredContent.length === 0) {
+          logger.debug(
+            '[BaseClient] Excluding message with only tool content from different provider:',
+            {
+              messageId: message.messageId,
+              fromEndpoint: message.endpoint,
+              toEndpoint: currentEndpoint,
+            },
+          );
+          return null;
+        }
+
+        // Log when we filter partial tool content
+        if (filteredContent.length !== message.content.length) {
+          logger.debug('[BaseClient] Filtered tool calls from message:', {
+            messageId: message.messageId,
+            fromEndpoint: message.endpoint,
+            toEndpoint: currentEndpoint,
+            removedCount: message.content.length - filteredContent.length,
+          });
+
+          return {
+            ...message,
+            content: filteredContent,
+          };
+        }
+
+        return message;
+      })
+      .filter((message) => message !== null);
   }
 
   /**
