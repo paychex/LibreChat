@@ -59,7 +59,7 @@ jobs:
                 username: ${{ env.ACR_USER }}
                 password: ${{ env.ACR_PASS }}
 
-            - name: Build and push docker container with caching
+            - name: Build and push docker container
               uses: docker/build-push-action@v5
               with:
                 context: .
@@ -67,8 +67,6 @@ jobs:
                 tags: |
                   ${{ env.ACR_HOST }}/paychex/librechat:n2a.${{ env.COMMIT_SHA }}
                   ${{ env.ACR_HOST }}/paychex/librechat:n2a.latest
-                cache-from: type=registry,ref=${{ env.ACR_HOST }}/paychex/librechat:n2a-cache
-                cache-to: type=registry,ref=${{ env.ACR_HOST }}/paychex/librechat:n2a-cache,mode=max
 
             - name: Trigger rag_api Workflow
               if: ${{ github.event.inputs.build_rag_api_image != 'false' }}
