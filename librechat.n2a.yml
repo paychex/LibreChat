@@ -13,6 +13,7 @@ modelSpecs:
     - "Gemini 2.5 Pro"
     - "Gemini 2.5 Flash"
     - "Claude Sonnet 4.5"
+    - "LangGraph Agents"
   list:
     - name: azure-gpt-4o
       label: GPT-4o
@@ -148,3 +149,14 @@ endpoints:
       dropParams:
         - stream
         - streaming
+    - name: "LangGraph Agents"
+      apiKey: "not-required"
+      baseURL: "https://conlangmiddlemaneastussb001.yellowbush-62765e2a.eastus.azurecontainerapps.io/v1"
+      models:
+        default:
+          - langgraph-platform-test-agent
+        fetch: true
+      titleModel: "langgraph-platform-test-agent"
+      titleConvo: true
+      modelDisplayLabel: "LangGraph Agent"
+      iconURL: "https://langchain.com/favicon.ico"
