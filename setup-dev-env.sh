@@ -786,7 +786,201 @@ setup_mongodb() {
 }
 
 #=============================================================#
-# Main Script Entry Point (Phase 1 - Framework Only)
+# Project Setup Functions
+#=============================================================#
+
+#-------------------------------------------------------------#
+# Environment Configuration
+#-------------------------------------------------------------#
+
+setup_environment() {
+    local ENV_FILE=".env"
+    local ENV_EXAMPLE=".env.example"
+    
+    log_step "Setting up environment configuration..."
+    
+    # Check if .env.example exists
+    if [ ! -f "$ENV_EXAMPLE" ]; then
+        log_error "$ENV_EXAMPLE not found"
+        log_error "Are you in the LibreChat root directory?"
+        exit 1
+    fi
+    
+    # Check if .env already exists
+    if [ -f "$ENV_FILE" ]; then
+        log_warn ".env file already exists"
+        echo ""
+        log_info "Options:"
+        echo "  1) Keep existing .env (recommended if you have custom settings)"
+        echo "  2) Create backup and generate new .env"
+        echo "  3) View differences between current and example"
+        echo ""
+        read -p "Enter choice [1-3] (default: 1): " env_choice
+        env_choice="${env_choice:-1}"
+        
+        case "$env_choice" in
+            1)
+                log_info "Keeping existing .env file"
+                return 0
+                ;;
+            2)
+                local backup_file="${ENV_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+                cp "$ENV_FILE" "$backup_file"
+                log_success "Backup created: $backup_file"
+                ;;
+            3)
+                log_info "Showing differences..."
+                diff "$ENV_FILE" "$ENV_EXAMPLE" || true
+                echo ""
+                if ! prompt_yes_no "Create new .env file?" "n"; then
+                    log_info "Keeping existing .env file"
+                    return 0
+                fi
+                local backup_file="${ENV_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+                cp "$ENV_FILE" "$backup_file"
+                log_success "Backup created: $backup_file"
+                ;;
+            *)
+                log_info "Keeping existing .env file"
+                return 0
+                ;;
+        esac
+    fi
+    
+    log_info "Creating .env file from template..."
+    cp "$ENV_EXAMPLE" "$ENV_FILE"
+    
+    # Generate JWT secrets
+    log_info "Generating JWT secrets..."
+    if check_command openssl; then
+        local JWT_SECRET=$(openssl rand -hex 32)
+        local JWT_REFRESH_SECRET=$(openssl rand -hex 32)
+        
+        log_success "JWT secrets generated"
+    else
+        log_warn "openssl not found, using fallback method"
+        local JWT_SECRET=$(cat /dev/urandom | tr -dc 'a-f0-9' | fold -w 64 | head -n 1)
+        local JWT_REFRESH_SECRET=$(cat /dev/urandom | tr -dc 'a-f0-9' | fold -w 64 | head -n 1)
+    fi
+    
+    # Update MongoDB URI
+    local MONGO_URI="mongodb://librechat:devpassword@localhost:27017/LibreChat?authSource=admin"
+    
+    log_info "Configuring .env file..."
+    
+    # Update .env file with sed (Linux-compatible)
+    sed -i.bak "s|^#\?MONGO_URI=.*|MONGO_URI=${MONGO_URI}|" "$ENV_FILE" 2>/dev/null || \
+        sed -i '' "s|^#\?MONGO_URI=.*|MONGO_URI=${MONGO_URI}|" "$ENV_FILE"
+    
+    sed -i.bak "s|^#\?JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|" "$ENV_FILE" 2>/dev/null || \
+        sed -i '' "s|^#\?JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|" "$ENV_FILE"
+    
+    sed -i.bak "s|^#\?JWT_REFRESH_SECRET=.*|JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}|" "$ENV_FILE" 2>/dev/null || \
+        sed -i '' "s|^#\?JWT_REFRESH_SECRET=.*|JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}|" "$ENV_FILE"
+    
+    # Clean up backup files created by sed
+    rm -f "${ENV_FILE}.bak"
+    
+    log_success ".env file configured successfully"
+    log_info "MongoDB URI: mongodb://librechat:***@localhost:27017/LibreChat"
+    log_info "JWT secrets: Generated automatically"
+}
+
+#-------------------------------------------------------------#
+# Dependency Installation
+#-------------------------------------------------------------#
+
+install_dependencies() {
+    log_step "Installing npm dependencies..."
+    
+    # Check if node_modules exists and has content
+    if [ -d "node_modules" ] && [ "$(ls -A node_modules 2>/dev/null)" ]; then
+        log_info "node_modules directory exists"
+        
+        # Check if package-lock.json is in sync
+        if [ -f "package-lock.json" ]; then
+            log_info "Checking if dependencies are up to date..."
+            # For simplicity, we'll offer to reinstall
+            if prompt_yes_no "Reinstall dependencies to ensure they're up to date?" "n"; then
+                log_info "Removing existing node_modules..."
+                rm -rf node_modules
+            else
+                log_info "Skipping dependency installation"
+                return 0
+            fi
+        fi
+    fi
+    
+    log_info "Installing dependencies (this may take 5-10 minutes)..."
+    log_info "Using 'npm ci' for reproducible builds..."
+    
+    # Run npm ci with progress indication
+    if npm ci; then
+        log_success "Dependencies installed successfully"
+    else
+        log_error "npm ci failed"
+        log_error "Try running manually: npm ci"
+        exit 1
+    fi
+}
+
+#-------------------------------------------------------------#
+# Build Packages
+#-------------------------------------------------------------#
+
+build_packages() {
+    log_step "Building LibreChat packages..."
+    
+    # Check if builds already exist
+    local packages_built=true
+    local build_dirs=(
+        "packages/data-provider/dist"
+        "api/dist"
+        "client/dist"
+    )
+    
+    for dir in "${build_dirs[@]}"; do
+        if [ ! -d "$dir" ]; then
+            packages_built=false
+            break
+        fi
+    done
+    
+    if $packages_built; then
+        log_info "Build artifacts already exist"
+        if ! prompt_yes_no "Rebuild packages?" "n"; then
+            log_info "Skipping build step"
+            return 0
+        fi
+    fi
+    
+    # Build commands based on package.json
+    local BUILD_COMMANDS=(
+        "build:data-provider"
+        "build:api"
+        "build:client-package"
+    )
+    
+    log_info "Building packages (this may take a few minutes)..."
+    
+    for cmd in "${BUILD_COMMANDS[@]}"; do
+        log_info "Running: npm run $cmd"
+        
+        if npm run "$cmd"; then
+            log_success "✓ $cmd completed"
+        else
+            log_error "✗ $cmd failed"
+            log_error "Try running manually: npm run $cmd"
+            exit 1
+        fi
+        echo ""
+    done
+    
+    log_success "All packages built successfully"
+}
+
+#=============================================================#
+# Main Script Entry Point
 #=============================================================#
 
 main() {
@@ -822,7 +1016,25 @@ main() {
     echo ""
     
     log_success "Phase 2: Prerequisites installation complete!"
-    log_info "Additional phases (project setup, verification) will be added in subsequent updates"
+    echo ""
+    
+    # Phase 3: Project Setup
+    log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_info "Phase 3: Project Configuration"
+    log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    
+    setup_environment
+    echo ""
+    
+    install_dependencies
+    echo ""
+    
+    build_packages
+    echo ""
+    
+    log_success "Phase 3: Project configuration complete!"
+    log_info "Additional phases (deployment modes, verification) will be added in subsequent updates"
     
     echo ""
 }
