@@ -640,6 +640,12 @@ configure_docker_user() {
         log_info "Adding $USER to docker group..."
         sudo usermod -aG docker "$USER"
         
+        # In container or automated environments, skip the interactive group switch
+        if is_in_container || [ "$IS_AUTOMATED" = true ]; then
+            log_info "Docker group updated - changes will take effect on next login"
+            return 0
+        fi
+        
         log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         log_warn "Docker group membership updated!"
         log_warn "You may need to log out and back in, or run:"
@@ -647,10 +653,14 @@ configure_docker_user() {
         log_warn "for the changes to take effect in this session."
         log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         
-        if prompt_yes_no "Apply group changes to current session with 'newgrp docker'?" "y"; then
+        if prompt_yes_no "Apply group changes to current session with 'newgrp docker'?" "n"; then
             log_info "Applying group changes..."
-            # Note: This creates a new shell, so we need to continue execution
-            exec sg docker "$0" "$@"
+            log_warn "Note: Script will restart with new group permissions"
+            sleep 2
+            # Use absolute path to avoid 'not found' errors with sg/newgrp
+            exec sg docker "$(readlink -f "$0")" "$@"
+        else
+            log_info "Continuing without group change - Docker may require sudo"
         fi
     else
         log_success "User $USER is already in docker group"
