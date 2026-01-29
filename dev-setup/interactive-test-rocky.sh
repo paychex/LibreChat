@@ -41,10 +41,12 @@ echo ""
 
 # Use --privileged to allow Docker-in-Docker
 # Mount the repo at /workspace
+# Mount VDI CA certificates for corporate SSL (Rocky uses different path)
 docker run -it --rm \
   --privileged \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$REPO_ROOT:/workspace" \
+  -v /usr/local/share/ca-certificates:/usr/local/share/ca-certificates:ro \
   -w /workspace \
   --hostname rocky-test \
   rockylinux:9 \
@@ -52,8 +54,11 @@ docker run -it --rm \
     echo "Setting up minimal environment..."
     dnf install -y -q git curl sudo ca-certificates > /dev/null 2>&1
     
-    # Update CA certificates to fix SSL issues
-    update-ca-trust
+    # Copy mounted certs to Rocky location and update trust
+    if [ -d /usr/local/share/ca-certificates ]; then
+      cp /usr/local/share/ca-certificates/*.crt /etc/pki/ca-trust/source/anchors/ 2>/dev/null || true
+    fi
+    update-ca-trust 2>/dev/null
     
     # Create a non-root user similar to VDI environment
     useradd -m -s /bin/bash testuser

@@ -41,10 +41,12 @@ echo ""
 
 # Use --privileged to allow Docker-in-Docker
 # Mount the repo at /workspace
+# Mount VDI CA certificates for corporate SSL
 docker run -it --rm \
   --privileged \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$REPO_ROOT:/workspace" \
+  -v /usr/local/share/ca-certificates:/usr/local/share/ca-certificates:ro \
   -w /workspace \
   --hostname ubuntu-test \
   ubuntu:24.04 \
@@ -53,8 +55,8 @@ docker run -it --rm \
     apt-get update -qq
     apt-get install -y -qq git curl sudo ca-certificates > /dev/null 2>&1
     
-    # Update CA certificates to fix SSL issues
-    update-ca-certificates
+    # Update CA certificates to include mounted corporate certs
+    update-ca-certificates 2>/dev/null
     
     # Create a non-root user similar to VDI environment
     useradd -m -s /bin/bash testuser
