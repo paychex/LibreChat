@@ -129,8 +129,8 @@ CI=true AUTOMATED_TEST=true ./setup-dev-env.sh
 - Git
 
 ### Supported Target Systems
-- Ubuntu 20.04+ (tested on 24.04 LTS)
-- Rocky Linux 8+ (tested on 9)
+- Ubuntu 24.04+
+- Rocky Linux 9+
 
 ## Deployment Modes
 
