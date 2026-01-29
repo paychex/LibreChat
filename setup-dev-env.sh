@@ -980,6 +980,148 @@ build_packages() {
 }
 
 #=============================================================#
+# Deployment Mode Selection & Setup
+#=============================================================#
+
+#-------------------------------------------------------------#
+# Mode Selection Interface
+#-------------------------------------------------------------#
+
+select_deployment_mode() {
+    log_step "Selecting deployment mode..."
+    
+    echo ""
+    log_info "LibreChat can be run in different modes:"
+    echo ""
+    echo "  1) Native mode (Recommended for development)"
+    echo "     - MongoDB runs in Docker"
+    echo "     - Application runs via npm (hot reload enabled)"
+    echo "     - Best for active development and debugging"
+    echo ""
+    echo "  2) Docker Compose mode"
+    echo "     - Everything runs in containers"
+    echo "     - Good for testing production-like environment"
+    echo "     - Requires docker-compose.dev.yml"
+    echo ""
+    echo "  3) Both modes"
+    echo "     - Sets up both options"
+    echo "     - You can choose which to use later"
+    echo ""
+    
+    read -p "Enter choice [1-3] (default: 1): " mode_choice
+    mode_choice="${mode_choice:-1}"
+    
+    case "$mode_choice" in
+        1)
+            SETUP_NATIVE=true
+            SETUP_COMPOSE=false
+            log_info "Selected: Native mode"
+            ;;
+        2)
+            SETUP_NATIVE=false
+            SETUP_COMPOSE=true
+            log_info "Selected: Docker Compose mode"
+            ;;
+        3)
+            SETUP_NATIVE=true
+            SETUP_COMPOSE=true
+            log_info "Selected: Both modes"
+            ;;
+        *)
+            log_warn "Invalid choice, defaulting to Native mode"
+            SETUP_NATIVE=true
+            SETUP_COMPOSE=false
+            ;;
+    esac
+    
+    echo ""
+}
+
+#-------------------------------------------------------------#
+# Native Mode Setup
+#-------------------------------------------------------------#
+
+setup_native_mode() {
+    log_step "Configuring Native Mode..."
+    
+    log_info "Native mode uses:"
+    echo "  • MongoDB in Docker (already set up)"
+    echo "  • Node.js application running directly via npm"
+    echo "  • Hot Module Replacement (HMR) for rapid development"
+    echo ""
+    
+    # Check if MongoDB is running
+    if ! docker ps --format '{{.Names}}' | grep -q "^librechat-mongo$"; then
+        log_warn "MongoDB container is not running"
+        log_info "Start it with: docker start librechat-mongo"
+    fi
+    
+    log_success "Native mode is ready!"
+    echo ""
+    log_info "To start LibreChat in native mode:"
+    echo ""
+    echo "  Option 1: Start both frontend and backend together"
+    echo "    $ npm run dev"
+    echo ""
+    echo "  Option 2: Start them separately (recommended for debugging)"
+    echo "    Terminal 1: $ npm run backend:dev"
+    echo "    Terminal 2: $ npm run frontend:dev"
+    echo ""
+    echo "  Access the application:"
+    echo "    Frontend: http://localhost:3090"
+    echo "    Backend:  http://localhost:3080"
+    echo ""
+}
+
+#-------------------------------------------------------------#
+# Docker Compose Mode Setup
+#-------------------------------------------------------------#
+
+setup_docker_compose_mode() {
+    log_step "Configuring Docker Compose Mode..."
+    
+    # Check if docker-compose.dev.yml exists
+    if [ ! -f "docker-compose.dev.yml" ]; then
+        log_error "docker-compose.dev.yml not found in repository"
+        log_error "Docker Compose mode requires this file"
+        log_warn "Skipping Docker Compose setup"
+        return 1
+    fi
+    
+    log_info "Docker Compose mode uses:"
+    echo "  • All services containerized"
+    echo "  • Production-like environment"
+    echo "  • Defined in docker-compose.dev.yml"
+    echo ""
+    
+    # Check if there's a conflict with existing MongoDB
+    if docker ps --format '{{.Names}}' | grep -q "^librechat-mongo$"; then
+        log_warn "Standalone MongoDB container is running"
+        log_info "Docker Compose will manage its own MongoDB instance"
+        log_info "You may want to stop the standalone container:"
+        echo "    $ docker stop librechat-mongo"
+        echo ""
+    fi
+    
+    log_success "Docker Compose mode is ready!"
+    echo ""
+    log_info "To start LibreChat with Docker Compose:"
+    echo ""
+    echo "  Start services:"
+    echo "    $ docker compose -f docker-compose.dev.yml up -d"
+    echo ""
+    echo "  View logs:"
+    echo "    $ docker compose -f docker-compose.dev.yml logs -f"
+    echo ""
+    echo "  Stop services:"
+    echo "    $ docker compose -f docker-compose.dev.yml down"
+    echo ""
+    echo "  Access the application:"
+    echo "    http://localhost:3090"
+    echo ""
+}
+
+#=============================================================#
 # Main Script Entry Point
 #=============================================================#
 
@@ -1034,7 +1176,26 @@ main() {
     echo ""
     
     log_success "Phase 3: Project configuration complete!"
-    log_info "Additional phases (deployment modes, verification) will be added in subsequent updates"
+    echo ""
+    
+    # Phase 4: Deployment Mode Selection
+    log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_info "Phase 4: Deployment Mode Selection"
+    log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    
+    select_deployment_mode
+    
+    if [ "$SETUP_NATIVE" = true ]; then
+        setup_native_mode
+    fi
+    
+    if [ "$SETUP_COMPOSE" = true ]; then
+        setup_docker_compose_mode
+    fi
+    
+    log_success "Phase 4: Deployment mode configuration complete!"
+    log_info "Additional phases (verification) will be added in subsequent updates"
     
     echo ""
 }
