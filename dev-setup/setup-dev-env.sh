@@ -1019,6 +1019,17 @@ setup_environment() {
 install_dependencies() {
     log_step "Installing npm dependencies..."
     
+    # Configure npm to use system CA certificates (for corporate SSL inspection)
+    local system_ca_bundle="/etc/ssl/certs/ca-certificates.crt"
+    if [ -f "$system_ca_bundle" ]; then
+        log_info "Configuring npm to use system CA certificates..."
+        npm config set cafile "$system_ca_bundle"
+        
+        # Also set NODE_EXTRA_CA_CERTS for Node.js itself
+        export NODE_EXTRA_CA_CERTS="$system_ca_bundle"
+        log_info "SSL certificates configured for corporate network"
+    fi
+    
     # Check if node_modules exists and has content
     if [ -d "node_modules" ] && [ "$(ls -A node_modules 2>/dev/null)" ]; then
         log_info "node_modules directory exists"
@@ -1214,9 +1225,9 @@ setup_native_mode() {
 setup_docker_compose_mode() {
     log_step "Configuring Docker Compose Mode..."
     
-    # Check if docker-compose.dev.yml exists
-    if [ ! -f "docker-compose.dev.yml" ]; then
-        log_error "docker-compose.dev.yml not found in repository"
+    # Check if docker-compose.yml exists
+    if [ ! -f "docker-compose.yml" ]; then
+        log_error "docker-compose.yml not found in repository"
         log_error "Docker Compose mode requires this file"
         log_warn "Skipping Docker Compose setup"
         return 1
@@ -1225,11 +1236,11 @@ setup_docker_compose_mode() {
     log_info "Docker Compose mode uses:"
     echo "  • All services containerized"
     echo "  • Production-like environment"
-    echo "  • Defined in docker-compose.dev.yml"
+    echo "  • Defined in docker-compose.yml"
     echo ""
     
     # Check if there's a conflict with existing MongoDB
-    if docker ps --format '{{.Names}}' | grep -q "^librechat-mongo$"; then
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^librechat-mongo$"; then
         log_warn "Standalone MongoDB container is running"
         log_info "Docker Compose will manage its own MongoDB instance"
         log_info "You may want to stop the standalone container:"
@@ -1242,13 +1253,13 @@ setup_docker_compose_mode() {
     log_info "To start LibreChat with Docker Compose:"
     echo ""
     echo "  Start services:"
-    echo "    $ docker compose -f docker-compose.dev.yml up -d"
+    echo "    $ docker compose up -d"
     echo ""
     echo "  View logs:"
-    echo "    $ docker compose -f docker-compose.dev.yml logs -f"
+    echo "    $ docker compose logs -f"
     echo ""
     echo "  Stop services:"
-    echo "    $ docker compose -f docker-compose.dev.yml down"
+    echo "    $ docker compose down"
     echo ""
     echo "  Access the application:"
     echo "    http://localhost:3090"
