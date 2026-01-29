@@ -405,6 +405,387 @@ detect_environment() {
 }
 
 #=============================================================#
+# Component Installation Functions
+#=============================================================#
+
+#-------------------------------------------------------------#
+# Node.js via nvm
+#-------------------------------------------------------------#
+
+install_nvm() {
+    local REQUIRED_NODE_VERSION="20"
+    
+    log_step "Installing/Configuring Node.js..."
+    
+    # Check if nvm exists
+    if detect_nvm; then
+        log_info "nvm already installed at $HOME/.nvm"
+        
+        # Source nvm
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        
+        # Add to current shell
+        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+        
+        # Check Node version
+        if check_command node; then
+            NODE_VERSION=$(node -v | sed 's/v//')
+            local current_major=$(get_major_version "$NODE_VERSION")
+            if [ "$current_major" -lt "$REQUIRED_NODE_VERSION" ]; then
+                log_warn "Node.js version $NODE_VERSION is below required version $REQUIRED_NODE_VERSION.x"
+                if prompt_yes_no "Install Node.js $REQUIRED_NODE_VERSION LTS?" "y"; then
+                    log_info "Installing Node.js LTS..."
+                    nvm install --lts
+                    nvm use --lts
+                    nvm alias default lts/*
+                else
+                    log_warn "Skipping Node.js upgrade - this may cause issues"
+                fi
+            else
+                log_success "Node.js $NODE_VERSION meets requirements (>= ${REQUIRED_NODE_VERSION}.0)"
+                return 0
+            fi
+        else
+            # nvm exists but no node installed
+            log_info "Node.js not found - installing Node.js LTS..."
+            nvm install --lts
+            nvm use --lts
+            nvm alias default lts/*
+        fi
+    else
+        log_info "nvm not found, installing..."
+        
+        # Download and install nvm
+        log_info "Downloading nvm installer..."
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+        
+        # Source nvm for current session
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+        
+        log_info "Installing Node.js LTS..."
+        nvm install --lts
+        nvm use --lts
+        nvm alias default lts/*
+    fi
+    
+    # Verify installation
+    if node -v && npm -v; then
+        log_success "Node.js $(node -v) and npm $(npm -v) are ready"
+    else
+        log_error "Node.js installation failed"
+        log_error "Try sourcing your shell profile: source ~/.bashrc (or ~/.zshrc)"
+        exit 1
+    fi
+}
+
+#-------------------------------------------------------------#
+# Docker Installation
+#-------------------------------------------------------------#
+
+install_docker_ubuntu() {
+    log_info "Installing Docker for Ubuntu..."
+    
+    # Install prerequisites
+    sudo apt-get update
+    sudo apt-get install -y ca-certificates curl
+    sudo install -m 0755 -d /etc/apt/keyrings
+    
+    # Add Docker's official GPG key
+    sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    sudo chmod a+r /etc/apt/keyrings/docker.asc
+    
+    # Add Docker repository
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+      https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+      sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    
+    # Install Docker
+    sudo apt-get update
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+}
+
+install_docker_rocky() {
+    log_info "Installing Docker for Rocky Linux..."
+    
+    # Add Docker repository
+    sudo dnf -y install dnf-plugins-core
+    sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+    
+    # Install Docker
+    sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+}
+
+configure_docker_service() {
+    log_info "Configuring Docker service..."
+    
+    # Enable and start Docker
+    if ! sudo systemctl is-enabled docker >/dev/null 2>&1; then
+        sudo systemctl enable docker
+    fi
+    
+    if ! sudo systemctl is-active docker >/dev/null 2>&1; then
+        sudo systemctl start docker
+    fi
+    
+    log_success "Docker service is running"
+}
+
+configure_docker_user() {
+    # Add user to docker group
+    if ! groups "$USER" | grep -q '\bdocker\b'; then
+        log_info "Adding $USER to docker group..."
+        sudo usermod -aG docker "$USER"
+        
+        log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log_warn "Docker group membership updated!"
+        log_warn "You may need to log out and back in, or run:"
+        log_warn "  newgrp docker"
+        log_warn "for the changes to take effect in this session."
+        log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
+        if prompt_yes_no "Apply group changes to current session with 'newgrp docker'?" "y"; then
+            log_info "Applying group changes..."
+            # Note: This creates a new shell, so we need to continue execution
+            exec sg docker "$0" "$@"
+        fi
+    else
+        log_success "User $USER is already in docker group"
+    fi
+}
+
+install_docker() {
+    local REQUIRED_DOCKER_VERSION="24"
+    
+    log_step "Installing/Configuring Docker..."
+    
+    # Check if Docker is already installed
+    if detect_docker; then
+        local docker_major=$(get_major_version "$DOCKER_VERSION")
+        
+        if [ "$docker_major" -ge "$REQUIRED_DOCKER_VERSION" ]; then
+            log_success "Docker $DOCKER_VERSION is already installed (>= ${REQUIRED_DOCKER_VERSION}.0)"
+            configure_docker_service
+            configure_docker_user
+            return 0
+        else
+            log_warn "Docker version $DOCKER_VERSION is below required version $REQUIRED_DOCKER_VERSION.0"
+            if ! prompt_yes_no "Upgrade Docker?" "y"; then
+                log_warn "Skipping Docker upgrade - this may cause issues"
+                configure_docker_service
+                configure_docker_user
+                return 0
+            fi
+            # Continue with installation to upgrade
+        fi
+    fi
+    
+    # Check for Podman conflicts
+    if detect_podman; then
+        log_error "Podman is installed and may conflict with Docker"
+        log_error "Please consult your team before proceeding"
+        if ! prompt_yes_no "Continue anyway?" "n"; then
+            exit 1
+        fi
+    fi
+    
+    # Install based on OS
+    case "$PKG_MANAGER" in
+        apt)
+            install_docker_ubuntu
+            ;;
+        dnf)
+            install_docker_rocky
+            ;;
+        *)
+            log_error "Unsupported package manager: $PKG_MANAGER"
+            exit 1
+            ;;
+    esac
+    
+    # Configure service and user
+    configure_docker_service
+    configure_docker_user
+    
+    # Verify installation
+    if docker --version >/dev/null 2>&1; then
+        DOCKER_VERSION=$(docker --version | grep -oP '\d+\.\d+\.\d+' | head -1)
+        log_success "Docker $DOCKER_VERSION installed successfully"
+        
+        # Test Docker
+        if docker run --rm hello-world >/dev/null 2>&1; then
+            log_success "Docker is working correctly"
+        else
+            log_warn "Docker installed but may need additional configuration"
+        fi
+    else
+        log_error "Docker installation failed"
+        exit 1
+    fi
+}
+
+#-------------------------------------------------------------#
+# GitHub CLI Installation
+#-------------------------------------------------------------#
+
+install_github_cli_ubuntu() {
+    log_info "Installing GitHub CLI for Ubuntu..."
+    
+    # Try snap first (most reliable)
+    if check_command snap; then
+        log_info "Using snap to install GitHub CLI..."
+        sudo snap install gh
+    else
+        log_info "snap not available, using apt..."
+        
+        # Add GitHub CLI apt repository
+        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
+            sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null
+        sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+        
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
+            sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+        
+        sudo apt-get update
+        sudo apt-get install -y gh
+    fi
+}
+
+install_github_cli_rocky() {
+    log_info "Installing GitHub CLI for Rocky Linux..."
+    
+    sudo dnf install -y 'dnf-command(config-manager)'
+    sudo dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+    sudo dnf install -y gh
+}
+
+install_github_cli() {
+    log_step "Installing/Configuring GitHub CLI..."
+    
+    # Check if already installed
+    if detect_github_cli; then
+        log_success "GitHub CLI $GH_VERSION is already installed"
+        return 0
+    fi
+    
+    # Install based on OS
+    case "$PKG_MANAGER" in
+        apt)
+            install_github_cli_ubuntu
+            ;;
+        dnf)
+            install_github_cli_rocky
+            ;;
+        *)
+            log_error "Unsupported package manager: $PKG_MANAGER"
+            exit 1
+            ;;
+    esac
+    
+    # Verify installation
+    if gh --version >/dev/null 2>&1; then
+        GH_VERSION=$(gh --version | head -1 | awk '{print $3}')
+        log_success "GitHub CLI $GH_VERSION installed successfully"
+    else
+        log_error "GitHub CLI installation failed"
+        exit 1
+    fi
+}
+
+#-------------------------------------------------------------#
+# MongoDB Container Setup
+#-------------------------------------------------------------#
+
+setup_mongodb() {
+    local MONGO_CONTAINER="librechat-mongo"
+    local MONGO_VOLUME="librechat-mongo"
+    local MONGO_USER="librechat"
+    local MONGO_PASS="devpassword"
+    local MONGO_VERSION="4.4"
+    
+    log_step "Setting up MongoDB container..."
+    
+    # Check if container already exists
+    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^${MONGO_CONTAINER}$"; then
+        log_info "MongoDB container already exists"
+        
+        # Check if it's running
+        if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${MONGO_CONTAINER}$"; then
+            log_success "MongoDB is already running"
+            return 0
+        else
+            log_warn "MongoDB container exists but is not running"
+            if prompt_yes_no "Start MongoDB container?" "y"; then
+                docker start "$MONGO_CONTAINER"
+                sleep 2
+                if docker ps --format '{{.Names}}' | grep -q "^${MONGO_CONTAINER}$"; then
+                    log_success "MongoDB started successfully"
+                    return 0
+                else
+                    log_error "Failed to start MongoDB container"
+                    exit 1
+                fi
+            else
+                log_warn "MongoDB container not started - application may not work"
+                return 0
+            fi
+        fi
+    fi
+    
+    # Check if volume exists
+    if docker volume ls --format '{{.Name}}' 2>/dev/null | grep -q "^${MONGO_VOLUME}$"; then
+        log_info "MongoDB volume '$MONGO_VOLUME' already exists"
+        log_info "Existing data will be preserved"
+    else
+        log_info "Creating MongoDB volume '$MONGO_VOLUME'..."
+        docker volume create "$MONGO_VOLUME"
+    fi
+    
+    log_info "Starting MongoDB $MONGO_VERSION container..."
+    log_info "Container name: $MONGO_CONTAINER"
+    log_info "Credentials: ${MONGO_USER}/${MONGO_PASS} (for local development only)"
+    
+    docker run -d \
+      --name "$MONGO_CONTAINER" \
+      -p 27017:27017 \
+      -v "${MONGO_VOLUME}:/data/db" \
+      -e MONGO_INITDB_ROOT_USERNAME="$MONGO_USER" \
+      -e MONGO_INITDB_ROOT_PASSWORD="$MONGO_PASS" \
+      --restart unless-stopped \
+      mongo:${MONGO_VERSION}
+    
+    # Wait for MongoDB to be ready
+    log_info "Waiting for MongoDB to be ready (up to 30 seconds)..."
+    local ready=false
+    for i in {1..30}; do
+        if docker exec "$MONGO_CONTAINER" mongosh \
+            -u "$MONGO_USER" \
+            -p "$MONGO_PASS" \
+            --authenticationDatabase admin \
+            --eval "db.runCommand({ping:1})" \
+            --quiet >/dev/null 2>&1; then
+            ready=true
+            break
+        fi
+        sleep 1
+        echo -n "."
+    done
+    echo ""
+    
+    if $ready; then
+        log_success "MongoDB is ready and accepting connections"
+        log_info "Connection string: mongodb://${MONGO_USER}:${MONGO_PASS}@localhost:27017/LibreChat?authSource=admin"
+    else
+        log_error "MongoDB failed to start properly"
+        log_error "Container logs:"
+        docker logs "$MONGO_CONTAINER"
+        exit 1
+    fi
+}
+
+#=============================================================#
 # Main Script Entry Point (Phase 1 - Framework Only)
 #=============================================================#
 
@@ -421,8 +802,27 @@ main() {
     display_system_info
     detect_environment
     
-    log_success "Phase 1: Core framework initialized successfully"
-    log_info "Additional installation phases will be added in subsequent updates"
+    # Phase 2: Install components
+    echo ""
+    log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_info "Phase 2: Installing Prerequisites"
+    log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    
+    install_nvm
+    echo ""
+    
+    install_docker
+    echo ""
+    
+    install_github_cli
+    echo ""
+    
+    setup_mongodb
+    echo ""
+    
+    log_success "Phase 2: Prerequisites installation complete!"
+    log_info "Additional phases (project setup, verification) will be added in subsequent updates"
     
     echo ""
 }
