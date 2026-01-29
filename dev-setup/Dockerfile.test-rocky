@@ -1,0 +1,35 @@
+FROM rockylinux:9
+
+# Install minimal bootstrap tools
+RUN dnf install -y \
+    git \
+    curl \
+    ca-certificates \
+    sudo \
+    && dnf clean all
+
+# Create a non-root user (simulates VDI environment)
+RUN useradd -m -s /bin/bash testuser && \
+    usermod -aG wheel testuser && \
+    echo "testuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy the setup script and related files
+COPY setup-dev-env.sh /workspace/dev-setup/
+COPY SETUP_SCRIPT_IMPLEMENTATION_PLAN.md /workspace/dev-setup/
+COPY test-*.sh /workspace/dev-setup/
+
+# Make scripts executable
+RUN chmod +x /workspace/dev-setup/*.sh
+
+# Switch to non-root user
+USER testuser
+
+# Set environment variables for non-interactive testing
+ENV CI=true
+ENV AUTOMATED_TEST=true
+
+# Default command runs the setup script
+CMD ["/workspace/dev-setup/setup-dev-env.sh"]

@@ -8,8 +8,23 @@
 #
 # Usage: bash setup-dev-env.sh
 #
+# Environment Variables:
+#   CI=true              - Run in non-interactive CI mode
+#   AUTOMATED_TEST=true  - Run in automated test mode (skip app testing)
+#
 
 set -euo pipefail  # Exit on error, undefined vars, pipe failures
+
+#=============================================================#
+# Configuration
+#=============================================================#
+
+# Detect if running in CI/automated environment
+if [ "${CI:-false}" = "true" ] || [ "${AUTOMATED_TEST:-false}" = "true" ]; then
+    IS_AUTOMATED=true
+else
+    IS_AUTOMATED=false
+fi
 
 #=============================================================#
 # Color Codes for Output
@@ -53,10 +68,23 @@ log_step() {
 # Prompt user for yes/no confirmation
 # Usage: prompt_yes_no "Question?" "y|n"
 # Returns: 0 for yes, 1 for no
+# In automated mode, returns the default
 prompt_yes_no() {
     local prompt="$1"
     local default="${2:-n}"
     local response
+    
+    # In automated mode, use default without prompting
+    if [ "$IS_AUTOMATED" = true ]; then
+        case "${default,,}" in
+            y|yes)
+                return 0
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+    fi
     
     if [[ "$default" == "y" ]]; then
         prompt="${prompt} [Y/n]: "
@@ -989,6 +1017,14 @@ build_packages() {
 
 select_deployment_mode() {
     log_step "Selecting deployment mode..."
+    
+    # In automated mode, default to native mode
+    if [ "$IS_AUTOMATED" = true ]; then
+        SETUP_NATIVE=true
+        SETUP_COMPOSE=false
+        log_info "Automated mode: Selected Native mode (default)"
+        return 0
+    fi
     
     echo ""
     log_info "LibreChat can be run in different modes:"
