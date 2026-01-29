@@ -53,6 +53,9 @@ docker run -it --rm \
     apt-get update -qq
     apt-get install -y -qq git curl sudo ca-certificates > /dev/null 2>&1
     
+    # Update CA certificates to fix SSL issues
+    update-ca-certificates
+    
     # Create a non-root user similar to VDI environment
     useradd -m -s /bin/bash testuser
     usermod -aG sudo testuser

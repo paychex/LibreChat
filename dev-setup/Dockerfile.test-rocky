@@ -1,11 +1,12 @@
 FROM rockylinux:9
 
-# Install minimal bootstrap tools
+# Install minimal bootstrap tools and update CA certificates
 RUN dnf install -y \
     git \
     curl \
     ca-certificates \
     sudo \
+    && update-ca-trust \
     && dnf clean all
 
 # Create a non-root user (simulates VDI environment)

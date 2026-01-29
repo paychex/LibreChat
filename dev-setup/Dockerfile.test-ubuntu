@@ -3,13 +3,14 @@ FROM ubuntu:24.04
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install minimal bootstrap tools
+# Install minimal bootstrap tools and update CA certificates
 RUN apt-get update && \
     apt-get install -y \
     git \
     curl \
     ca-certificates \
     sudo \
+    && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user (simulates VDI environment)

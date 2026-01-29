@@ -346,8 +346,14 @@ detect_github_cli() {
 }
 
 detect_mongodb_container() {
-    if docker ps -a --format '{{.Names}}' | grep -q "^librechat-mongo$"; then
-        if docker ps --format '{{.Names}}' | grep -q "^librechat-mongo$"; then
+    # Check if docker command exists first
+    if ! check_command docker; then
+        log_info "MongoDB container not found"
+        return 1
+    fi
+    
+    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^librechat-mongo$"; then
+        if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^librechat-mongo$"; then
             log_info "MongoDB container detected (running)"
             return 0
         else
