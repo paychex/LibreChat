@@ -160,8 +160,10 @@ endpoints:
       titleConvo: true
       modelDisplayLabel: "LangGraph Agent"
       iconURL: "https://langchain.com/favicon.ico"
-      # Pass user info to proxy for dynamic JWT generation (nonprod)
+      # Pass user info and conversation context to proxy
       headers:
         X-User-Id: "{{LIBRECHAT_USER_ID}}"
         X-User-Email: "{{LIBRECHAT_USER_EMAIL}}"
         X-User-Name: "{{LIBRECHAT_USER_NAME}}"
+        x-librechat-conversation-id: "{{LIBRECHAT_BODY_CONVERSATIONID}}"
+        x-librechat-body-parentmessageid: "{{LIBRECHAT_BODY_PARENTMESSAGEID}}"
