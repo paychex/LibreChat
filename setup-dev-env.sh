@@ -1122,6 +1122,192 @@ setup_docker_compose_mode() {
 }
 
 #=============================================================#
+# Verification and Testing
+#=============================================================#
+
+#-------------------------------------------------------------#
+# System Verification
+#-------------------------------------------------------------#
+
+verify_setup() {
+    log_step "Verifying installation..."
+    
+    local failed=0
+    echo ""
+    log_info "Checking installed components:"
+    echo ""
+    
+    # Check Node.js version
+    if check_command node; then
+        local node_version=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
+        if [ "$node_version" -ge 20 ]; then
+            log_success "✓ Node.js $(node -v) (meets v20+ requirement)"
+        else
+            log_error "✗ Node.js version $node_version is below required v20+"
+            ((failed++))
+        fi
+    else
+        log_error "✗ Node.js not found"
+        ((failed++))
+    fi
+    
+    # Check npm
+    if check_command npm; then
+        log_success "✓ npm $(npm -v)"
+    else
+        log_error "✗ npm not found"
+        ((failed++))
+    fi
+    
+    # Check Docker
+    if check_command docker; then
+        local docker_version=$(docker --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+' | head -1)
+        log_success "✓ Docker $docker_version"
+    else
+        log_error "✗ Docker not found"
+        ((failed++))
+    fi
+    
+    # Check Docker Compose
+    if docker compose version >/dev/null 2>&1; then
+        local compose_version=$(docker compose version 2>/dev/null | grep -oP '\d+\.\d+\.\d+' | head -1)
+        log_success "✓ Docker Compose $compose_version"
+    else
+        log_warn "⚠ Docker Compose not available (optional)"
+    fi
+    
+    # Check GitHub CLI
+    if check_command gh; then
+        local gh_version=$(gh --version 2>/dev/null | head -1 | awk '{print $3}')
+        log_success "✓ GitHub CLI $gh_version"
+    else
+        log_warn "⚠ GitHub CLI not found (optional for development)"
+    fi
+    
+    # Check MongoDB container
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^librechat-mongo$"; then
+        log_success "✓ MongoDB container running"
+        
+        # Test MongoDB connectivity
+        if docker exec librechat-mongo mongosh \
+            -u admin \
+            -p admin123 \
+            --authenticationDatabase admin \
+            --eval "db.runCommand({ping:1})" \
+            --quiet >/dev/null 2>&1; then
+            log_success "✓ MongoDB connection verified"
+        else
+            log_warn "⚠ MongoDB container running but connection test failed"
+        fi
+    elif docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^librechat-mongo$"; then
+        log_warn "⚠ MongoDB container exists but is not running"
+        log_info "  Start it with: docker start librechat-mongo"
+        ((failed++))
+    else
+        log_error "✗ MongoDB container not found"
+        ((failed++))
+    fi
+    
+    # Check .env file
+    if [ -f ".env" ]; then
+        log_success "✓ .env file exists"
+        
+        # Check for critical env vars
+        if grep -q "^MONGO_URI=" ".env" && \
+           grep -q "^JWT_SECRET=" ".env" && \
+           grep -q "^JWT_REFRESH_SECRET=" ".env"; then
+            log_success "✓ Critical environment variables configured"
+        else
+            log_warn "⚠ Some required environment variables may be missing"
+        fi
+    else
+        log_error "✗ .env file not found"
+        ((failed++))
+    fi
+    
+    # Check node_modules
+    if [ -d "node_modules" ]; then
+        log_success "✓ Root dependencies installed"
+    else
+        log_error "✗ Root dependencies not installed"
+        ((failed++))
+    fi
+    
+    # Check package builds
+    local packages_ok=true
+    for pkg in "packages/data-provider" "api" "client"; do
+        if [ ! -d "$pkg/node_modules" ]; then
+            log_warn "⚠ $pkg dependencies may be missing"
+            packages_ok=false
+        fi
+    done
+    
+    if [ "$packages_ok" = true ]; then
+        log_success "✓ Package dependencies installed"
+    fi
+    
+    echo ""
+    if [ $failed -eq 0 ]; then
+        log_success "All critical checks passed! ✓"
+        return 0
+    else
+        log_error "$failed critical check(s) failed"
+        log_warn "Please review the errors above and re-run the script if needed"
+        return 1
+    fi
+}
+
+#-------------------------------------------------------------#
+# Application Startup Test
+#-------------------------------------------------------------#
+
+test_application() {
+    log_step "Testing application startup (optional)..."
+    
+    if ! prompt_yes_no "Start LibreChat to verify it works?" "n"; then
+        log_info "Skipping application test"
+        log_info "You can manually test later with: npm run dev"
+        return 0
+    fi
+    
+    echo ""
+    log_info "This will start both frontend and backend servers"
+    log_info "Press Ctrl+C to stop the test"
+    echo ""
+    
+    if ! prompt_yes_no "Continue with startup test?" "y"; then
+        return 0
+    fi
+    
+    echo ""
+    log_info "Starting LibreChat in development mode..."
+    log_info "This may take 30-60 seconds for initial compilation..."
+    echo ""
+    log_warn "Watch for the following messages:"
+    echo "  - Backend:  'Server listening at http://localhost:3080'"
+    echo "  - Frontend: 'Local: http://localhost:3090/'"
+    echo ""
+    log_info "Press Ctrl+C when you see both services running"
+    echo ""
+    
+    sleep 3
+    
+    # Start in foreground so user can see output and Ctrl+C
+    npm run dev || {
+        log_error "Failed to start LibreChat"
+        log_info "Common issues:"
+        echo "  - MongoDB not running: docker start librechat-mongo"
+        echo "  - Port conflicts: Check if 3080 or 3090 are in use"
+        echo "  - Missing dependencies: npm ci"
+        return 1
+    }
+    
+    echo ""
+    log_success "Application test completed"
+    return 0
+}
+
+#=============================================================#
 # Main Script Entry Point
 #=============================================================#
 
@@ -1195,7 +1381,56 @@ main() {
     fi
     
     log_success "Phase 4: Deployment mode configuration complete!"
-    log_info "Additional phases (verification) will be added in subsequent updates"
+    echo ""
+    
+    # Phase 5: Verification and Testing
+    log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_info "Phase 5: Verification and Testing"
+    log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    
+    verify_setup
+    echo ""
+    
+    test_application
+    echo ""
+    
+    #---------------------------------------------------------#
+    # Setup Complete
+    #---------------------------------------------------------#
+    
+    log_section "🎉 Setup Complete! 🎉"
+    echo ""
+    log_success "LibreChat development environment is ready!"
+    echo ""
+    log_info "Next steps:"
+    echo ""
+    
+    if [ "$SETUP_NATIVE" = true ]; then
+        echo "  Native Mode:"
+        echo "    1. Start MongoDB: docker start librechat-mongo"
+        echo "    2. Start LibreChat: npm run dev"
+        echo "    3. Open: http://localhost:3090"
+        echo ""
+    fi
+    
+    if [ "$SETUP_COMPOSE" = true ] && [ -f "docker-compose.dev.yml" ]; then
+        echo "  Docker Compose Mode:"
+        echo "    1. Start services: docker compose -f docker-compose.dev.yml up -d"
+        echo "    2. View logs: docker compose -f docker-compose.dev.yml logs -f"
+        echo "    3. Open: http://localhost:3090"
+        echo ""
+    fi
+    
+    log_info "Documentation:"
+    echo "  - Project README: cat README.md"
+    echo "  - Environment variables: cat .env"
+    echo "  - MongoDB logs: docker logs librechat-mongo"
+    echo ""
+    log_info "Troubleshooting:"
+    echo "  - Re-run this script if anything fails"
+    echo "  - Check MongoDB: docker ps | grep librechat-mongo"
+    echo "  - Rebuild packages: npm run build:all"
     
     echo ""
 }
