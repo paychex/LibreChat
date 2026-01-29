@@ -916,6 +916,63 @@ setup_mongodb() {
 #=============================================================#
 
 #-------------------------------------------------------------#
+# Docker Compose Override for VDI
+#-------------------------------------------------------------#
+
+setup_docker_compose_override() {
+    local OVERRIDE_FILE="docker-compose.override.yml"
+    
+    log_step "Setting up Docker Compose override for VDI..."
+    
+    # Check if override file already exists
+    if [ -f "$OVERRIDE_FILE" ]; then
+        log_info "docker-compose.override.yml already exists"
+        if ! prompt_yes_no "Recreate docker-compose.override.yml for VDI?" "n"; then
+            log_info "Keeping existing docker-compose.override.yml"
+            return 0
+        fi
+        local backup_file="${OVERRIDE_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+        cp "$OVERRIDE_FILE" "$backup_file"
+        log_success "Backup created: $backup_file"
+    fi
+    
+    log_info "Creating docker-compose.override.yml for VDI environments..."
+    
+    cat > "$OVERRIDE_FILE" << 'EOF'
+services:
+  # Use MongoDB 4.4 for CPUs without AVX support (common in VDI environments)
+  mongodb:
+    image: mongo:4.4.18
+    user: "0:0"  # Run as root to avoid permission issues
+  
+  # Fix Meilisearch permissions
+  meilisearch:
+    user: "0:0"  # Run as root to avoid permission issues
+  
+  # Mount the Paychex root certificate for RAG API (if exists)
+  rag_api:
+    volumes:
+      - ./paychex-root.pem:/app/paychex-root.pem:ro
+  
+  # Mount the Paychex root certificate and config for LibreChat API
+  api:
+    volumes:
+      - type: bind
+        source: ./.env
+        target: /app/.env
+      - ./images:/app/client/public/images
+      - ./uploads:/app/uploads
+      - ./logs:/app/api/logs
+      - ./paychex-root.pem:/app/paychex-root.pem:ro
+      - ./librechat.yaml:/app/librechat.yaml:ro
+EOF
+    
+    log_success "docker-compose.override.yml created"
+    log_warn "Note: This configuration uses MongoDB 4.4.18 for VDIs without AVX support"
+    log_info "If you have paychex-root.pem, place it in the LibreChat root directory"
+}
+
+#-------------------------------------------------------------#
 # Environment Configuration
 #-------------------------------------------------------------#
 
@@ -1010,6 +1067,38 @@ setup_environment() {
     log_success ".env file configured successfully"
     log_info "MongoDB URI: mongodb://librechat:***@localhost:27017/LibreChat"
     log_info "JWT secrets: Generated automatically"
+    
+    # VDI-specific warnings
+    echo ""
+    log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_warn "For Paychex VDI environments, additional configuration required:"
+    log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "  1. Azure OpenAI Configuration:"
+    echo "     AZURE_OPENAI_API_KEY=<your-key>"
+    echo "     AZURE_OPENAI_BASEURL=https://consult-internal-documentationopenai/deployments/\${DEPLOYMENT_NAME}"
+    echo "     OPENAI_API_VERSION=2024-02-01"
+    echo ""
+    echo "  2. SSL Certificate Configuration (for corporate proxy):"
+    echo "     NODE_EXTRA_CA_CERTS=//app/paychex-root.pem"
+    echo "     SSL_CERT_FILE=/app/paychex-root.pem"
+    echo "     REQUESTS_CA_BUNDLE=/app/paychex-root.pem"
+    echo "     CURL_CA_BUNDLE=/app/paychex-root.pem"
+    echo ""
+    echo "  3. RAG Configuration (if using Azure embeddings):"
+    echo "     RAG_AZURE_OPENAI_API_KEY=<your-key>"
+    echo "     RAG_AZURE_OPENAI_ENDPOINT=https://consult-internal-documentation"
+    echo "     EMBEDDINGS_PROVIDER=azure"
+    echo "     EMBEDDINGS_MODEL=text-embedding-ada-002"
+    echo ""
+    echo "  4. OpenID/SSO Configuration (if using Paychex SSO):"
+    echo "     OPENID_CLIENT_ID=<your-client-id>"
+    echo "     OPENID_CLIENT_SECRET=<your-secret>"
+    echo "     OPENID_ISSUER=https://consult-internal-documentation"
+    echo ""
+    log_info "Consult with your team for the specific values above"
+    log_info "You can manually edit .env file to add these configurations"
+    echo ""
 }
 
 #-------------------------------------------------------------#
@@ -1520,6 +1609,9 @@ main() {
     echo ""
     
     setup_environment
+    echo ""
+    
+    setup_docker_compose_override
     echo ""
     
     install_dependencies
