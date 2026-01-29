@@ -52,7 +52,8 @@ docker run -it --rm \
   rockylinux:9 \
   bash -c '
     echo "Setting up minimal environment..."
-    dnf install -y -q git curl sudo ca-certificates > /dev/null 2>&1
+    echo "Installing git, curl, sudo, ca-certificates..."
+    dnf install -y git curl sudo ca-certificates
     
     # Copy mounted certs to Rocky location and update trust
     if [ -d /usr/local/share/ca-certificates ]; then
