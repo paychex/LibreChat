@@ -16,6 +16,24 @@
 set -euo pipefail  # Exit on error, undefined vars, pipe failures
 
 #=============================================================#
+# Script Directory Detection
+#=============================================================#
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# If running from dev-setup directory, change to parent (LibreChat root)
+if [[ "$SCRIPT_DIR" == */dev-setup ]]; then
+    LIBRECHAT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+    cd "$LIBRECHAT_ROOT"
+    echo "Detected script in dev-setup/, changing to LibreChat root: $LIBRECHAT_ROOT"
+    echo ""
+else
+    # Script is in LibreChat root or somewhere else
+    LIBRECHAT_ROOT="$SCRIPT_DIR"
+fi
+
+#=============================================================#
 # Configuration
 #=============================================================#
 
