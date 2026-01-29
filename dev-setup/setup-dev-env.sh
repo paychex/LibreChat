@@ -475,10 +475,13 @@ install_nvm() {
         
         # Source nvm
         export NVM_DIR="$HOME/.nvm"
+        # Temporarily disable unbound variable check for nvm
+        set +u
         [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
         
         # Add to current shell
         [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+        set -u
         
         # Check Node version
         if check_command node; then
@@ -514,8 +517,11 @@ install_nvm() {
         
         # Source nvm for current session
         export NVM_DIR="$HOME/.nvm"
+        # Temporarily disable unbound variable check for nvm (it has some unset vars)
+        set +u
         [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
         [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+        set -u
         
         log_info "Installing Node.js LTS..."
         nvm install --lts
