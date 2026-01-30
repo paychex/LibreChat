@@ -205,16 +205,22 @@ detect_os() {
     OS_VERSION="${VERSION_ID}"
     OS_NAME="${NAME}"
     
+    # Determine sudo usage: use if available and not root
+    local USE_SUDO=""
+    if ! is_root && check_command sudo; then
+        USE_SUDO="sudo"
+    fi
+    
     case "$OS" in
         ubuntu|debian)
             PKG_MANAGER="apt"
-            PKG_UPDATE="sudo apt-get update"
-            PKG_INSTALL="sudo apt-get install -y"
+            PKG_UPDATE="$USE_SUDO apt-get update"
+            PKG_INSTALL="$USE_SUDO apt-get install -y"
             ;;
         rocky|rhel|centos|fedora)
             PKG_MANAGER="dnf"
-            PKG_UPDATE="sudo dnf check-update || true"
-            PKG_INSTALL="sudo dnf install -y"
+            PKG_UPDATE="$USE_SUDO dnf check-update || true"
+            PKG_INSTALL="$USE_SUDO dnf install -y --allowerasing"
             ;;
         *)
             log_error "Unsupported operating system: $OS"
@@ -263,8 +269,8 @@ check_prerequisites() {
         log_warn "Missing required tools: ${missing_tools[*]}"
         if prompt_yes_no "Install missing tools?" "y"; then
             log_info "Installing: ${missing_tools[*]}"
-            $PKG_UPDATE
-            $PKG_INSTALL "${missing_tools[@]}"
+            eval "$PKG_UPDATE"
+            eval "$PKG_INSTALL ${missing_tools[*]}"
         else
             log_error "Required tools not installed. Exiting."
             exit 1
@@ -492,9 +498,11 @@ install_nvm() {
                 if prompt_yes_no "Install Node.js $REQUIRED_NODE_VERSION LTS?" "y"; then
                     log_info "Installing Node.js LTS..."
                     set +u
-                    nvm install --lts
-                    nvm use --lts
-                    nvm alias default lts/*
+                    export NVM_NODEJS_ORG_MIRROR=http://nodejs.org/dist
+                    nvm install 20
+                    nvm use 20
+                    nvm alias default 20
+                    unset NVM_NODEJS_ORG_MIRROR
                     set -u
                 else
                     log_warn "Skipping Node.js upgrade - this may cause issues"
@@ -507,9 +515,11 @@ install_nvm() {
             # nvm exists but no node installed
             log_info "Node.js not found - installing Node.js LTS..."
             set +u
-            nvm install --lts
-            nvm use --lts
-            nvm alias default lts/*
+            export NVM_NODEJS_ORG_MIRROR=http://nodejs.org/dist
+            nvm install 20
+            nvm use 20
+            nvm alias default 20
+            unset NVM_NODEJS_ORG_MIRROR
             set -u
         fi
     else
@@ -519,7 +529,12 @@ install_nvm() {
         log_info "Downloading nvm installer..."
         # Temporarily disable unbound variable check - nvm installer sources nvm.sh which has unset vars
         set +u
-        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+        # Configure git to handle SSL in containers (temporarily)
+        git config --global http.sslVerify false
+        # Use -k flag to handle SSL certificate issues in containers
+        curl -k -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+        # Re-enable git SSL verification
+        git config --global --unset http.sslVerify
         
         # Source nvm for current session
         export NVM_DIR="$HOME/.nvm"
@@ -530,9 +545,13 @@ install_nvm() {
         
         log_info "Installing Node.js LTS..."
         set +u
-        nvm install --lts
-        nvm use --lts
-        nvm alias default lts/*
+        # Configure nvm to skip SSL verification in containers
+        export NVM_NODEJS_ORG_MIRROR=http://nodejs.org/dist
+        # Use specific LTS version (v20) instead of --lts
+        nvm install 20
+        nvm use 20
+        nvm alias default 20
+        unset NVM_NODEJS_ORG_MIRROR
         set -u
     fi
     

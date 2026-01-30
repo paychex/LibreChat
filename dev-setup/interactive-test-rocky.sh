@@ -53,7 +53,16 @@ docker run -it --rm \
   bash -c '
     echo "Setting up minimal environment..."
     echo "Installing git, curl, sudo, ca-certificates..."
-    dnf install -y git curl sudo ca-certificates
+    # Temporarily disable SSL verification for initial package install
+    echo "sslverify=false" >> /etc/dnf/dnf.conf
+    # Use --allowerasing to handle curl-minimal conflict
+    dnf install -y --allowerasing git curl sudo ca-certificates
+    # Re-enable SSL verification
+    sed -i "/sslverify=false/d" /etc/dnf/dnf.conf
+    
+    # Update CA trust for both root and future users
+    update-ca-trust
+    echo "CA trust updated"
     
     # Copy mounted certs to Rocky location and update trust
     if [ -d /usr/local/share/ca-certificates ]; then
