@@ -69,21 +69,6 @@ These scripts:
 - Verify all components install correctly
 - Exit with success/failure code
 
-### Unit Testing Individual Phases
-
-Test specific phases without running the full script:
-
-```bash
-# Phase 2: Installation functions
-./test-phase2.sh
-
-# Phase 4: Deployment mode selection
-./test-phase4.sh
-
-# Phase 5: Verification and testing
-./test-phase5.sh
-```
-
 ## File Structure
 
 ```
@@ -100,26 +85,69 @@ dev-setup/
 ├── Dockerfile.test-ubuntu              # Ubuntu test image
 ├── Dockerfile.test-rocky               # Rocky test image
 │
-├── test-phase2.sh                      # Phase 2 unit tests
-├── test-phase4.sh                      # Phase 4 unit tests
-├── test-phase5.sh                      # Phase 5 unit tests
-│
 └── README.md                           # This file
 ```
 
 ## Environment Variables
 
-### For Automated Testing
+### For Development/Testing
 
-- `CI=true` - Runs in non-interactive CI mode
-- `AUTOMATED_TEST=true` - Skips interactive prompts, uses defaults
-- `TEST_MODE=1` - For phase testing without package.json requirement
+The following environment variables control script behavior for testing and CI/CD environments:
 
-### Example
+#### `CI` (default: not set)
+- **Purpose**: Enables non-interactive CI/CD mode
+- **Effect**: Skips all interactive prompts, uses default choices
+- **Usage**: `CI=true ./setup-dev-env.sh`
+- **When to use**: In continuous integration pipelines, automated testing
 
+#### `AUTOMATED_TEST` (default: not set)
+- **Purpose**: Indicates script is running in automated test environment
+- **Effect**: 
+  - Skips MongoDB and application startup tests (Docker daemon may not be available)
+  - Uses sensible defaults for all choices
+  - Provides warnings instead of errors for container-specific limitations
+- **Usage**: `AUTOMATED_TEST=true ./setup-dev-env.sh`
+- **When to use**: Automated test environments where Docker-in-Docker is not available
+
+#### `TEST_MODE` (default: not set)
+- **Purpose**: Bypasses LibreChat repository detection
+- **Effect**: Skips the `package.json` presence check
+- **Usage**: `TEST_MODE=1 ./setup-dev-env.sh`
+- **When to use**: 
+  - Testing script in minimal Docker images without full repository
+  - Unit testing individual functions
+  - Automated CI builds where only the script is copied
+
+### Combined Usage
+
+For fully automated testing (recommended for CI/CD):
 ```bash
-CI=true AUTOMATED_TEST=true ./setup-dev-env.sh
+CI=true AUTOMATED_TEST=true TEST_MODE=1 ./setup-dev-env.sh
 ```
+
+### Corporate Network Configuration
+
+#### SSL Certificate Handling
+
+For corporate environments with custom SSL certificates:
+
+**Rocky Linux:**
+1. Copy certificates to `/usr/local/share/ca-certificates/` on the host
+2. The automated test scripts will automatically copy them to the build context
+3. Certificates are installed before any network operations
+
+**Ubuntu:**
+1. Place `.crt` files in `/usr/local/share/ca-certificates/`
+2. Run `sudo update-ca-certificates`
+3. The setup script will configure npm to use system certificates
+
+**Note**: The test Dockerfiles (`Dockerfile.test-rocky` and `Dockerfile.test-ubuntu`) automatically handle certificate mounting when available. If no certificates are found, a dummy certificate is created to prevent build failures.
+├── Dockerfile.test-rocky               # Rocky test image
+│
+└── README.md                           # This file
+```
+
+## Environment Variables
 
 ## Requirements
 
@@ -218,27 +246,20 @@ steps:
 
 When making changes to `setup-dev-env.sh`:
 
-1. Test individual phases with unit tests:
-   ```bash
-   ./test-phase2.sh
-   ./test-phase4.sh
-   ./test-phase5.sh
-   ```
-
-2. Test interactively in a fresh environment:
+1. Test interactively in a fresh environment:
    ```bash
    ./interactive-test-ubuntu.sh
    # or
    ./interactive-test-rocky.sh
    ```
 
-3. Run automated tests:
+2. Run automated tests:
    ```bash
    ./test-docker-ubuntu.sh
    ./test-docker-rocky.sh
    ```
 
-4. Review the implementation plan:
+3. Review the implementation plan:
    ```bash
    cat SETUP_SCRIPT_IMPLEMENTATION_PLAN.md
    ```
