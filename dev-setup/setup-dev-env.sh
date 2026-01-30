@@ -498,11 +498,9 @@ install_nvm() {
                 if prompt_yes_no "Install Node.js $REQUIRED_NODE_VERSION LTS?" "y"; then
                     log_info "Installing Node.js LTS..."
                     set +u
-                    export NVM_NODEJS_ORG_MIRROR=http://nodejs.org/dist
-                    nvm install 20
-                    nvm use 20
-                    nvm alias default 20
-                    unset NVM_NODEJS_ORG_MIRROR
+                    nvm install --lts
+                    nvm use --lts
+                    nvm alias default --lts
                     set -u
                 else
                     log_warn "Skipping Node.js upgrade - this may cause issues"
@@ -515,11 +513,9 @@ install_nvm() {
             # nvm exists but no node installed
             log_info "Node.js not found - installing Node.js LTS..."
             set +u
-            export NVM_NODEJS_ORG_MIRROR=http://nodejs.org/dist
-            nvm install 20
-            nvm use 20
-            nvm alias default 20
-            unset NVM_NODEJS_ORG_MIRROR
+            nvm install --lts
+            nvm use --lts
+            nvm alias default --lts
             set -u
         fi
     else
@@ -529,12 +525,7 @@ install_nvm() {
         log_info "Downloading nvm installer..."
         # Temporarily disable unbound variable check - nvm installer sources nvm.sh which has unset vars
         set +u
-        # Configure git to handle SSL in containers (temporarily)
-        git config --global http.sslVerify false
-        # Use -k flag to handle SSL certificate issues in containers
-        curl -k -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-        # Re-enable git SSL verification
-        git config --global --unset http.sslVerify
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
         
         # Source nvm for current session
         export NVM_DIR="$HOME/.nvm"
@@ -545,13 +536,9 @@ install_nvm() {
         
         log_info "Installing Node.js LTS..."
         set +u
-        # Configure nvm to skip SSL verification in containers
-        export NVM_NODEJS_ORG_MIRROR=http://nodejs.org/dist
-        # Use specific LTS version (v20) instead of --lts
-        nvm install 20
-        nvm use 20
-        nvm alias default 20
-        unset NVM_NODEJS_ORG_MIRROR
+        nvm install --lts
+        nvm use --lts
+        nvm alias default --lts
         set -u
     fi
     
@@ -622,25 +609,14 @@ install_docker_ubuntu() {
 install_docker_rocky() {
     log_info "Installing Docker for Rocky Linux..."
     
-    # Check if SSL verification is problematic (common in containers)
-    local DISABLE_SSL=""
-    local REPO_URL="https://download.docker.com/linux/centos/docker-ce.repo"
-    if ! curl -sS -m 5 https://download.docker.com >/dev/null 2>&1; then
-        log_warn "SSL certificate issues detected - using workaround for container environment"
-        DISABLE_SSL="--setopt=sslverify=false"
-        
-        # Download repo file manually with curl -k instead of using config-manager
-        eval "sudo dnf $DISABLE_SSL -y install dnf-plugins-core"
-        sudo curl -k -sS -o /etc/yum.repos.d/docker-ce.repo "$REPO_URL"
-    else
-        # Normal path for real VDI environments
-        sudo dnf -y install dnf-plugins-core
-        sudo dnf config-manager --add-repo "$REPO_URL"
-        DISABLE_SSL=""
-    fi
+    # Install dnf-plugins-core
+    sudo dnf -y install dnf-plugins-core
+    
+    # Add Docker repository
+    sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
     
     # Install Docker
-    eval "sudo dnf $DISABLE_SSL install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin"
+    sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 }
 
 configure_docker_service() {
@@ -1189,28 +1165,25 @@ install_dependencies() {
 build_packages() {
     log_step "Building LibreChat packages..."
     
-    # Check if builds already exist
-    local packages_built=true
-    local build_dirs=(
-        "packages/data-provider/dist"
-        "api/dist"
-        "client/dist"
-    )
-    
-    for dir in "${build_dirs[@]}"; do
-        if [ ! -d "$dir" ]; then
-            packages_built=false
-            break
+    # Clean up any existing build artifacts that may have permission issues
+    # (can happen if previously built in a container as root)
+    log_info "Cleaning previous build artifacts..."
+    rm -rf packages/data-provider/dist api/dist client/dist 2>/dev/null || {
+        log_warn "Some build artifacts couldn't be deleted (permission denied)"
+        log_warn "This can happen if files were created by a container run as root"
+        if is_root; then
+            log_info "Running as root, forcing cleanup..."
+            rm -rf packages/data-provider/dist api/dist client/dist
+        else
+            log_warn "Try running: sudo rm -rf packages/data-provider/dist api/dist client/dist"
+            if prompt_yes_no "Attempt to clean with sudo?" "y"; then
+                sudo rm -rf packages/data-provider/dist api/dist client/dist
+            else
+                log_error "Cannot proceed with build - existing artifacts are in the way"
+                return 1
+            fi
         fi
-    done
-    
-    if $packages_built; then
-        log_info "Build artifacts already exist"
-        if ! prompt_yes_no "Rebuild packages?" "n"; then
-            log_info "Skipping build step"
-            return 0
-        fi
-    fi
+    }
     
     # Build commands based on package.json
     local BUILD_COMMANDS=(
