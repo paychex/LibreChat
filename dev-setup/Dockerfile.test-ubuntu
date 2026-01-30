@@ -35,6 +35,7 @@ USER testuser
 # Set environment variables for non-interactive testing
 ENV CI=true
 ENV AUTOMATED_TEST=true
+ENV TEST_MODE=1
 
 # Default command runs the setup script
 CMD ["/workspace/dev-setup/setup-dev-env.sh"]

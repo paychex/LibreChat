@@ -1,12 +1,19 @@
 FROM rockylinux:9
 
-# Install minimal bootstrap tools and update CA certificates
-RUN dnf install -y \
+# Copy corporate CA certificates from build context
+# The build script creates dummy.crt if no certificates exist
+COPY *.crt /etc/pki/ca-trust/source/anchors/
+
+# Update CA trust before making any network calls
+RUN update-ca-trust
+
+# Install minimal bootstrap tools
+# Use --allowerasing to replace curl-minimal with full curl
+RUN dnf install -y --allowerasing \
     git \
     curl \
     ca-certificates \
     sudo \
-    && update-ca-trust \
     && dnf clean all
 
 # Create a non-root user (simulates VDI environment)
@@ -31,6 +38,7 @@ USER testuser
 # Set environment variables for non-interactive testing
 ENV CI=true
 ENV AUTOMATED_TEST=true
+ENV TEST_MODE=1
 
 # Default command runs the setup script
 CMD ["/workspace/dev-setup/setup-dev-env.sh"]
