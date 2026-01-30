@@ -74,7 +74,7 @@ These scripts:
 ```
 dev-setup/
 ├── setup-dev-env.sh                    # Main setup script
-├── SETUP_SCRIPT_IMPLEMENTATION_PLAN.md # Implementation documentation
+├── README.md                           # This file
 │
 ├── interactive-test-ubuntu.sh          # Interactive Ubuntu testing
 ├── interactive-test-rocky.sh           # Interactive Rocky Linux testing
@@ -83,9 +83,7 @@ dev-setup/
 ├── test-docker-rocky.sh                # Automated Rocky Linux testing
 │
 ├── Dockerfile.test-ubuntu              # Ubuntu test image
-├── Dockerfile.test-rocky               # Rocky test image
-│
-└── README.md                           # This file
+└── Dockerfile.test-rocky               # Rocky test image
 ```
 
 ## Environment Variables
@@ -259,15 +257,9 @@ When making changes to `setup-dev-env.sh`:
    ./test-docker-rocky.sh
    ```
 
-3. Review the implementation plan:
-   ```bash
-   cat SETUP_SCRIPT_IMPLEMENTATION_PLAN.md
-   ```
-
 ## Support
 
 For issues or questions:
 1. Check the troubleshooting section above
-2. Review [SETUP_SCRIPT_IMPLEMENTATION_PLAN.md](SETUP_SCRIPT_IMPLEMENTATION_PLAN.md)
-3. Check LibreChat documentation
-4. Contact the development team
+2. Check [LibreChat documentation](https://wiki.paychex.com/spaces/AIML/pages/2327061128/LibreChat+Local+Development+Setup+with+Docker+and+MongoDB+in+Linux+VDI)
+3. Contact the development team, [support@example.com](mailto:support@example.com)
