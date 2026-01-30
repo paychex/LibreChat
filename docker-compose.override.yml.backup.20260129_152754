@@ -1,0 +1,26 @@
+services:
+  # Use MongoDB 4.4 for CPUs without AVX support
+  mongodb:
+    image: mongo:4.4.18
+    user: "0:0"  # Run as root to avoid permission issues
+  
+  # Fix Meilisearch permissions
+  meilisearch:
+    user: "0:0"  # Run as root to avoid permission issues
+  
+  # Mount the Paychex root certificate for RAG API
+  rag_api:
+    volumes:
+      - ./paychex-root.pem:/app/paychex-root.pem:ro
+  
+  # Mount the Paychex root certificate and config for LibreChat API
+  api:
+    volumes:
+      - type: bind
+        source: ./.env
+        target: /app/.env
+      - ./images:/app/client/public/images
+      - ./uploads:/app/uploads
+      - ./logs:/app/api/logs
+      - ./paychex-root.pem:/app/paychex-root.pem:ro
+      - ./librechat.yaml:/app/librechat.yaml:ro
