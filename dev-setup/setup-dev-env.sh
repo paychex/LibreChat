@@ -1579,10 +1579,10 @@ main() {
     display_system_info
     detect_environment
     
-    # Phase 2: Install components
+    # Step 1: Install components
     echo ""
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_info "Phase 2: Installing Prerequisites"
+    log_info "Step 1: Installing Prerequisites"
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     
@@ -1604,12 +1604,12 @@ main() {
     fi
     echo ""
     
-    log_success "Phase 2: Prerequisites installation complete!"
+    log_success "Step 1: Prerequisites installation complete!"
     echo ""
     
-    # Phase 3: Project Setup
+    # Step 2: Project Setup
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_info "Phase 3: Project Configuration"
+    log_info "Step 2: Project Configuration"
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     
@@ -1625,12 +1625,12 @@ main() {
     build_packages
     echo ""
     
-    log_success "Phase 3: Project configuration complete!"
+    log_success "Step 2: Project configuration complete!"
     echo ""
     
-    # Phase 4: Deployment Mode Selection
+    # Step 3: Deployment Mode Selection
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_info "Phase 4: Deployment Mode Selection"
+    log_info "Step 3: Deployment Mode Selection"
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     
@@ -1644,12 +1644,12 @@ main() {
         setup_docker_compose_mode
     fi
     
-    log_success "Phase 4: Deployment mode configuration complete!"
+    log_success "Step 3: Deployment mode configuration complete!"
     echo ""
     
-    # Phase 5: Verification and Testing
+    # Step 4: Verification and Testing
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_info "Phase 5: Verification and Testing"
+    log_info "Step 4: Verification and Testing"
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     

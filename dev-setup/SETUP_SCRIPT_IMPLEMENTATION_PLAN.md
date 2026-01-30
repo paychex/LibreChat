@@ -839,8 +839,7 @@ LibreChat/
 - Clear pass/fail reporting with actionable messages
 - Graceful handling of optional components
 
-### Phase 6: Testing Framework (Day 8)
-**Status**: ✅ Complete
+### Phase 6: Testing Framework (Day 8) ✅ COMPLETE
 
 **Components**:
 - [x] Interactive Ubuntu test environment
@@ -849,18 +848,20 @@ LibreChat/
 - [x] Automated Rocky Linux test
 - [x] Dockerfiles for test images
 - [x] CI/automated mode support in setup script
+- [x] Corporate SSL certificate handling for Rocky builds
+- [x] Package conflict resolution (curl-minimal vs curl)
 
 **Features**:
 - Two testing modes: Interactive (manual) and Automated (CI)
 - Docker-based isolated testing environments
 - Interactive: Mount local code, drop into shell, observe execution
 - Automated: Build from Dockerfile, run non-interactively, report success/failure
-- CI environment variable support (CI=true, AUTOMATED_TEST=true)
+- CI environment variable support (CI=true, AUTOMATED_TEST=true, TEST_MODE=1)
 - Non-interactive prompts in automated mode
 - README documentation with usage examples
-- [ ] Automated validation
+- All tests passing on both Ubuntu and Rocky Linux
 
-### Phase 7: Documentation & Polish (Day 9-10)
+### Phase 7: Documentation & Polish (Day 9-10) 🔄 IN PROGRESS
 
 - [ ] Usage documentation
 - [ ] Error handling improvements
