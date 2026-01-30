@@ -43,6 +43,11 @@ client/public/main.js.LICENSE.txt
 # Rollup TypeScript plugin cache
 **/undefined/
 
+# Backup files created by setup scripts
+*.bak
+*.backup
+*docker-compose-override*.bak*
+
 # Azure Blob Storage Emulator (Azurite)
 __azurite**
 __blobstorage__/**/*
