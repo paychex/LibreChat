@@ -262,4 +262,4 @@ When making changes to `setup-dev-env.sh`:
 For issues or questions:
 1. Check the troubleshooting section above
 2. Check [LibreChat documentation](https://wiki.paychex.com/spaces/AIML/pages/2327061128/LibreChat+Local+Development+Setup+with+Docker+and+MongoDB+in+Linux+VDI)
-3. Contact the development team, [support@example.com](mailto:support@example.com)
+3. Contact the development team
