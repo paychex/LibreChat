@@ -22,9 +22,22 @@ echo ""
 
 cd "$SCRIPT_DIR"
 
+# Copy corporate certificates to build context if they exist
+# Otherwise create a dummy certificate so COPY doesn't fail
+if [ -d "/usr/local/share/ca-certificates" ] && [ -n "$(ls -A /usr/local/share/ca-certificates/*.crt 2>/dev/null)" ]; then
+    echo "Copying corporate CA certificates to build context..."
+    cp /usr/local/share/ca-certificates/*.crt .
+else
+    echo "No corporate certificates found, creating dummy certificate..."
+    touch dummy.crt
+fi
+
 # Build the test image
 echo "Building Rocky Linux test image..."
 docker build -f Dockerfile.test-rocky -t librechat-setup-test-rocky:latest .
+
+# Clean up copied/dummy certificates
+rm -f ./*.crt 2>/dev/null || true
 
 echo ""
 echo "Running setup script in Rocky Linux container..."
