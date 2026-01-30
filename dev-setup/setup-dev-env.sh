@@ -500,7 +500,7 @@ install_nvm() {
                     set +u
                     nvm install --lts
                     nvm use --lts
-                    nvm alias default --lts
+                    nvm alias default 'lts/*'
                     set -u
                 else
                     log_warn "Skipping Node.js upgrade - this may cause issues"
@@ -515,7 +515,7 @@ install_nvm() {
             set +u
             nvm install --lts
             nvm use --lts
-            nvm alias default --lts
+            nvm alias default 'lts/*'
             set -u
         fi
     else
@@ -538,7 +538,7 @@ install_nvm() {
         set +u
         nvm install --lts
         nvm use --lts
-        nvm alias default --lts
+        nvm alias default 'lts/*'
         set -u
     fi
     
@@ -1168,16 +1168,16 @@ build_packages() {
     # Clean up any existing build artifacts that may have permission issues
     # (can happen if previously built in a container as root)
     log_info "Cleaning previous build artifacts..."
-    rm -rf packages/data-provider/dist api/dist client/dist 2>/dev/null || {
+    rm -rf packages/data-provider/dist packages/api/dist packages/client/dist 2>/dev/null || {
         log_warn "Some build artifacts couldn't be deleted (permission denied)"
         log_warn "This can happen if files were created by a container run as root"
         if is_root; then
             log_info "Running as root, forcing cleanup..."
-            rm -rf packages/data-provider/dist api/dist client/dist
+            rm -rf packages/data-provider/dist packages/api/dist packages/client/dist
         else
-            log_warn "Try running: sudo rm -rf packages/data-provider/dist api/dist client/dist"
+            log_warn "Try running: sudo rm -rf packages/data-provider/dist packages/api/dist packages/client/dist"
             if prompt_yes_no "Attempt to clean with sudo?" "y"; then
-                sudo rm -rf packages/data-provider/dist api/dist client/dist
+                sudo rm -rf packages/data-provider/dist packages/api/dist packages/client/dist
             else
                 log_error "Cannot proceed with build - existing artifacts are in the way"
                 return 1
