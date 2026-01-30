@@ -26,7 +26,6 @@ WORKDIR /workspace
 
 # Copy the setup script and related files
 COPY setup-dev-env.sh /workspace/dev-setup/
-COPY SETUP_SCRIPT_IMPLEMENTATION_PLAN.md /workspace/dev-setup/
 COPY test-*.sh /workspace/dev-setup/
 
 # Make scripts executable
