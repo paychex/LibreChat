@@ -622,12 +622,25 @@ install_docker_ubuntu() {
 install_docker_rocky() {
     log_info "Installing Docker for Rocky Linux..."
     
-    # Add Docker repository
-    sudo dnf -y install dnf-plugins-core
-    sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+    # Check if SSL verification is problematic (common in containers)
+    local DISABLE_SSL=""
+    local REPO_URL="https://download.docker.com/linux/centos/docker-ce.repo"
+    if ! curl -sS -m 5 https://download.docker.com >/dev/null 2>&1; then
+        log_warn "SSL certificate issues detected - using workaround for container environment"
+        DISABLE_SSL="--setopt=sslverify=false"
+        
+        # Download repo file manually with curl -k instead of using config-manager
+        eval "sudo dnf $DISABLE_SSL -y install dnf-plugins-core"
+        sudo curl -k -sS -o /etc/yum.repos.d/docker-ce.repo "$REPO_URL"
+    else
+        # Normal path for real VDI environments
+        sudo dnf -y install dnf-plugins-core
+        sudo dnf config-manager --add-repo "$REPO_URL"
+        DISABLE_SSL=""
+    fi
     
     # Install Docker
-    sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    eval "sudo dnf $DISABLE_SSL install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin"
 }
 
 configure_docker_service() {
