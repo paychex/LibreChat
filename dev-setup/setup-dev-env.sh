@@ -1155,8 +1155,17 @@ install_dependencies() {
     log_step "Installing npm dependencies..."
     
     # Configure npm to use system CA certificates (for corporate SSL inspection)
-    local system_ca_bundle="/etc/ssl/certs/ca-certificates.crt"
-    if [ -f "$system_ca_bundle" ]; then
+    # Different distros use different paths for CA bundles
+    local system_ca_bundle=""
+    if [ -f "/etc/ssl/certs/ca-certificates.crt" ]; then
+        # Ubuntu/Debian
+        system_ca_bundle="/etc/ssl/certs/ca-certificates.crt"
+    elif [ -f "/etc/pki/tls/certs/ca-bundle.crt" ]; then
+        # Rocky/RHEL/CentOS
+        system_ca_bundle="/etc/pki/tls/certs/ca-bundle.crt"
+    fi
+    
+    if [ -n "$system_ca_bundle" ]; then
         log_info "Configuring npm to use system CA certificates..."
         npm config set cafile "$system_ca_bundle"
         
@@ -1186,12 +1195,12 @@ install_dependencies() {
     log_info "Installing dependencies (this may take 5-10 minutes)..."
     log_info "Using 'npm ci' for reproducible builds..."
     
-    # Run npm ci with progress indication
-    if npm ci; then
+    # Run npm ci with timeout to prevent hanging
+    if npm ci --fetch-timeout=60000 --fetch-retries=2; then
         log_success "Dependencies installed successfully"
     else
         log_error "npm ci failed"
-        log_error "Try running manually: npm ci"
+        log_error "Try running manually: npm ci --loglevel=verbose"
         exit 1
     fi
 }
