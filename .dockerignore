@@ -13,5 +13,16 @@ librechat*
 Dockerfile*
 docs
 
-# Ignore all hidden files
-.*
+# Ignore specific hidden files/directories
+.git
+.gitignore
+.github
+.vscode
+.editorconfig
+.DS_Store
+.env
+.env.local
+.env.*.local
+
+# Allow .env.example (template with no secrets)
+# This is intentionally not ignored for development/test builds

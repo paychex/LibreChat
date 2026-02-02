@@ -9,8 +9,10 @@ RUN apt-get update && \
     git \
     curl \
     ca-certificates \
+    openssl \
     sudo \
-    && update-ca-certificates \
+    && apt-get upgrade -y ca-certificates \
+    && update-ca-certificates --fresh \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user (simulates VDI environment)
@@ -21,12 +23,18 @@ RUN useradd -m -s /bin/bash testuser && \
 # Set working directory
 WORKDIR /workspace
 
-# Copy the setup script and related files
-COPY setup-dev-env.sh /workspace/dev-setup/
-COPY test-*.sh /workspace/dev-setup/
+# Copy required project files for setup to work
+COPY .env.example /workspace/.env.example
+COPY package.json /workspace/package.json
+COPY package-lock.json /workspace/package-lock.json
 
-# Make scripts executable
-RUN chmod +x /workspace/dev-setup/*.sh
+# Copy the setup script and related files
+COPY dev-setup/setup-dev-env.sh /workspace/dev-setup/
+COPY dev-setup/test-*.sh /workspace/dev-setup/
+
+# Make scripts executable and change ownership to testuser
+RUN chmod +x /workspace/dev-setup/*.sh && \
+    chown -R testuser:testuser /workspace
 
 # Switch to non-root user
 USER testuser

@@ -397,7 +397,7 @@ display_system_info() {
     echo ""
     echo "  OS:              $OS_NAME $OS_VERSION"
     echo "  Package Manager: $PKG_MANAGER"
-    echo "  User:            $USER"
+    echo "  User:            ${USER:-$(whoami)}"
     echo "  Home:            $HOME"
     echo "  Working Dir:     $(pwd)"
     echo ""
@@ -649,10 +649,12 @@ configure_docker_service() {
 }
 
 configure_docker_user() {
+    local CURRENT_USER="${USER:-$(whoami)}"
+    
     # Add user to docker group
-    if ! groups "$USER" | grep -q '\bdocker\b'; then
-        log_info "Adding $USER to docker group..."
-        sudo usermod -aG docker "$USER"
+    if ! groups "$CURRENT_USER" | grep -q '\bdocker\b'; then
+        log_info "Adding $CURRENT_USER to docker group..."
+        sudo usermod -aG docker "$CURRENT_USER"
         
         # In container or automated environments, skip the interactive group switch
         if is_in_container || [ "$IS_AUTOMATED" = true ]; then
@@ -685,7 +687,7 @@ configure_docker_user() {
             log_info "Continuing without group change - Docker may require sudo"
         fi
     else
-        log_success "User $USER is already in docker group"
+        log_success "User $CURRENT_USER is already in docker group"
     fi
 }
 
@@ -1200,6 +1202,13 @@ install_dependencies() {
 
 build_packages() {
     log_step "Building LibreChat packages..."
+    
+    # Skip build in test mode - packages source code not available
+    if [ "${TEST_MODE:-0}" = "1" ]; then
+        log_info "TEST_MODE detected - skipping package builds"
+        log_info "In a real environment, packages would be built from source"
+        return 0
+    fi
     
     # Clean up any existing build artifacts that may have permission issues
     # (can happen if previously built in a container as root)
