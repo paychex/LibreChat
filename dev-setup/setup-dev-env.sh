@@ -1098,8 +1098,8 @@ setup_environment() {
     sed -i.bak "s|^#\?JWT_REFRESH_SECRET=.*|JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}|" "$ENV_FILE" 2>/dev/null || \
         sed -i '' "s|^#\?JWT_REFRESH_SECRET=.*|JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}|" "$ENV_FILE"
     
-    # Clean up backup files created by sed
-    rm -f "${ENV_FILE}.bak"
+    # Clean both Linux and macOS backup formats
+    rm -f "${ENV_FILE}.bak" "${ENV_FILE}."
     
     log_success ".env file configured successfully"
     log_info "MongoDB URI: mongodb://librechat:***@localhost:27017/LibreChat"
