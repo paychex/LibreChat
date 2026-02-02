@@ -209,7 +209,7 @@ fi
 if git diff --cached | grep -qiE "(password|api_key|secret).*=.*['\"][^<]"; then
     echo "⚠️  WARNING: Potential secret detected!"
     echo "Ensure you're not committing real credentials."
-    read -p "Continue anyway? (y/N) " -n 1 -r
+    read -p "Continue anyway? (y/N) " -n 1 -r < /dev/tty
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         exit 1
