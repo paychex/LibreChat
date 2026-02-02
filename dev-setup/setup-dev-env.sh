@@ -669,6 +669,14 @@ configure_docker_user() {
         
         if prompt_yes_no "Apply group changes to current session with 'newgrp docker'?" "n"; then
             log_info "Applying group changes..."
+            
+            # Test if sg docker actually works in this environment
+            if ! sg docker -c "groups" 2>/dev/null | grep -q '\bdocker\b'; then
+                log_error "Failed to apply docker group membership"
+                log_info "Please log out and log back in, then re-run this script"
+                exit 1
+            fi
+            
             log_warn "Note: Script will restart with new group permissions"
             sleep 2
             # Use absolute path to avoid 'not found' errors with sg/newgrp
