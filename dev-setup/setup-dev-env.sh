@@ -821,10 +821,23 @@ setup_mongodb() {
     local MONGO_CONTAINER="librechat-mongo"
     local MONGO_VOLUME="librechat-mongo"
     local MONGO_USER="librechat"
-    local MONGO_PASS="devpassword"
+    # Generate random password for local development
+    local MONGO_PASS=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 16)
     local MONGO_VERSION="4.4"
     
+    # Store password globally so it can be used in .env setup
+    export GENERATED_MONGO_PASS="$MONGO_PASS"
+    
     log_step "Setting up MongoDB container..."
+    
+    log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_warn "Generated MongoDB credentials for LOCAL DEVELOPMENT ONLY:"
+    log_warn "  Username: $MONGO_USER"
+    log_warn "  Password: $MONGO_PASS"
+    log_warn "This password will be saved in your .env file (git-ignored)"
+    log_warn "DO NOT use this password in production environments!"
+    log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
     
     # Check if Docker daemon is accessible
     if ! is_docker_running; then
@@ -1054,8 +1067,10 @@ setup_environment() {
         local JWT_REFRESH_SECRET=$(cat /dev/urandom | tr -dc 'a-f0-9' | fold -w 64 | head -n 1)
     fi
     
-    # Update MongoDB URI
-    local MONGO_URI="mongodb://librechat:devpassword@localhost:27017/LibreChat?authSource=admin"
+    # Update MongoDB URI with generated password
+    # If MongoDB setup ran successfully, use the generated password
+    local MONGO_PASS="${GENERATED_MONGO_PASS:-devpassword}"
+    local MONGO_URI="mongodb://librechat:${MONGO_PASS}@localhost:27017/LibreChat?authSource=admin"
     
     log_info "Configuring .env file..."
     
@@ -1074,6 +1089,7 @@ setup_environment() {
     
     log_success ".env file configured successfully"
     log_info "MongoDB URI: mongodb://librechat:***@localhost:27017/LibreChat"
+    log_info "MongoDB password: Stored securely in .env (randomly generated)"
     log_info "JWT secrets: Generated automatically"
     
     # VDI-specific warnings
