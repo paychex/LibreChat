@@ -923,7 +923,7 @@ setup_mongodb() {
     
     if $ready; then
         log_success "MongoDB is ready and accepting connections"
-        log_info "Connection string: mongodb://${MONGO_USER}:${MONGO_PASS}@localhost:27017/LibreChat?authSource=admin"
+        log_info "Connection string: mongodb://${MONGO_USER}:***@localhost:27017/LibreChat?authSource=admin"
     else
         log_error "MongoDB failed to start properly"
         log_error "Container logs:"
