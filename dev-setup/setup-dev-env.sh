@@ -13,6 +13,12 @@
 #   AUTOMATED_TEST=true  - Run in automated test mode (skip app testing)
 #
 
+# Verify we're running under bash
+if [ -z "${BASH_VERSION:-}" ]; then
+    echo "Error: This script requires bash"
+    exit 1
+fi
+
 set -euo pipefail  # Exit on error, undefined vars, pipe failures
 
 #=============================================================#
