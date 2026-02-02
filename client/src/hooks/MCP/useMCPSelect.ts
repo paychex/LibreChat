@@ -4,10 +4,12 @@ import isEqual from 'lodash/isEqual';
 import { useRecoilState } from 'recoil';
 import { Constants, LocalStorageKeys } from 'librechat-data-provider';
 import { ephemeralAgentByConvoId, mcpValuesAtomFamily, mcpPinnedAtom } from '~/store';
+import { useGetStartupConfig } from '~/data-provider';
 import { setTimestamp } from '~/utils/timestamps';
 
 export function useMCPSelect({ conversationId }: { conversationId?: string | null }) {
   const key = conversationId ?? Constants.NEW_CONVO;
+  const { data: startupConfig } = useGetStartupConfig();
 
   const [isPinned, setIsPinned] = useAtom(mcpPinnedAtom);
   const [mcpValues, setMCPValuesRaw] = useAtom(mcpValuesAtomFamily(key));
@@ -35,6 +37,22 @@ export function useMCPSelect({ conversationId }: { conversationId?: string | nul
       setTimestamp(mcpStorageKey);
     }
   }, [mcpValues, key]);
+
+  // Auto-select MCP servers configured with startup: true for new conversations
+  useEffect(() => {
+    if (mcpValues.length > 0) return; // Already has selections
+    if (key !== Constants.NEW_CONVO) return; // Only for new conversations
+    if (!startupConfig?.mcpServers) return; // No MCP servers configured
+
+    // Get servers configured with startup: true and visible in chat menu
+    const startupServers = Object.entries(startupConfig.mcpServers)
+      .filter(([, config]) => config.startup === true && config.chatMenu !== false)
+      .map(([serverName]) => serverName);
+
+    if (startupServers.length > 0) {
+      setMCPValuesRaw(startupServers);
+    }
+  }, [key, startupConfig, mcpValues.length, setMCPValuesRaw]);
 
   /** Stable memoized setter */
   const setMCPValues = useCallback(
