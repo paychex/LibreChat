@@ -70,6 +70,9 @@ mcpServers:
     url: https://mcp.tavily.com/mcp/
     headers:
       Authorization: "Bearer ${TAVILY_API_KEY}"
+  TaxPay:
+    type: streamable-http
+    url: https://taxpay-mcp.internal.yellowbush-62765e2a.eastus.azurecontainerapps.io/
 endpoints:
   azureOpenAI:
     # Endpoint-level configuration
