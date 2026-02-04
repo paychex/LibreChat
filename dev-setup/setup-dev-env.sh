@@ -487,16 +487,19 @@ install_nvm() {
         
         # Source nvm
         export NVM_DIR="$HOME/.nvm"
-        # Temporarily disable unbound variable check for nvm
-        set +u
+        # Temporarily disable strict mode for nvm (it may try to auto-use a version that doesn't exist)
+        set +eu
         [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
         
         # Add to current shell
         [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-        set -u
+        set -eu
         
         # Check Node version
+        # Temporarily disable exit-on-error since nvm may return non-zero if no node version is active
+        set +e
         if check_command node; then
+            set -e
             NODE_VERSION=$(node -v | sed 's/v//')
             local current_major=$(get_major_version "$NODE_VERSION")
             if [ "$current_major" -lt "$REQUIRED_NODE_VERSION" ]; then
@@ -516,6 +519,7 @@ install_nvm() {
                 return 0
             fi
         else
+            set -e
             # nvm exists but no node installed
             log_info "Node.js not found - installing Node.js LTS..."
             set +u
@@ -874,6 +878,16 @@ setup_mongodb() {
     if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^${MONGO_CONTAINER}$"; then
         log_info "MongoDB container already exists"
         
+        # Extract the existing password from the container
+        MONGO_PASS=$(docker inspect "$MONGO_CONTAINER" --format='{{range .Config.Env}}{{println .}}{{end}}' | grep MONGO_INITDB_ROOT_PASSWORD | cut -d'=' -f2)
+        if [ -n "$MONGO_PASS" ]; then
+            log_info "Retrieved existing MongoDB password from container"
+            export GENERATED_MONGO_PASS="$MONGO_PASS"
+        else
+            log_warn "Could not retrieve MongoDB password from container"
+            log_info "Using password from existing container (unknown)"
+        fi
+        
         # Check if it's running
         if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${MONGO_CONTAINER}$"; then
             log_success "MongoDB is already running"
@@ -1148,6 +1162,84 @@ setup_environment() {
 }
 
 #-------------------------------------------------------------#
+# LibreChat YAML Configuration
+#-------------------------------------------------------------#
+
+setup_librechat_yaml() {
+    log_step "Setting up librechat.yaml configuration..."
+    
+    local YAML_FILE="librechat.yaml"
+    local YAML_TEMPLATE="librechat.dev.yaml"
+    
+    # Check if template file exists
+    if [ ! -f "$YAML_TEMPLATE" ]; then
+        log_error "$YAML_TEMPLATE not found"
+        log_error "Are you in the LibreChat root directory?"
+        exit 1
+    fi
+    
+    # Check if librechat.yaml already exists
+    if [ -f "$YAML_FILE" ]; then
+        log_warn "librechat.yaml file already exists"
+        echo ""
+        log_info "Options:"
+        echo "  1) Keep existing librechat.yaml (recommended if you have custom settings)"
+        echo "  2) Create backup and generate new librechat.yaml"
+        echo "  3) View differences between current and template"
+        echo ""
+        read -p "Enter choice [1-3] (default: 1): " yaml_choice
+        yaml_choice="${yaml_choice:-1}"
+        
+        case "$yaml_choice" in
+            1)
+                log_info "Keeping existing librechat.yaml"
+                return 0
+                ;;
+            2)
+                local backup_file="${YAML_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+                cp "$YAML_FILE" "$backup_file"
+                log_success "Backup created: $backup_file"
+                ;;
+            3)
+                log_info "Showing differences..."
+                diff "$YAML_FILE" "$YAML_TEMPLATE" || true
+                echo ""
+                if ! prompt_yes_no "Create new librechat.yaml file?" "n"; then
+                    log_info "Keeping existing librechat.yaml"
+                    return 0
+                fi
+                local backup_file="${YAML_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+                cp "$YAML_FILE" "$backup_file"
+                log_success "Backup created: $backup_file"
+                ;;
+            *)
+                log_info "Keeping existing librechat.yaml"
+                return 0
+                ;;
+        esac
+    fi
+    
+    log_info "Creating librechat.yaml from template..."
+    cp "$YAML_TEMPLATE" "$YAML_FILE"
+    
+    log_success "librechat.yaml created successfully"
+    echo ""
+    log_info "Configuration summary:"
+    echo "  • Azure OpenAI endpoint configured"
+    echo "  • Uses environment variables from .env (AZURE_OPENAI_API_KEY, AZURE_OPENAI_BASEURL)"
+    echo "  • Default models: gpt-4o, gpt-4o-mini"
+    echo ""
+    log_warn "IMPORTANT for Paychex VDI users:"
+    log_warn "  1. This is a template with generic configuration"
+    log_warn "  2. Consult internal Paychex LibreChat wiki for:"
+    log_warn "     - Actual model deployment names in your Azure environment"
+    log_warn "     - Additional regions/environments to configure"
+    log_warn "     - Feature flags appropriate for your use case"
+    log_warn "  3. Edit librechat.yaml to match your specific Azure deployment"
+    echo ""
+}
+
+#-------------------------------------------------------------#
 # Dependency Installation
 #-------------------------------------------------------------#
 
@@ -1222,16 +1314,16 @@ build_packages() {
     # Clean up any existing build artifacts that may have permission issues
     # (can happen if previously built in a container as root)
     log_info "Cleaning previous build artifacts..."
-    rm -rf packages/data-provider/dist packages/api/dist packages/client/dist 2>/dev/null || {
+    rm -rf packages/data-schemas/dist packages/data-provider/dist packages/api/dist packages/client/dist 2>/dev/null || {
         log_warn "Some build artifacts couldn't be deleted (permission denied)"
         log_warn "This can happen if files were created by a container run as root"
         if is_root; then
             log_info "Running as root, forcing cleanup..."
-            rm -rf packages/data-provider/dist packages/api/dist packages/client/dist
+            rm -rf packages/data-schemas/dist packages/data-provider/dist packages/api/dist packages/client/dist
         else
-            log_warn "Try running: sudo rm -rf packages/data-provider/dist packages/api/dist packages/client/dist"
+            log_warn "Try running: sudo rm -rf packages/*/dist"
             if prompt_yes_no "Attempt to clean with sudo?" "y"; then
-                sudo rm -rf packages/data-provider/dist packages/api/dist packages/client/dist
+                sudo rm -rf packages/data-schemas/dist packages/data-provider/dist packages/api/dist packages/client/dist
             else
                 log_error "Cannot proceed with build - existing artifacts are in the way"
                 return 1
@@ -1240,7 +1332,9 @@ build_packages() {
     }
     
     # Build commands based on package.json
+    # Must be built in dependency order: data-schemas first, then others
     local BUILD_COMMANDS=(
+        "build:data-schemas"
         "build:data-provider"
         "build:api"
         "build:client-package"
@@ -1262,6 +1356,68 @@ build_packages() {
     done
     
     log_success "All packages built successfully"
+    
+    # Handle client build requirement
+    # The backend requires client/dist/index.html to start, even in dev mode
+    log_info "Checking client build requirement..."
+    
+    if [ ! -f "client/dist/index.html" ]; then
+        echo ""
+        log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log_warn "Client Build Required for Backend Startup"
+        log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        log_info "The backend crashes without client/dist/index.html"
+        log_info "Creating minimal placeholder to allow backend to start..."
+        echo ""
+        
+        mkdir -p client/dist
+        cat > client/dist/index.html << 'EOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="/" />
+    <title>LibreChat</title>
+</head>
+<body>
+    <div id="root"></div>
+</body>
+</html>
+EOF
+        log_success "✓ Placeholder created at client/dist/index.html"
+        log_info "Backend will now start successfully with 'npm run backend:dev'"
+        log_info "Frontend must be run separately with 'npm run frontend:dev'"
+        echo ""
+        
+        # Offer full build as optional
+        if [ "$IS_AUTOMATED" = false ]; then
+            log_info "Optional: Build full production client?"
+            echo "  • Takes 5-10 minutes"
+            echo "  • Allows backend to serve production UI"
+            echo "  • Not needed for development (use 'npm run frontend:dev' instead)"
+            echo ""
+            
+            if prompt_yes_no "Build full production client now?" "n"; then
+                log_info "Building production client (this will take 5-10 minutes)..."
+                echo ""
+                
+                if npm run build:client; then
+                    log_success "✓ Production client built successfully"
+                else
+                    log_warn "✗ Client build failed (continuing with placeholder)"
+                    log_info "You can build later with: npm run build:client"
+                fi
+            else
+                log_info "Skipping production client build"
+                log_info "Run 'npm run build:client' later if needed"
+            fi
+        fi
+        echo ""
+    else
+        log_success "✓ Client build already exists at client/dist/index.html"
+    fi
 }
 
 #=============================================================#
@@ -1353,8 +1509,8 @@ setup_native_mode() {
     echo ""
     log_info "To start LibreChat in native mode:"
     echo ""
-    echo "  Option 1: Start both frontend and backend together"
-    echo "    $ npm run dev"
+    echo "  Option 1: Start both frontend and backend together (if concurrently is installed)"
+    echo "    $ npx concurrently \"npm run backend:dev\" \"npm run frontend:dev\""
     echo ""
     echo "  Option 2: Start them separately (recommended for debugging)"
     echo "    Terminal 1: $ npm run backend:dev"
@@ -1486,16 +1642,31 @@ verify_setup() {
     elif docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^librechat-mongo$"; then
         log_success "✓ MongoDB container running"
         
-        # Test MongoDB connectivity
-        if docker exec librechat-mongo mongosh \
-            -u librechat \
-            -p devpassword \
-            --authenticationDatabase admin \
-            --eval "db.runCommand({ping:1})" \
-            --quiet >/dev/null 2>&1; then
-            log_success "✓ MongoDB connection verified"
+        # Test MongoDB connectivity - extract password from .env if available
+        local mongo_pass=""
+        if [ -f "${LIBRECHAT_ROOT}/.env" ]; then
+            mongo_pass=$(grep "^MONGO_URI=" "${LIBRECHAT_ROOT}/.env" 2>/dev/null | sed -n 's/.*:\/\/[^:]*:\([^@]*\)@.*/\1/p')
+        fi
+        
+        # Fallback to extracting from container if .env doesn't have it
+        if [ -z "$mongo_pass" ]; then
+            mongo_pass=$(docker inspect librechat-mongo --format='{{range .Config.Env}}{{println .}}{{end}}' | grep MONGO_INITDB_ROOT_PASSWORD | cut -d'=' -f2)
+        fi
+        
+        if [ -n "$mongo_pass" ]; then
+            # Try mongo shell (MongoDB 4.x)
+            if docker exec librechat-mongo mongo \
+                -u librechat \
+                -p "$mongo_pass" \
+                --authenticationDatabase admin \
+                --eval "db.runCommand({ping:1})" \
+                --quiet >/dev/null 2>&1; then
+                log_success "✓ MongoDB connection verified"
+            else
+                log_warn "⚠ MongoDB container running but connection test failed"
+            fi
         else
-            log_warn "⚠ MongoDB container running but connection test failed"
+            log_warn "⚠ Could not determine MongoDB password for connection test"
         fi
     elif docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^librechat-mongo$"; then
         log_warn "⚠ MongoDB container exists but is not running"
@@ -1569,13 +1740,84 @@ test_application() {
     if ! is_docker_running || ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^librechat-mongo$"; then
         log_warn "MongoDB container is not running"
         log_info "Skipping application test (requires MongoDB)"
-        log_info "On a real VDI, you can test with: npm run dev"
+        log_info "On a real VDI, you can test with: npm run backend:dev (in one terminal) and npm run frontend:dev (in another)"
         return 0
+    fi
+    
+    # Check if configuration is complete (especially for Paychex VDI)
+    local config_complete=true
+    local missing_configs=()
+    
+    # Check for Azure OpenAI configuration in .env
+    if ! grep -q "^AZURE_OPENAI_API_KEY=.\+" .env 2>/dev/null || \
+       grep -q "^AZURE_OPENAI_API_KEY=<" .env 2>/dev/null; then
+        config_complete=false
+        missing_configs+=("Azure OpenAI API credentials")
+    fi
+    
+    # Check for librechat.yaml
+    if [ ! -f "librechat.yaml" ]; then
+        config_complete=false
+        missing_configs+=("librechat.yaml configuration file")
+    fi
+    
+    # If configuration is incomplete, prompt user
+    if [ "$config_complete" = false ]; then
+        echo ""
+        log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log_warn "Configuration Incomplete"
+        log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        log_info "The following configuration is missing or incomplete:"
+        for item in "${missing_configs[@]}"; do
+            echo "  • $item"
+        done
+        echo ""
+        log_warn "⚠️  LibreChat requires proper configuration to connect to AI services."
+        log_warn "   Without this configuration, you can start the application but"
+        log_warn "   you will NOT be able to interact with any LLM models."
+        echo ""
+        log_info "For Paychex VDI users:"
+        log_info "  1. Consult the internal Paychex LibreChat wiki for:"
+        log_info "     - Azure OpenAI endpoint URLs and API keys"
+        log_info "     - Correct model deployment names for your environment"
+        log_info "     - RAG API endpoints (if using file uploads)"
+        log_info "     - OpenID/SSO configuration (if using Paychex SSO)"
+        echo ""
+        log_info "  2. Edit your .env file to add:"
+        log_info "     AZURE_OPENAI_API_KEY=<from-internal-wiki>"
+        log_info "     AZURE_OPENAI_BASEURL=<from-internal-wiki>"
+        echo ""
+        log_info "  3. Edit librechat.yaml to match your Azure deployment"
+        log_info "     (model names, regions, etc.)"
+        echo ""
+        log_info "Configuration files:"
+        echo "     .env                  -> ${LIBRECHAT_ROOT}/.env"
+        echo "     librechat.yaml        -> ${LIBRECHAT_ROOT}/librechat.yaml"
+        echo ""
+        
+        if ! prompt_yes_no "Have you completed the configuration from the internal wiki?" "n"; then
+            log_info "Skipping application test until configuration is complete"
+            log_info "You can manually test later after adding configuration:"
+            echo ""
+            echo "  1. Edit .env and librechat.yaml with values from internal wiki"
+            echo "  2. Start backend:  npm run backend:dev"
+            echo "  3. Start frontend: npm run frontend:dev"
+            echo "  4. Open: http://localhost:3090"
+            echo ""
+            return 0
+        fi
+        
+        echo ""
+        log_info "Proceeding with application test..."
+        log_warn "Note: If you haven't actually configured the files, the app will"
+        log_warn "      start but you won't be able to chat with AI models."
+        echo ""
     fi
     
     if ! prompt_yes_no "Start LibreChat to verify it works?" "n"; then
         log_info "Skipping application test"
-        log_info "You can manually test later with: npm run dev"
+        log_info "You can manually test later with: npm run backend:dev (backend) and npm run frontend:dev (frontend)"
         return 0
     fi
     
@@ -1601,15 +1843,39 @@ test_application() {
     
     sleep 3
     
-    # Start in foreground so user can see output and Ctrl+C
-    npm run dev || {
-        log_error "Failed to start LibreChat"
-        log_info "Common issues:"
-        echo "  - MongoDB not running: docker start librechat-mongo"
-        echo "  - Port conflicts: Check if 3080 or 3090 are in use"
-        echo "  - Missing dependencies: npm ci"
-        return 1
-    }
+    # LibreChat requires running backend and frontend separately
+    # Check if 'concurrently' is available in node_modules
+    if [ -f "node_modules/.bin/concurrently" ]; then
+        log_info "Starting backend and frontend with concurrently..."
+        npx concurrently --kill-others \
+            "npm run backend:dev" \
+            "npm run frontend:dev" || {
+            log_error "Failed to start LibreChat"
+            log_info "Common issues:"
+            echo "  - MongoDB not running: docker start librechat-mongo"
+            echo "  - Port conflicts: Check if 3080 or 3090 are in use"
+            echo "  - Missing dependencies: npm ci"
+            return 1
+        }
+    else
+        log_warn "Note: LibreChat uses separate backend and frontend processes"
+        log_info "Starting backend only (frontend requires separate terminal)..."
+        echo ""
+        log_info "To start the frontend, open another terminal and run:"
+        echo "  cd ${LIBRECHAT_ROOT}"
+        echo "  npm run frontend:dev"
+        echo ""
+        sleep 2
+        
+        npm run backend:dev || {
+            log_error "Failed to start LibreChat backend"
+            log_info "Common issues:"
+            echo "  - MongoDB not running: docker start librechat-mongo"
+            echo "  - Port conflicts: Check if 3080 is in use"
+            echo "  - Missing dependencies: npm ci"
+            return 1
+        }
+    fi
     
     echo ""
     log_success "Application test completed"
@@ -1668,6 +1934,9 @@ main() {
     echo ""
     
     setup_environment
+    echo ""
+    
+    setup_librechat_yaml
     echo ""
     
     setup_docker_compose_override
@@ -1730,8 +1999,9 @@ main() {
     if [ "$SETUP_NATIVE" = true ]; then
         echo "  Native Mode:"
         echo "    1. Start MongoDB: docker start librechat-mongo"
-        echo "    2. Start LibreChat: npm run dev"
-        echo "    3. Open: http://localhost:3090"
+        echo "    2. Start backend: npm run backend:dev"
+        echo "    3. Start frontend (in another terminal): npm run frontend:dev"
+        echo "    4. Open: http://localhost:3090"
         echo ""
     fi
     
@@ -1740,6 +2010,18 @@ main() {
         echo "    1. Start services: docker compose -f docker-compose.dev.yml up -d"
         echo "    2. View logs: docker compose -f docker-compose.dev.yml logs -f"
         echo "    3. Open: http://localhost:3090"
+        echo ""
+    fi
+    
+    # Check if configuration is incomplete and remind user
+    if [ ! -f "librechat.yaml" ] || ! grep -q "^AZURE_OPENAI_API_KEY=.\+" .env 2>/dev/null; then
+        log_warn "⚠️  Configuration Incomplete:"
+        echo "  To interact with AI models, you need to configure:"
+        echo "    • Azure OpenAI credentials in .env"
+        echo "    • librechat.yaml configuration file"
+        echo ""
+        log_info "  For Paychex VDI users: Consult the internal LibreChat wiki"
+        echo "  for Azure OpenAI endpoints, API keys, and configuration templates."
         echo ""
     fi
     

@@ -1,0 +1,57 @@
+version: 1.0.0
+cache: true
+
+# Feature flags - Configure based on your needs
+interface:
+  agents: false
+  webSearch: false
+  runCode: false
+
+# Endpoints configuration
+endpoints:
+  # Only configure endpoints you want to use
+  # Unconfigured endpoints won't appear in the UI
+  
+  # Azure OpenAI configuration
+  # For Paychex VDI: Configure multiple Azure OpenAI instances/regions
+  azureOpenAI:
+    # Endpoint-level configuration
+    titleModel: "gpt-4o-mini"
+    plugins: false
+    assistants: false
+    
+    # Groups: Configure one or more Azure OpenAI environments
+    # Each group represents an Azure OpenAI instance (e.g., different regions)
+    groups:
+    - group: "Primary Environment"
+      instanceName: "Azure OpenAI"
+      # API credentials - stored in .env file for security
+      apiKey: "${AZURE_OPENAI_API_KEY}"
+      baseURL: "${AZURE_OPENAI_BASEURL}"
+      version: "2024-10-21"
+      
+      # Models: Configure available Azure OpenAI model deployments
+      models:
+        gpt-4o:
+          deploymentName: gpt-4o
+          version: "2024-10-21"
+        gpt-4o-mini:
+          deploymentName: gpt-4o-mini
+          version: "2024-10-21"
+        # Add additional models as available in your Azure deployment
+        # Example:
+        # gpt-4:
+        #   deploymentName: gpt-4
+        #   version: "2024-10-21"
+    
+    # Add additional groups for other Azure regions/environments
+    # Example:
+    # - group: "Secondary Environment"
+    #   instanceName: "Azure OpenAI US East"
+    #   apiKey: "${AZURE_OPENAI_API_KEY_SECONDARY}"
+    #   baseURL: "${AZURE_OPENAI_BASEURL_SECONDARY}"
+    #   version: "2024-10-21"
+    #   models:
+    #     gpt-4o:
+    #       deploymentName: gpt-4o
+    #       version: "2024-10-21"
