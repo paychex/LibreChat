@@ -46,7 +46,11 @@ client/public/main.js.LICENSE.txt
 # Backup files created by setup scripts
 *.bak
 *.backup
+*.backup.*
 *docker-compose-override*.bak*
+docker-compose.override.yml.backup*
+librechat.yaml.backup*
+.env.backup*
 
 # Azure Blob Storage Emulator (Azurite)
 __azurite**
