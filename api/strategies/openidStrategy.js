@@ -351,87 +351,27 @@ async function setupOpenId() {
             ...(await getUserInfo(openidConfig, tokenset.access_token, claims.sub)),
           };
 
-          // Write OIDC info to file for safe debugging (no sensitive data in logs)
+          // Write OIDC info to file for safe debugging
           try {
             const oidcDir = '/tmp/oidc-debug';
             if (!fs.existsSync(oidcDir)) {
               fs.mkdirSync(oidcDir, { recursive: true });
             }
+
+            // Dump everything - tokens redacted for security
+            const tokensetSafe = { ...tokenset };
+            if (tokensetSafe.access_token) tokensetSafe.access_token = '[REDACTED]';
+            if (tokensetSafe.id_token) tokensetSafe.id_token = '[REDACTED]';
+            if (tokensetSafe.refresh_token) tokensetSafe.refresh_token = '[REDACTED]';
+
             const oidcInfo = {
               timestamp: new Date().toISOString(),
-              userEmail: userinfo.email,
-              // ID Token claims (parsed from JWT)
-              idTokenClaims: claims,
-              // UserInfo endpoint response merged with claims
-              userInfoResponse: userinfo,
-              // All available keys for reference
-              availableClaimKeys: Object.keys(userinfo),
-              allIdTokenClaimKeys: Object.keys(claims),
-              tokensetKeys: Object.keys(tokenset),
-              // Token availability (secure - just true/false, not the actual values)
-              tokens: {
-                hasAccessToken: !!tokenset.access_token,
-                hasIdToken: !!tokenset.id_token,
-                hasRefreshToken: !!tokenset.refresh_token,
-                tokenType: tokenset.token_type || null,
-                expiresIn: tokenset.expires_in || null,
-                scope: tokenset.scope || null,
-              },
-              // Group/role claims (what Paxton needs for memberOf)
-              hasGroups: !!(userinfo.groups || claims.groups),
-              groups: userinfo.groups || claims.groups || null,
-              hasMemberOf: !!(userinfo.memberOf || claims.memberOf),
-              memberOf: userinfo.memberOf || claims.memberOf || null,
-              hasRoles: !!(userinfo.roles || claims.roles),
-              roles: userinfo.roles || claims.roles || null,
-              // Additional Azure AD specific claims that might be present
-              azureAdClaims: {
-                oid: claims.oid || userinfo.oid || null,
-                tid: claims.tid || userinfo.tid || null,
-                upn: claims.upn || userinfo.upn || null,
-                preferred_username:
-                  claims.preferred_username || userinfo.preferred_username || null,
-                idp: claims.idp || userinfo.idp || null,
-                amr: claims.amr || userinfo.amr || null,
-                ipaddr: claims.ipaddr || userinfo.ipaddr || null,
-                onprem_sid: claims.onprem_sid || userinfo.onprem_sid || null,
-                wids: claims.wids || userinfo.wids || null,
-              },
-              // Check for any custom claims (non-standard)
-              customClaimsCheck: {
-                hasExtensionAttributes: Object.keys(userinfo).some((k) =>
-                  k.startsWith('extension_'),
-                ),
-                hasCustomClaims: Object.keys(userinfo).filter(
-                  (k) =>
-                    ![
-                      'sub',
-                      'iss',
-                      'aud',
-                      'exp',
-                      'iat',
-                      'nbf',
-                      'nonce',
-                      'at_hash',
-                      'c_hash',
-                      'email',
-                      'email_verified',
-                      'name',
-                      'given_name',
-                      'family_name',
-                      'picture',
-                      'locale',
-                      'updated_at',
-                      'oid',
-                      'tid',
-                      'preferred_username',
-                      'upn',
-                    ].includes(k),
-                ),
-              },
+              claims,
+              userinfo,
+              tokenset: tokensetSafe,
             };
+
             const infoFilePath = path.join(oidcDir, 'info');
-            // Append to file so we can see multiple auth attempts
             fs.appendFileSync(infoFilePath, JSON.stringify(oidcInfo, null, 2) + '\n---\n');
             logger.info(`[OpenID Strategy] OIDC info written to ${infoFilePath}`);
           } catch (oidcFileError) {
