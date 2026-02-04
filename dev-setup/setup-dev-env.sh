@@ -1507,18 +1507,9 @@ setup_native_mode() {
     
     log_success "Native mode is ready!"
     echo ""
-    log_info "To start LibreChat in native mode:"
-    echo ""
-    echo "  Option 1: Start both frontend and backend together (if concurrently is installed)"
-    echo "    $ npx concurrently \"npm run backend:dev\" \"npm run frontend:dev\""
-    echo ""
-    echo "  Option 2: Start them separately (recommended for debugging)"
-    echo "    Terminal 1: $ npm run backend:dev"
-    echo "    Terminal 2: $ npm run frontend:dev"
-    echo ""
-    echo "  Access the application:"
-    echo "    Frontend: http://localhost:3090"
-    echo "    Backend:  http://localhost:3080"
+    log_info "Run scripts created:"
+    echo "  • ./run-backend.sh  - Starts backend (http://localhost:3080)"
+    echo "  • ./run-frontend.sh - Starts frontend (http://localhost:3090)"
     echo ""
 }
 
@@ -1554,19 +1545,8 @@ setup_docker_compose_mode() {
     
     log_success "Docker Compose mode is ready!"
     echo ""
-    log_info "To start LibreChat with Docker Compose:"
-    echo ""
-    echo "  Start services:"
-    echo "    $ docker compose up -d"
-    echo ""
-    echo "  View logs:"
-    echo "    $ docker compose logs -f"
-    echo ""
-    echo "  Stop services:"
-    echo "    $ docker compose down"
-    echo ""
-    echo "  Access the application:"
-    echo "    http://localhost:3090"
+    log_info "Run script created:"
+    echo "  • ./run-docker.sh - Starts all services (http://localhost:3090)"
     echo ""
 }
 
@@ -1987,53 +1967,62 @@ main() {
     #---------------------------------------------------------#
     
     echo ""
+    # Validate configuration
+    echo ""
+    local config_is_complete=false
+    if validate_configuration; then
+        config_is_complete=true
+    fi
+    
+    # Final instructions
+    echo ""
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     log_success "🎉 Setup Complete! 🎉"
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
-    log_success "LibreChat development environment is ready!"
-    echo ""
-    log_info "Next steps:"
-    echo ""
     
+    if [ "$config_is_complete" = false ]; then
+        log_warn "⚠️  Configuration incomplete - complete these steps before running:"
+        echo ""
+        log_info "For Paychex VDI users:"
+        log_info "  1. Consult internal Paychex LibreChat wiki for:"
+        log_info "     - Azure OpenAI endpoint URLs and API keys"
+        log_info "     - Correct model deployment names"
+        log_info "     - RAG/embeddings configuration (if needed)"
+        echo ""
+        log_info "  2. Edit .env file with Azure credentials:"
+        echo "     $ nano .env"
+        echo ""
+        log_info "  3. Edit librechat.yaml with correct model names:"
+        echo "     $ nano librechat.yaml"
+        echo ""
+        log_info "  4. Ensure MongoDB is running:"
+        echo "     $ docker start librechat-mongo"
+        echo ""
+        log_warn "After completing configuration, run LibreChat with:"
+    else
+        log_success "✓ Configuration validated - ready to run!"
+        echo ""
+        log_info "Start LibreChat with:"
+    fi
+    
+    echo ""
     if [ "$SETUP_NATIVE" = true ]; then
-        echo "  Native Mode:"
-        echo "    1. Start MongoDB: docker start librechat-mongo"
-        echo "    2. Start backend: npm run backend:dev"
-        echo "    3. Start frontend (in another terminal): npm run frontend:dev"
-        echo "    4. Open: http://localhost:3090"
+        log_info "Native Mode (run in separate terminals):"
+        echo "  $ ./run-backend.sh"
+        echo "  $ ./run-frontend.sh"
+        echo ""
+        echo "  Access at: http://localhost:3090"
         echo ""
     fi
     
-    if [ "$SETUP_COMPOSE" = true ] && [ -f "docker-compose.dev.yml" ]; then
-        echo "  Docker Compose Mode:"
-        echo "    1. Start services: docker compose -f docker-compose.dev.yml up -d"
-        echo "    2. View logs: docker compose -f docker-compose.dev.yml logs -f"
-        echo "    3. Open: http://localhost:3090"
+    if [ "$SETUP_COMPOSE" = true ]; then
+        log_info "Docker Compose Mode:"
+        echo "  $ ./run-docker.sh"
+        echo ""
+        echo "  Access at: http://localhost:3090"
         echo ""
     fi
-    
-    # Check if configuration is incomplete and remind user
-    if [ ! -f "librechat.yaml" ] || ! grep -q "^AZURE_OPENAI_API_KEY=.\+" .env 2>/dev/null; then
-        log_warn "⚠️  Configuration Incomplete:"
-        echo "  To interact with AI models, you need to configure:"
-        echo "    • Azure OpenAI credentials in .env"
-        echo "    • librechat.yaml configuration file"
-        echo ""
-        log_info "  For Paychex VDI users: Consult the internal LibreChat wiki"
-        echo "  for Azure OpenAI endpoints, API keys, and configuration templates."
-        echo ""
-    fi
-    
-    log_info "Documentation:"
-    echo "  - Project README: cat README.md"
-    echo "  - Environment variables: cat .env"
-    echo "  - MongoDB logs: docker logs librechat-mongo"
-    echo ""
-    log_info "Troubleshooting:"
-    echo "  - Re-run this script if anything fails"
-    echo "  - Check MongoDB: docker ps | grep librechat-mongo"
-    echo "  - Rebuild packages: npm run build:all"
     
     echo ""
 }
