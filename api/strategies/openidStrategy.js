@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const undici = require('undici');
 const fetch = require('node-fetch');
 const passport = require('passport');
@@ -348,6 +350,36 @@ async function setupOpenId() {
             ...claims,
             ...(await getUserInfo(openidConfig, tokenset.access_token, claims.sub)),
           };
+
+          // Write OIDC info to file for safe debugging (no sensitive data in logs)
+          try {
+            const oidcDir = '/tmp/oidc-debug';
+            if (!fs.existsSync(oidcDir)) {
+              fs.mkdirSync(oidcDir, { recursive: true });
+            }
+            const oidcInfo = {
+              timestamp: new Date().toISOString(),
+              userEmail: userinfo.email,
+              idTokenClaims: claims,
+              userInfoResponse: userinfo,
+              availableClaimKeys: Object.keys(userinfo),
+              tokensetKeys: Object.keys(tokenset),
+              hasGroups: !!(userinfo.groups || claims.groups),
+              groups: userinfo.groups || claims.groups || null,
+              hasMemberOf: !!(userinfo.memberOf || claims.memberOf),
+              memberOf: userinfo.memberOf || claims.memberOf || null,
+              hasRoles: !!(userinfo.roles || claims.roles),
+              roles: userinfo.roles || claims.roles || null,
+            };
+            const infoFilePath = path.join(oidcDir, 'info');
+            // Append to file so we can see multiple auth attempts
+            fs.appendFileSync(infoFilePath, JSON.stringify(oidcInfo, null, 2) + '\n---\n');
+            logger.info(`[OpenID Strategy] OIDC info written to ${infoFilePath}`);
+          } catch (oidcFileError) {
+            logger.warn(
+              `[OpenID Strategy] Could not write OIDC info to file: ${oidcFileError.message}`,
+            );
+          }
 
           const appConfig = await getAppConfig();
           if (!isEmailDomainAllowed(userinfo.email, appConfig?.registration?.allowedDomains)) {
