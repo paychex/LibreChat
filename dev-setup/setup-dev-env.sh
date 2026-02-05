@@ -790,24 +790,16 @@ install_docker() {
 install_github_cli_ubuntu() {
     log_info "Installing GitHub CLI for Ubuntu..."
     
-    # Try snap first (most reliable)
-    if check_command snap; then
-        log_info "Using snap to install GitHub CLI..."
-        sudo snap install gh
-    else
-        log_info "snap not available, using apt..."
-        
-        # Add GitHub CLI apt repository
-        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
-            sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null
-        sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
-        
-        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
-            sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-        
-        sudo apt-get update
-        sudo apt-get install -y gh
-    fi
+    # Add GitHub CLI apt repository
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
+        sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null
+    sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+    
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
+        sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+    
+    sudo apt-get update
+    sudo apt-get install -y gh
 }
 
 install_github_cli_rocky() {
@@ -857,15 +849,6 @@ install_github_cli() {
 
 install_vscode_ubuntu() {
     log_info "Installing VS Code for Ubuntu..."
-    
-    # Check if snap is available (most reliable method)
-    if check_command snap; then
-        log_info "Using snap to install VS Code..."
-        sudo snap install code --classic
-        return 0
-    fi
-    
-    log_info "Using apt to install VS Code..."
     
     # Install prerequisites
     sudo apt-get update
