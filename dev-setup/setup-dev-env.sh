@@ -1007,19 +1007,21 @@ services:
   
   # Mount the Paychex root certificate and config for LibreChat API
   api:
+    user: "0:0"  # Run as root to avoid permission issues
     volumes:
       - type: bind
         source: ./.env
         target: /app/.env
       - ./images:/app/client/public/images
       - ./uploads:/app/uploads
-      - ./logs:/app/api/logs
+      - ./logs:/app/logs
       - ./paychex-root.pem:/app/paychex-root.pem:ro
       - ./librechat.yaml:/app/librechat.yaml:ro
 EOF
     
     log_success "docker-compose.override.yml created"
     log_warn "Note: This configuration uses MongoDB 4.4.18 for VDIs without AVX support"
+    log_info "Services run as root (user: 0:0) to avoid permission issues in VDI environments"
     log_info "If you have paychex-root.pem, place it in the LibreChat root directory"
 }
 
