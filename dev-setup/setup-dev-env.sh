@@ -357,6 +357,17 @@ detect_github_cli() {
     fi
 }
 
+detect_vscode() {
+    if check_command code; then
+        VSCODE_VERSION=$(code --version 2>/dev/null | head -1)
+        log_info "VS Code $VSCODE_VERSION detected"
+        return 0
+    else
+        log_info "VS Code not found"
+        return 1
+    fi
+}
+
 detect_mongodb_container() {
     # Check if docker command exists first
     if ! check_command docker; then
@@ -451,6 +462,13 @@ detect_environment() {
         echo "  ✓ GitHub CLI $GH_VERSION"
     else
         echo "  ✗ GitHub CLI (not installed)"
+    fi
+    
+    # VS Code
+    if detect_vscode; then
+        echo "  ✓ VS Code $VSCODE_VERSION"
+    else
+        echo "  ✗ VS Code (not installed)"
     fi
     
     # MongoDB
@@ -830,6 +848,148 @@ install_github_cli() {
     else
         log_error "GitHub CLI installation failed"
         exit 1
+    fi
+}
+
+#-------------------------------------------------------------#
+# VS Code Installation
+#-------------------------------------------------------------#
+
+install_vscode_ubuntu() {
+    log_info "Installing VS Code for Ubuntu..."
+    
+    # Check if snap is available (most reliable method)
+    if check_command snap; then
+        log_info "Using snap to install VS Code..."
+        sudo snap install code --classic
+        return 0
+    fi
+    
+    log_info "Using apt to install VS Code..."
+    
+    # Install prerequisites
+    sudo apt-get update
+    sudo apt-get install -y wget gpg apt-transport-https
+    
+    # Add Microsoft GPG key
+    wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+    sudo install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg
+    rm packages.microsoft.gpg
+    
+    # Add VS Code repository
+    echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | \
+        sudo tee /etc/apt/sources.list.d/vscode.list > /dev/null
+    
+    # Install VS Code
+    sudo apt-get update
+    sudo apt-get install -y code
+}
+
+install_vscode_rocky() {
+    log_info "Installing VS Code for Rocky Linux..."
+    
+    # Import Microsoft GPG key
+    sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
+    
+    # Add VS Code repository
+    cat << 'EOF' | sudo tee /etc/yum.repos.d/vscode.repo
+[code]
+name=Visual Studio Code
+baseurl=https://packages.microsoft.com/yumrepos/vscode
+enabled=1
+gpgcheck=1
+gpgkey=https://packages.microsoft.com/keys/microsoft.asc
+EOF
+    
+    # Install VS Code
+    sudo dnf check-update || true
+    sudo dnf install -y code
+}
+
+configure_vscode() {
+    log_step "Configuring VS Code extensions..."
+    
+    # Install GitHub Copilot extension
+    log_info "Installing GitHub Copilot extension..."
+    if code --install-extension GitHub.copilot --force 2>/dev/null; then
+        log_success "GitHub Copilot extension installed"
+    else
+        log_warn "Failed to install Copilot extension automatically"
+        log_info "You can install it manually: Extensions → Search 'GitHub Copilot'"
+    fi
+    
+    echo ""
+    log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_warn "GitHub Copilot Setup Required"
+    log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    log_info "To activate GitHub Copilot:"
+    echo "  1. Open VS Code: code ."
+    echo "  2. Click the account icon (bottom left)"
+    echo "  3. Sign in with your GitHub account"
+    echo "  4. Authorize GitHub Copilot when prompted"
+    echo "  5. Accept terms and activate your subscription"
+    echo ""
+    log_info "If you don't have Copilot access:"
+    echo "  • Individual: https://github.com/settings/copilot"
+    echo "  • Enterprise: Contact your GitHub organization admin"
+    echo ""
+}
+
+install_vscode() {
+    log_step "Installing/Configuring VS Code..."
+    
+    # Skip in automated mode
+    if [ "$IS_AUTOMATED" = true ]; then
+        log_info "Automated mode - skipping VS Code installation"
+        return 0
+    fi
+    
+    # Check if already installed
+    if detect_vscode; then
+        log_success "VS Code $VSCODE_VERSION is already installed"
+        
+        # Still offer to configure Copilot
+        if prompt_yes_no "Configure GitHub Copilot extension?" "y"; then
+            configure_vscode
+        fi
+        return 0
+    fi
+    
+    # Prompt user
+    echo ""
+    log_info "VS Code is the recommended IDE for LibreChat development"
+    if ! prompt_yes_no "Install VS Code?" "y"; then
+        log_info "Skipping VS Code installation"
+        return 0
+    fi
+    
+    # Install based on OS
+    case "$PKG_MANAGER" in
+        apt)
+            install_vscode_ubuntu
+            ;;
+        dnf)
+            install_vscode_rocky
+            ;;
+        *)
+            log_error "Unsupported package manager: $PKG_MANAGER"
+            log_warn "Please install VS Code manually: https://code.visualstudio.com/"
+            return 1
+            ;;
+    esac
+    
+    # Verify installation
+    if code --version >/dev/null 2>&1; then
+        VSCODE_VERSION=$(code --version 2>/dev/null | head -1)
+        log_success "VS Code $VSCODE_VERSION installed successfully"
+        
+        # Configure extensions
+        configure_vscode
+    else
+        log_error "VS Code installation failed"
+        log_info "Try installing manually: https://code.visualstudio.com/"
+        return 1
     fi
 }
 
@@ -1241,10 +1401,10 @@ EOF
     log_warn "    - OpenID/SSO issuer URLs and client credentials"
     log_warn "    - SSL certificate setup (paychex-root.pem)"
     echo ""
-    log_info "Edit the .env file now:"
-    echo "     $ nano .env"
+    log_info "Edit the .env file to replace all 'TODO' values:"
+    echo "     $ code .env"
     echo ""
-    log_info "Or use your preferred text editor to replace all 'TODO' values"
+    log_info "Or use your preferred text editor"
     echo ""
 }
 
@@ -1993,6 +2153,10 @@ main() {
     install_github_cli
     echo ""
     
+    # Install VS Code
+    install_vscode
+    echo ""
+    
     # Setup MongoDB - may skip if Docker daemon not available
     if ! setup_mongodb; then
         log_warn "MongoDB setup skipped - application testing will be limited"
@@ -2105,10 +2269,10 @@ main() {
         log_info "     - RAG/embeddings configuration (if needed)"
         echo ""
         log_info "  2. Edit .env file with Azure credentials:"
-        echo "     $ nano .env"
+        echo "     $ code .env"
         echo ""
         log_info "  3. Edit librechat.yaml with correct model names:"
-        echo "     $ nano librechat.yaml"
+        echo "     $ code librechat.yaml"
         echo ""
         log_info "  4. Ensure MongoDB is running:"
         echo "     $ docker start librechat-mongo"
