@@ -1030,14 +1030,23 @@ EOF
 #-------------------------------------------------------------#
 
 setup_environment() {
+    local deployment_mode="$1"  # "native", "docker", or "both"
     local ENV_FILE=".env"
+    local ENV_PAYCHEX=".env.paychex"
     local ENV_EXAMPLE=".env.example"
     
     log_step "Setting up environment configuration..."
     
-    # Check if .env.example exists
-    if [ ! -f "$ENV_EXAMPLE" ]; then
-        log_error "$ENV_EXAMPLE not found"
+    # Check if .env.paychex exists (Paychex-customized template)
+    # Fall back to .env.example if not found
+    local ENV_TEMPLATE="$ENV_PAYCHEX"
+    if [ ! -f "$ENV_PAYCHEX" ]; then
+        log_warn ".env.paychex not found, falling back to .env.example"
+        ENV_TEMPLATE="$ENV_EXAMPLE"
+    fi
+    
+    if [ ! -f "$ENV_TEMPLATE" ]; then
+        log_error "$ENV_TEMPLATE not found"
         log_error "Are you in the LibreChat root directory?"
         exit 1
     fi
@@ -1066,7 +1075,7 @@ setup_environment() {
                 ;;
             3)
                 log_info "Showing differences..."
-                diff "$ENV_FILE" "$ENV_EXAMPLE" || true
+                diff "$ENV_FILE" "$ENV_TEMPLATE" || true
                 echo ""
                 if ! prompt_yes_no "Create new .env file?" "n"; then
                     log_info "Keeping existing .env file"
@@ -1083,26 +1092,59 @@ setup_environment() {
         esac
     fi
     
-    log_info "Creating .env file from template..."
-    cp "$ENV_EXAMPLE" "$ENV_FILE"
+    log_info "Creating .env file from $ENV_TEMPLATE..."
+    cp "$ENV_TEMPLATE" "$ENV_FILE"
     
-    # Generate JWT secrets
-    log_info "Generating JWT secrets..."
+    # Generate secrets
+    log_info "Generating security secrets..."
     if check_command openssl; then
         local JWT_SECRET=$(openssl rand -hex 32)
         local JWT_REFRESH_SECRET=$(openssl rand -hex 32)
+        local CREDS_KEY=$(openssl rand -hex 32)
+        local CREDS_IV=$(openssl rand -hex 16)
         
-        log_success "JWT secrets generated"
+        log_success "Security secrets generated"
     else
         log_warn "openssl not found, using fallback method"
         local JWT_SECRET=$(cat /dev/urandom | tr -dc 'a-f0-9' | fold -w 64 | head -n 1)
         local JWT_REFRESH_SECRET=$(cat /dev/urandom | tr -dc 'a-f0-9' | fold -w 64 | head -n 1)
+        local CREDS_KEY=$(cat /dev/urandom | tr -dc 'a-f0-9' | fold -w 64 | head -n 1)
+        local CREDS_IV=$(cat /dev/urandom | tr -dc 'a-f0-9' | fold -w 32 | head -n 1)
     fi
     
-    # Update MongoDB URI with generated password
-    # If MongoDB setup ran successfully, use the generated password
+    # Configure MONGO_URI and NODE_EXTRA_CA_CERTS based on deployment mode
     local MONGO_PASS="${GENERATED_MONGO_PASS:-devpassword}"
-    local MONGO_URI="mongodb://librechat:${MONGO_PASS}@localhost:27017/LibreChat?authSource=admin"
+    local MONGO_URI_NATIVE="mongodb://localhost:27017/LibreChat"
+    local MONGO_URI_DOCKER="mongodb://root:${MONGO_PASS}@mongodb:27017/LibreChat?authSource=admin"
+    local CERT_PATH_NATIVE="paychex-root.pem"
+    local CERT_PATH_DOCKER="/app/paychex-root.pem"
+    
+    local MONGO_URI
+    local CERT_PATH
+    
+    case "$deployment_mode" in
+        native)
+            MONGO_URI="$MONGO_URI_NATIVE"
+            CERT_PATH="$CERT_PATH_NATIVE"
+            log_info "Configuring for Native mode (no MongoDB auth, relative cert path)..."
+            ;;
+        docker)
+            MONGO_URI="$MONGO_URI_DOCKER"
+            CERT_PATH="$CERT_PATH_DOCKER"
+            log_info "Configuring for Docker Compose mode (MongoDB auth, container cert path)..."
+            ;;
+        both)
+            # Default to native mode, add docker config as comments
+            MONGO_URI="$MONGO_URI_NATIVE"
+            CERT_PATH="$CERT_PATH_NATIVE"
+            log_info "Configuring for Both modes (Native active, Docker commented)..."
+            ;;
+        *)
+            log_warn "Unknown deployment mode '$deployment_mode', defaulting to native"
+            MONGO_URI="$MONGO_URI_NATIVE"
+            CERT_PATH="$CERT_PATH_NATIVE"
+            ;;
+    esac
     
     log_info "Configuring .env file..."
     
@@ -1110,56 +1152,99 @@ setup_environment() {
     sed -i.bak "s|^#\?MONGO_URI=.*|MONGO_URI=${MONGO_URI}|" "$ENV_FILE" 2>/dev/null || \
         sed -i '' "s|^#\?MONGO_URI=.*|MONGO_URI=${MONGO_URI}|" "$ENV_FILE"
     
+    sed -i.bak "s|^#\?NODE_EXTRA_CA_CERTS=.*|NODE_EXTRA_CA_CERTS=${CERT_PATH}|" "$ENV_FILE" 2>/dev/null || \
+        sed -i '' "s|^#\?NODE_EXTRA_CA_CERTS=.*|NODE_EXTRA_CA_CERTS=${CERT_PATH}|" "$ENV_FILE"
+    
     sed -i.bak "s|^#\?JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|" "$ENV_FILE" 2>/dev/null || \
         sed -i '' "s|^#\?JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|" "$ENV_FILE"
     
     sed -i.bak "s|^#\?JWT_REFRESH_SECRET=.*|JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}|" "$ENV_FILE" 2>/dev/null || \
         sed -i '' "s|^#\?JWT_REFRESH_SECRET=.*|JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}|" "$ENV_FILE"
     
+    sed -i.bak "s|^#\?CREDS_KEY=.*|CREDS_KEY=${CREDS_KEY}|" "$ENV_FILE" 2>/dev/null || \
+        sed -i '' "s|^#\?CREDS_KEY=.*|CREDS_KEY=${CREDS_KEY}|" "$ENV_FILE"
+    
+    sed -i.bak "s|^#\?CREDS_IV=.*|CREDS_IV=${CREDS_IV}|" "$ENV_FILE" 2>/dev/null || \
+        sed -i '' "s|^#\?CREDS_IV=.*|CREDS_IV=${CREDS_IV}|" "$ENV_FILE"
+    
+    # For "both" mode, append commented Docker configuration
+    if [ "$deployment_mode" = "both" ]; then
+        log_info "Adding commented Docker mode configuration..."
+        cat >> "$ENV_FILE" << EOF
+
+#=============================================================#
+# DOCKER COMPOSE MODE CONFIGURATION (Currently Commented Out)
+#=============================================================#
+# To switch to Docker Compose mode, swap the configuration:
+#   1. Comment out the NATIVE mode config above
+#   2. Uncomment the DOCKER mode config below
+#
+# DOCKER MODE (Uncomment these lines to use):
+# MONGO_URI=${MONGO_URI_DOCKER}
+# NODE_EXTRA_CA_CERTS=${CERT_PATH_DOCKER}
+#
+# Then run: ./run-docker.sh
+#
+# NATIVE MODE (Currently Active - Comment these to switch):
+# MONGO_URI=${MONGO_URI_NATIVE}
+# NODE_EXTRA_CA_CERTS=${CERT_PATH_NATIVE}
+#
+# Then run: ./run-backend.sh and ./run-frontend.sh
+EOF
+        log_success "Docker mode configuration added as comments"
+    fi
+    
     # Clean both Linux and macOS backup formats
     rm -f "${ENV_FILE}.bak" "${ENV_FILE}."
     
-    log_success ".env file configured successfully"
-    log_info "MongoDB URI: mongodb://librechat:***@localhost:27017/LibreChat"
-    log_info "MongoDB password: Stored securely in .env (randomly generated)"
-    log_info "JWT secrets: Generated automatically"
+    echo ""
+    log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_warn "NEXT STEP: Complete Paychex-specific configuration"
+    log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    log_info "The .env file has been created with placeholders marked as 'TODO'"
+    log_info "Scroll to the bottom of the .env file to find:"
+    echo ""
+    echo "  📋 PAYCHEX REQUIRED CONFIGURATION section:"
+    echo "     - Azure OpenAI credentials (API key, endpoint URL)"
+    echo "     - RAG/Embeddings configuration (for file uploads)"
+    echo "     - OpenID/SSO settings (for Paychex single sign-on)"
+    echo ""
+    echo "  📋 PAYCHEX OPTIONAL CONFIGURATION section:"
+    echo "     - Tavily search, GCP Vertex AI, etc."
+    echo ""
     
-    # VDI-specific warnings
+    # Mode-specific instructions
+    case "$deployment_mode" in
+        native)
+            log_info "Native Mode Configuration:"
+            echo "  ✓ MONGO_URI: mongodb://localhost:27017/LibreChat (no auth)"
+            echo "  ✓ NODE_EXTRA_CA_CERTS: paychex-root.pem (relative path)"
+            ;;
+        docker)
+            log_info "Docker Compose Mode Configuration:"
+            echo "  ✓ MONGO_URI: mongodb://root:****@mongodb:27017/LibreChat (with auth)"
+            echo "  ✓ NODE_EXTRA_CA_CERTS: /app/paychex-root.pem (container path)"
+            ;;
+        both)
+            log_info "Both Modes Configuration:"
+            echo "  ✓ Currently configured for Native mode (no MongoDB auth)"
+            echo "  ✓ Docker mode config available at bottom of .env (commented out)"
+            echo "  ℹ️  To switch modes: Swap the commented/uncommented config lines"
+            ;;
+    esac
+    
     echo ""
-    log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_warn "For Paychex VDI environments, additional configuration required:"
-    log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_warn "⚠️  Consult the internal Paychex LibreChat wiki for:"
+    log_warn "    - Actual Azure OpenAI endpoint URLs and API keys"
+    log_warn "    - RAG API configuration and endpoints"
+    log_warn "    - OpenID/SSO issuer URLs and client credentials"
+    log_warn "    - SSL certificate setup (paychex-root.pem)"
     echo ""
-    echo "  1. Azure OpenAI Configuration:"
-    echo "     AZURE_OPENAI_API_KEY=<your-key>"
-    echo "     AZURE_OPENAI_BASEURL=<consult-internal-documentation>"
-    echo "     OPENAI_API_VERSION=<check-internal-docs>"
+    log_info "Edit the .env file now:"
+    echo "     $ nano .env"
     echo ""
-    echo "  2. SSL Certificate Configuration (for corporate proxy):"
-    echo "     NODE_EXTRA_CA_CERTS=/app/paychex-root.pem"
-    echo "     SSL_CERT_FILE=/app/paychex-root.pem"
-    echo "     REQUESTS_CA_BUNDLE=/app/paychex-root.pem"
-    echo "     CURL_CA_BUNDLE=/app/paychex-root.pem"
-    echo ""
-    echo "  3. RAG Configuration (if using Azure embeddings):"
-    echo "     RAG_AZURE_OPENAI_API_KEY=<your-key>"
-    echo "     RAG_AZURE_OPENAI_ENDPOINT=<consult-internal-documentation>"
-    echo "     EMBEDDINGS_PROVIDER=azure"
-    echo "     EMBEDDINGS_MODEL=<check-internal-docs>"
-    echo ""
-    echo "  4. OpenID/SSO Configuration (if using Paychex SSO):"
-    echo "     OPENID_CLIENT_ID=<your-client-id>"
-    echo "     OPENID_CLIENT_SECRET=<your-secret>"
-    echo "     OPENID_ISSUER=<consult-internal-documentation>"
-    echo ""
-    log_warn "⚠️  IMPORTANT: Consult internal Paychex documentation for:"
-    log_warn "    - Azure OpenAI endpoint URLs and API versions"
-    log_warn "    - RAG API endpoints"
-    log_warn "    - OpenID/SSO issuer URLs"
-    log_warn "    - All API keys and credentials"
-    echo ""
-    log_info "Reference: Paychex LibreChat internal wiki for VDI configuration"
-    log_info "You can manually edit .env file to add these configurations"
+    log_info "Or use your preferred text editor to replace all 'TODO' values"
     echo ""
 }
 
@@ -1496,9 +1581,10 @@ setup_native_mode() {
     log_step "Configuring Native Mode..."
     
     log_info "Native mode uses:"
-    echo "  • MongoDB in Docker (already set up)"
+    echo "  • MongoDB in Docker: librechat-mongo (no authentication)"
     echo "  • Node.js application running directly via npm"
     echo "  • Hot Module Replacement (HMR) for rapid development"
+    echo "  • Certificate: paychex-root.pem (relative path)"
     echo ""
     
     # Check if MongoDB is running
@@ -1509,9 +1595,13 @@ setup_native_mode() {
     
     log_success "Native mode is ready!"
     echo ""
-    log_info "Run scripts created:"
-    echo "  • ./run-backend.sh  - Starts backend (http://localhost:3080)"
-    echo "  • ./run-frontend.sh - Starts frontend (http://localhost:3090)"
+    log_info "Your .env is configured for Native mode:"
+    echo "  ✓ MONGO_URI=mongodb://localhost:27017/LibreChat"
+    echo "  ✓ NODE_EXTRA_CA_CERTS=paychex-root.pem"
+    echo ""
+    log_info "To run LibreChat (use separate terminals):"
+    echo "  • Terminal 1: ./run-backend.sh  (Backend on http://localhost:3080)"
+    echo "  • Terminal 2: ./run-frontend.sh (Frontend on http://localhost:3090)"
     echo ""
 }
 
@@ -1531,15 +1621,16 @@ setup_docker_compose_mode() {
     fi
     
     log_info "Docker Compose mode uses:"
-    echo "  • All services containerized"
+    echo "  • All services containerized (api, mongodb, meilisearch, rag_api, vectordb)"
+    echo "  • MongoDB with authentication (mongodb service)"
+    echo "  • Certificate: /app/paychex-root.pem (container path)"
     echo "  • Production-like environment"
-    echo "  • Defined in docker-compose.yml"
     echo ""
     
     # Check if there's a conflict with existing MongoDB
     if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^librechat-mongo$"; then
-        log_warn "Standalone MongoDB container is running"
-        log_info "Docker Compose will manage its own MongoDB instance"
+        log_warn "Standalone MongoDB container (librechat-mongo) is running"
+        log_info "Docker Compose will use its own 'mongodb' service instead"
         log_info "You may want to stop the standalone container:"
         echo "    $ docker stop librechat-mongo"
         echo ""
@@ -1547,8 +1638,13 @@ setup_docker_compose_mode() {
     
     log_success "Docker Compose mode is ready!"
     echo ""
-    log_info "Run script created:"
-    echo "  • ./run-docker.sh - Starts all services (http://localhost:3090)"
+    log_info "Your .env is configured for Docker Compose mode:"
+    echo "  ✓ MONGO_URI=mongodb://root:****@mongodb:27017/LibreChat?authSource=admin"
+    echo "  ✓ NODE_EXTRA_CA_CERTS=/app/paychex-root.pem"
+    echo ""
+    log_info "To run LibreChat:"
+    echo "  • Single command: ./run-docker.sh"
+    echo "  • Access at: http://localhost:3080"
     echo ""
 }
 
@@ -1909,13 +2005,31 @@ main() {
     log_success "Step 1: Prerequisites installation complete!"
     echo ""
     
-    # Step 2: Project Setup
+    # Step 2: Deployment Mode Selection (BEFORE environment setup)
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_info "Step 2: Project Configuration"
+    log_info "Step 2: Deployment Mode Selection"
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     
-    setup_environment
+    select_deployment_mode
+    
+    # Determine deployment mode string for setup_environment
+    local deployment_mode="native"
+    if [ "$SETUP_NATIVE" = true ] && [ "$SETUP_COMPOSE" = true ]; then
+        deployment_mode="both"
+    elif [ "$SETUP_COMPOSE" = true ]; then
+        deployment_mode="docker"
+    fi
+    
+    echo ""
+    
+    # Step 3: Project Configuration
+    log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_info "Step 3: Project Configuration"
+    log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    
+    setup_environment "$deployment_mode"
     echo ""
     
     setup_librechat_yaml
@@ -1930,16 +2044,14 @@ main() {
     build_packages
     echo ""
     
-    log_success "Step 2: Project configuration complete!"
+    log_success "Step 3: Project configuration complete!"
     echo ""
     
-    # Step 3: Deployment Mode Selection
+    # Step 4: Mode-Specific Setup
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_info "Step 3: Deployment Mode Selection"
+    log_info "Step 4: Mode-Specific Setup"
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
-    
-    select_deployment_mode
     
     if [ "$SETUP_NATIVE" = true ]; then
         setup_native_mode
@@ -1949,12 +2061,12 @@ main() {
         setup_docker_compose_mode
     fi
     
-    log_success "Step 3: Deployment mode configuration complete!"
+    log_success "Step 4: Mode-specific setup complete!"
     echo ""
     
-    # Step 4: Verification and Testing
+    # Step 5: Verification and Testing
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_info "Step 4: Verification and Testing"
+    log_info "Step 5: Verification and Testing"
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     
@@ -2009,20 +2121,31 @@ main() {
     fi
     
     echo ""
-    if [ "$SETUP_NATIVE" = true ]; then
+    if [ "$SETUP_NATIVE" = true ] && [ "$SETUP_COMPOSE" = true ]; then
+        log_info "Both Modes Available:"
+        echo ""
+        log_info "Native Mode (Currently Active):"
+        echo "  Terminal 1: $ ./run-backend.sh"
+        echo "  Terminal 2: $ ./run-frontend.sh"
+        echo "  Access at: http://localhost:3090"
+        echo ""
+        log_info "Docker Compose Mode (Config Commented in .env):"
+        echo "  1. Edit .env: Swap commented/uncommented MONGO_URI and NODE_EXTRA_CA_CERTS"
+        echo "  2. Run: $ ./run-docker.sh"
+        echo "  3. Access at: http://localhost:3080"
+        echo ""
+    elif [ "$SETUP_NATIVE" = true ]; then
         log_info "Native Mode (run in separate terminals):"
-        echo "  $ ./run-backend.sh"
-        echo "  $ ./run-frontend.sh"
+        echo "  Terminal 1: $ ./run-backend.sh"
+        echo "  Terminal 2: $ ./run-frontend.sh"
         echo ""
         echo "  Access at: http://localhost:3090"
         echo ""
-    fi
-    
-    if [ "$SETUP_COMPOSE" = true ]; then
+    elif [ "$SETUP_COMPOSE" = true ]; then
         log_info "Docker Compose Mode:"
         echo "  $ ./run-docker.sh"
         echo ""
-        echo "  Access at: http://localhost:3090"
+        echo "  Access at: http://localhost:3080"
         echo ""
     fi
     
