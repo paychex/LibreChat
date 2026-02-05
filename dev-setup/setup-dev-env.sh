@@ -706,7 +706,22 @@ configure_docker_user() {
             # Use absolute path to avoid 'not found' errors with sg/newgrp
             exec sg docker "$(readlink -f "$0")" "$@"
         else
-            log_info "Continuing without group change - Docker may require sudo"
+            echo ""
+            log_error "Docker group membership will NOT be active in this session"
+            log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            log_warn "REQUIRED ACTION: Start a new terminal session"
+            log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            log_info "To activate your docker group membership:"
+            echo "  1. Open a NEW terminal window/tab"
+            echo "  2. Navigate back to: $(pwd)"
+            echo "  3. Re-run this script: ./dev-setup/setup-dev-env.sh"
+            echo ""
+            log_warn "Or log out and log back in to your VDI session"
+            echo ""
+            log_info "Script will now exit."
+            echo ""
+            exit 0
         fi
     else
         log_success "User $CURRENT_USER is already in docker group"
