@@ -422,6 +422,15 @@ detect_environment() {
     log_step "Detecting current environment..."
     echo ""
     
+    # Source nvm if it exists (so we can detect Node.js installed via nvm)
+    if [ -d "$HOME/.nvm" ]; then
+        export NVM_DIR="$HOME/.nvm"
+        # Temporarily disable strict mode for nvm
+        set +u
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        set -u
+    fi
+    
     # Node.js
     if detect_node; then
         echo "  ✓ Node.js $NODE_VERSION"
@@ -2243,13 +2252,6 @@ main() {
     #---------------------------------------------------------#
     
     echo ""
-    # Validate configuration
-    echo ""
-    local config_is_complete=false
-    if validate_configuration; then
-        config_is_complete=true
-    fi
-    
     # Final instructions
     echo ""
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -2257,10 +2259,9 @@ main() {
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     
-    if [ "$config_is_complete" = false ]; then
-        log_warn "⚠️  Configuration incomplete - complete these steps before running:"
-        echo ""
-        log_info "For Paychex VDI users:"
+    log_warn "⚠️  Configuration incomplete - complete these steps before running:"
+    echo ""
+    log_info "For Paychex VDI users:"
         log_info "  1. Consult internal Paychex LibreChat wiki for:"
         log_info "     - Azure OpenAI endpoint URLs and API keys"
         log_info "     - Correct model deployment names"
@@ -2276,11 +2277,6 @@ main() {
         echo "     $ docker start librechat-mongo"
         echo ""
         log_warn "After completing configuration, run LibreChat with:"
-    else
-        log_success "✓ Configuration validated - ready to run!"
-        echo ""
-        log_info "Start LibreChat with:"
-    fi
     
     echo ""
     if [ "$SETUP_NATIVE" = true ] && [ "$SETUP_COMPOSE" = true ]; then

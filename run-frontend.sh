@@ -19,6 +19,12 @@ NC='\033[0m'
 echo -e "${BLUE}[LibreChat]${NC} Starting frontend in development mode..."
 echo ""
 
+# Source nvm if it exists
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+    export NVM_DIR="$HOME/.nvm"
+    \. "$NVM_DIR/nvm.sh"
+fi
+
 # Check if node_modules exists
 if [ ! -d "node_modules" ]; then
     echo -e "${RED}[ERROR]${NC} node_modules not found"

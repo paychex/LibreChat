@@ -20,6 +20,12 @@ NC='\033[0m'
 echo -e "${BLUE}[LibreChat]${NC} Starting backend in development mode..."
 echo ""
 
+# Source nvm if it exists
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+    export NVM_DIR="$HOME/.nvm"
+    \. "$NVM_DIR/nvm.sh"
+fi
+
 # Check if .env exists
 if [ ! -f ".env" ]; then
     echo -e "${RED}[ERROR]${NC} .env file not found"
