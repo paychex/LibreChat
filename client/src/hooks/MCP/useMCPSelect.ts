@@ -52,7 +52,8 @@ export function useMCPSelect({ conversationId }: { conversationId?: string | nul
     if (startupServers.length > 0) {
       setMCPValuesRaw(startupServers);
     }
-  }, [key, startupConfig, mcpValues.length, setMCPValuesRaw]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, startupConfig?.mcpServers, setMCPValuesRaw]);
 
   /** Stable memoized setter */
   const setMCPValues = useCallback(

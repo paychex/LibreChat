@@ -35,7 +35,14 @@ export default function TavilySources({ output, showFallback }: TavilySourcesPro
       let data = JSON.parse(output);
 
       // Check if it's an MCP response format: [{"type":"text","text":"..."}]
-      if (Array.isArray(data) && data.length > 0 && data[0].type === 'text' && data[0].text) {
+      if (
+        Array.isArray(data) &&
+        data.length > 0 &&
+        data[0] &&
+        typeof data[0] === 'object' &&
+        data[0].type === 'text' &&
+        data[0].text
+      ) {
         // Parse the inner text field which contains the actual Tavily response
         data = JSON.parse(data[0].text);
       }
@@ -97,10 +104,16 @@ export default function TavilySources({ output, showFallback }: TavilySourcesPro
 
                   {/* URL */}
                   <div className="mb-1.5 truncate text-xs text-text-secondary">
-                    {new URL(result.url).hostname}
+                    {(() => {
+                      try {
+                        return new URL(result.url).hostname;
+                      } catch {
+                        return result.url;
+                      }
+                    })()}
                   </div>
 
-                  {/* Content snippet */}
+                  {/* Content snippet */
                   {result.content && (
                     <p className="line-clamp-2 text-xs text-text-secondary">{result.content}</p>
                   )}
