@@ -27,6 +27,7 @@ WORKDIR /workspace
 COPY .env.example /workspace/.env.example
 COPY package.json /workspace/package.json
 COPY package-lock.json /workspace/package-lock.json
+COPY librechat.dev.yaml /workspace/librechat.dev.yaml
 
 # Copy the setup script and related files
 COPY dev-setup/setup-dev-env.sh /workspace/dev-setup/
