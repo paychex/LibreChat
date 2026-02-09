@@ -746,7 +746,8 @@ configure_docker_daemon() {
     
     if [ -f "$DAEMON_TEMPLATE" ]; then
         log_info "Using custom daemon.json template from $DAEMON_TEMPLATE"
-        sudo cp "$DAEMON_TEMPLATE" /etc/docker/daemon.json
+        # Strip comment lines (Docker daemon.json doesn't support comments)
+        grep -v '^[[:space:]]*#' "$DAEMON_TEMPLATE" | sudo tee /etc/docker/daemon.json > /dev/null
     else
         # Default configuration with log rotation only
         log_info "Using default configuration (log rotation only)"
