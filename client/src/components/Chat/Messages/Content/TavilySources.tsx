@@ -113,7 +113,7 @@ export default function TavilySources({ output, showFallback }: TavilySourcesPro
                     })()}
                   </div>
 
-                  {/* Content snippet */
+                  {/* Content snippet */}
                   {result.content && (
                     <p className="line-clamp-2 text-xs text-text-secondary">{result.content}</p>
                   )}

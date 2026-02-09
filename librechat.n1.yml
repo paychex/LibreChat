@@ -68,6 +68,9 @@ mcpServers:
     url: https://mcp.tavily.com/mcp/
     headers:
       Authorization: "Bearer ${TAVILY_API_KEY}"
+    startup: true
+    chatMenu: false
+    requiresOAuth: false
 endpoints:
   azureOpenAI:
     # Endpoint-level configuration
