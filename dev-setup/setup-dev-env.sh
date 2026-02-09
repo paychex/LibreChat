@@ -625,7 +625,8 @@ install_docker_ubuntu() {
     log_info "Installing Docker for Ubuntu..."
     
     # Install prerequisites
-    sudo apt-get update
+    # apt-get update may warn about some repos but we can continue
+    sudo apt-get update || log_warn "Some package repositories had errors, continuing anyway"
     sudo apt-get install -y ca-certificates curl
     sudo install -m 0755 -d /etc/apt/keyrings
     
@@ -639,8 +640,8 @@ install_docker_ubuntu() {
       sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
     
     # Install Docker
-    sudo apt-get update
-    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    sudo apt-get update || log_warn "Some package repositories had errors, continuing anyway"
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 }
 
 install_docker_rocky() {
@@ -656,8 +657,121 @@ install_docker_rocky() {
     sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 }
 
+configure_docker_daemon() {
+    log_step "Configuring Docker daemon for Paychex VDI..."
+    
+    # Check if we're in a container environment
+    if is_in_container; then
+        log_warn "Running inside a container - skipping daemon configuration"
+        return 0
+    fi
+    
+    # Stop Docker services before making changes
+    log_info "Stopping Docker services..."
+    sudo systemctl stop docker 2>/dev/null || true
+    sudo systemctl stop docker.socket 2>/dev/null || true
+    sudo systemctl stop containerd 2>/dev/null || true
+    
+    # Move Docker home to /home/docker to avoid filling up base OS disk
+    if [ -d "/var/lib/docker" ] && [ ! -L "/var/lib/docker" ]; then
+        log_info "Moving Docker data to /home/docker (Paychex VDI requirement)..."
+        sudo mkdir -p /home/docker
+        
+        # Only move if /var/lib/docker has content
+        if [ "$(ls -A /var/lib/docker 2>/dev/null)" ]; then
+            sudo mv /var/lib/docker /home/docker/
+        else
+            sudo rm -rf /var/lib/docker
+        fi
+        
+        # Create symlink
+        sudo ln -s /home/docker/docker /var/lib/docker
+        log_success "Docker home moved to /home/docker"
+    elif [ -L "/var/lib/docker" ]; then
+        log_info "Docker home already configured as symlink"
+    fi
+    
+    # Create /etc/docker/daemon.json with log rotation and custom registries
+    log_info "Creating /etc/docker/daemon.json..."
+    sudo mkdir -p /etc/docker
+    
+    # Check if user has a custom daemon.json template (for corporate/Paychex users)
+    local DAEMON_TEMPLATE="docker-daemon.json.local"
+    
+    # If template doesn't exist and not in automated mode, prompt user to create it
+    if [ ! -f "$DAEMON_TEMPLATE" ] && [ "$IS_AUTOMATED" = false ]; then
+        echo ""
+        log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log_warn "Docker Registry Configuration"
+        log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        log_info "If you need access to private/corporate Docker registries:"
+        echo ""
+        echo "  1. Copy the template:"
+        echo "     cp docker-daemon.json.example docker-daemon.json.local"
+        echo ""
+        echo "  2. Edit the file and replace placeholders with your registry URLs:"
+        echo "     code docker-daemon.json.local  (or use any editor)"
+        echo ""
+        echo "  3. Consult your organization's documentation for actual registry URLs"
+        echo ""
+        log_info "For Paychex developers: See internal LibreChat wiki for registry URLs"
+        echo ""
+        
+        if prompt_yes_no "Do you need to configure private registries now?" "n"; then
+            echo ""
+            log_info "Instructions:"
+            echo "  1. Open another terminal (keep this one open)"
+            echo "  2. Run: cp docker-daemon.json.example docker-daemon.json.local"
+            echo "  3. Edit docker-daemon.json.local with your registry URLs"
+            echo "  4. Save the file"
+            echo "  5. Return to this terminal and press Y to continue"
+            echo ""
+            
+            if prompt_yes_no "Have you created and configured docker-daemon.json.local?" "n"; then
+                if [ ! -f "$DAEMON_TEMPLATE" ]; then
+                    log_warn "File docker-daemon.json.local not found"
+                    log_info "Continuing with default configuration (no custom registries)"
+                else
+                    log_success "Custom registry configuration will be used"
+                fi
+            else
+                log_info "Continuing with default configuration (no custom registries)"
+            fi
+        else
+            log_info "Skipping custom registry configuration"
+        fi
+        echo ""
+    fi
+    
+    if [ -f "$DAEMON_TEMPLATE" ]; then
+        log_info "Using custom daemon.json template from $DAEMON_TEMPLATE"
+        sudo cp "$DAEMON_TEMPLATE" /etc/docker/daemon.json
+    else
+        # Default configuration with log rotation only
+        log_info "Using default configuration (log rotation only)"
+        
+        cat << 'EOF' | sudo tee /etc/docker/daemon.json > /dev/null
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+EOF
+    fi
+    
+    log_success "Docker daemon configuration created"
+    log_info "Configuration includes:"
+    echo "  • Log rotation (max-size: 10m, max-file: 3)"
+    if [ -f "$DAEMON_TEMPLATE" ]; then
+        echo "  • Custom registries from $DAEMON_TEMPLATE"
+    fi
+}
+
 configure_docker_service() {
-    log_info "Configuring Docker service..."
+    log_info "Starting Docker service..."
     
     # Check if we're in a container environment
     if is_in_container; then
@@ -667,13 +781,18 @@ configure_docker_service() {
         return 0
     fi
     
+    # Reload systemd daemon to pick up configuration changes
+    sudo systemctl daemon-reload
+    
     # Enable and start Docker
     if ! sudo systemctl is-enabled docker >/dev/null 2>&1; then
         sudo systemctl enable docker
     fi
     
     if ! sudo systemctl is-active docker >/dev/null 2>&1; then
-        sudo systemctl start docker
+        sudo systemctl restart docker
+    else
+        sudo systemctl restart docker
     fi
     
     log_success "Docker service is running"
@@ -786,7 +905,8 @@ install_docker() {
             ;;
     esac
     
-    # Configure service and user
+    # Configure daemon, service, and user
+    configure_docker_daemon
     configure_docker_service
     configure_docker_user
     

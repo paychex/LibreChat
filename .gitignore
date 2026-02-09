@@ -98,6 +98,9 @@ src/style - official.css
 /e2e/specs/.test-results/
 /e2e/playwright-report/
 /playwright/.cache/
+
+# Docker daemon configuration (contains internal URLs)
+docker-daemon.json.local
 .DS_Store
 *.code-workspace
 .idx
