@@ -1226,7 +1226,8 @@ setup_mongodb() {
     log_info "Waiting for MongoDB to be ready (up to 30 seconds)..."
     local ready=false
     for i in {1..30}; do
-        if docker exec "$MONGO_CONTAINER" mongosh \
+        # MongoDB 4.4 uses 'mongo' shell, 5.0+ uses 'mongosh'
+        if docker exec "$MONGO_CONTAINER" mongo \
             -u "$MONGO_USER" \
             -p "$MONGO_PASS" \
             --authenticationDatabase admin \
