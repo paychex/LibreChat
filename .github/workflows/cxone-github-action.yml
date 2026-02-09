@@ -1,0 +1,26 @@
+name: Checkmarx Code Scan
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+      - release/*
+
+jobs:
+  scan-code:
+    runs-on:
+      group: paychex-ai-platform-arc-nonprod
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Checkmarx One CLI Action
+        uses: checkmarx/ast-github-action@2.3.22 #Github Action version
+        with:
+          project_name: pltsvc-librechat-pyx
+          cx_tenant: paychex_prod
+          base_uri: https://us.ast.checkmarx.net
+          cx_client_id: ${{ secrets.CX_CLIENT_ID_PROD }}
+          cx_client_secret: ${{ secrets.CX_CLIENT_SECRET_PROD }}
+          additional_params: --scan-types sast,sca
