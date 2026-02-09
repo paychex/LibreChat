@@ -677,15 +677,16 @@ configure_docker_daemon() {
         log_info "Moving Docker data to /home/docker (Paychex VDI requirement)..."
         sudo mkdir -p /home/docker
         
-        # Only move if /var/lib/docker has content
+        # Copy any existing Docker data to /home/docker
         if [ "$(ls -A /var/lib/docker 2>/dev/null)" ]; then
-            sudo mv /var/lib/docker /home/docker/
-        else
-            sudo rm -rf /var/lib/docker
+            log_info "Copying existing Docker data..."
+            sudo cp -a /var/lib/docker/* /home/docker/
         fi
         
-        # Create symlink
-        sudo ln -s /home/docker/docker /var/lib/docker
+        # Remove old directory and create symlink
+        sudo rm -rf /var/lib/docker
+        sudo ln -s /home/docker /var/lib/docker
+        
         log_success "Docker home moved to /home/docker"
     elif [ -L "/var/lib/docker" ]; then
         log_info "Docker home already configured as symlink"
