@@ -15,6 +15,7 @@ export * from './math';
 export * from './openid';
 export * from './promise';
 export * from './sanitizeTitle';
+export * from './schema';
 export * from './tempChatRetention';
 export * from './text';
 export { default as Tokenizer, countTokens } from './tokenizer';
