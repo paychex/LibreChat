@@ -25,6 +25,7 @@ import {
   getDefaultEndpoint,
   getModelSpecPreset,
   buildDefaultConvo,
+  getLocalStorageItems,
   logger,
 } from '~/utils';
 import { useDeleteFilesMutation, useGetEndpointsQuery, useGetStartupConfig } from '~/data-provider';
@@ -77,28 +78,55 @@ const useNewConvo = (index = 0) => {
       ) => {
         const modelsConfig = modelsData ?? modelsQuery.data;
         const { endpoint = null } = conversation;
+        const { lastConversationSetup: storedSetup } = getLocalStorageItems();
+        const storedConversation =
+          storedSetup && typeof storedSetup === 'object' && Object.keys(storedSetup).length > 0
+            ? (storedSetup as TConversation)
+            : null;
+        const hasStoredModelSelection = Boolean(
+          storedConversation?.model ?? storedConversation?.agentOptions?.model,
+        );
         const buildDefaultConversation = (endpoint === null || buildDefault) ?? false;
-        const activePreset =
-          // use default preset only when it's defined,
-          // preset is not provided,
-          // endpoint matches or is null (to allow endpoint change),
-          // and buildDefaultConversation is true
+
+        // Check if the passed preset is the default spec preset (not a user-selected one)
+        const isDefaultSpecPreset = Boolean(
+          preset &&
+            defaultPreset &&
+            (preset.spec === defaultPreset.spec ||
+              (preset.presetId && preset.presetId === defaultPreset.presetId)),
+        );
+
+        // Don't use the default preset if user has a stored model selection
+        const shouldUseDefaultPreset = Boolean(
           defaultPreset &&
-          !preset &&
-          (defaultPreset.endpoint === endpoint || !endpoint) &&
-          buildDefaultConversation
-            ? defaultPreset
+            !preset &&
+            (defaultPreset.endpoint === endpoint || !endpoint) &&
+            buildDefaultConversation &&
+            !hasStoredModelSelection,
+        );
+
+        // If the preset is the default spec and user has stored model, prefer stored conversation
+        const effectivePreset =
+          isDefaultSpecPreset && hasStoredModelSelection && buildDefaultConversation
+            ? null
             : preset;
 
-        const disableParams =
-          _disableParams ??
-          (activePreset?.presetId != null &&
-            activePreset.presetId &&
-            activePreset.presetId === defaultPreset?.presetId);
+        const appliedPreset: Partial<TPreset> | null = shouldUseDefaultPreset
+          ? defaultPreset
+          : (effectivePreset ?? null);
+        const conversationSetup = appliedPreset ?? storedConversation ?? null;
+
+        const isDefaultPresetApplied = Boolean(
+          appliedPreset &&
+            appliedPreset.presetId &&
+            appliedPreset.presetId === defaultPreset?.presetId,
+        );
+
+        const disableParams = _disableParams ?? isDefaultPresetApplied;
 
         if (buildDefaultConversation) {
           let defaultEndpoint = getDefaultEndpoint({
-            convoSetup: activePreset ?? conversation,
+            convoSetup: conversationSetup ?? conversation,
             endpointsConfig,
           });
 
@@ -151,7 +179,7 @@ const useNewConvo = (index = 0) => {
           const models = modelsConfig?.[defaultEndpoint] ?? [];
           conversation = buildDefaultConvo({
             conversation,
-            lastConversationSetup: activePreset as TConversation,
+            lastConversationSetup: (conversationSetup ?? conversation) as TConversation,
             endpoint: defaultEndpoint,
             models,
           });
