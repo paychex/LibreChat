@@ -35,14 +35,7 @@ export default function TavilySources({ output, showFallback }: TavilySourcesPro
       let data = JSON.parse(output);
 
       // Check if it's an MCP response format: [{"type":"text","text":"..."}]
-      if (
-        Array.isArray(data) &&
-        data.length > 0 &&
-        data[0] &&
-        typeof data[0] === 'object' &&
-        data[0].type === 'text' &&
-        data[0].text
-      ) {
+      if (Array.isArray(data) && data[0]?.type === 'text' && data[0]?.text) {
         // Parse the inner text field which contains the actual Tavily response
         data = JSON.parse(data[0].text);
       }
