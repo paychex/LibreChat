@@ -2,6 +2,7 @@ import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { RecoilRoot, useRecoilState, useRecoilValue, useSetRecoilState } from 'recoil';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Constants, LocalStorageKeys } from 'librechat-data-provider';
 import { ephemeralAgentByConvoId } from '~/store';
 import { setTimestamp } from '~/utils/timestamps';
@@ -14,14 +15,31 @@ jest.mock('~/utils/timestamps', () => ({
 
 jest.mock('lodash/isEqual', () => jest.fn((a, b) => JSON.stringify(a) === JSON.stringify(b)));
 
+// Mock useGetStartupConfig to return empty config by default
+// Individual tests can override this mock if they need specific MCP server configurations
+jest.mock('~/data-provider', () => ({
+  useGetStartupConfig: jest.fn(() => ({
+    data: {
+      mcpServers: {},
+    },
+  })),
+}));
+
 const createWrapper = () => {
   // Create a new Jotai store for each test to ensure clean state
   const store = createStore();
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  });
 
   const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <RecoilRoot>
-      <Provider store={store}>{children}</Provider>
-    </RecoilRoot>
+    <QueryClientProvider client={queryClient}>
+      <RecoilRoot>
+        <Provider store={store}>{children}</Provider>
+      </RecoilRoot>
+    </QueryClientProvider>
   );
   return Wrapper;
 };
@@ -490,6 +508,153 @@ describe('useMCPSelect', () => {
 
       // Should handle remounting gracefully
       expect(newResult.current.mcpValues).toBeDefined();
+    });
+  });
+
+  describe('Auto-Select Functionality', () => {
+    const useGetStartupConfig = require('~/data-provider').useGetStartupConfig;
+
+    it('should auto-select MCP servers with startup: true on new conversations', async () => {
+      // Mock config with a startup server
+      useGetStartupConfig.mockReturnValue({
+        data: {
+          mcpServers: {
+            'Internet Search (Tavily)': {
+              type: 'streamable-http',
+              url: 'https://mcp.tavily.com/mcp/',
+              startup: true,
+              chatMenu: false,
+              requiresOAuth: false,
+            },
+          },
+        },
+      });
+
+      const { result } = renderHook(() => useMCPSelect({ conversationId: Constants.NEW_CONVO }), {
+        wrapper: createWrapper(),
+      });
+
+      // Wait for auto-select to happen
+      await waitFor(() => {
+        expect(result.current.mcpValues).toEqual(['Internet Search (Tavily)']);
+      });
+    });
+
+    it('should auto-select multiple servers with startup: true', async () => {
+      useGetStartupConfig.mockReturnValue({
+        data: {
+          mcpServers: {
+            'Internet Search (Tavily)': {
+              startup: true,
+              chatMenu: false,
+            },
+            'Another Server': {
+              startup: true,
+              chatMenu: true,
+            },
+          },
+        },
+      });
+
+      const { result } = renderHook(() => useMCPSelect({}), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(result.current.mcpValues).toContain('Internet Search (Tavily)');
+        expect(result.current.mcpValues).toContain('Another Server');
+        expect(result.current.mcpValues).toHaveLength(2);
+      });
+    });
+
+    it('should NOT auto-select servers with startup: false', async () => {
+      useGetStartupConfig.mockReturnValue({
+        data: {
+          mcpServers: {
+            'Manual Server': {
+              startup: false,
+              chatMenu: true,
+            },
+          },
+        },
+      });
+
+      const { result } = renderHook(() => useMCPSelect({}), {
+        wrapper: createWrapper(),
+      });
+
+      // Should remain empty because startup is false
+      await waitFor(() => {
+        expect(result.current.mcpValues).toEqual([]);
+      });
+    });
+
+    it('should auto-select even when chatMenu: false', async () => {
+      useGetStartupConfig.mockReturnValue({
+        data: {
+          mcpServers: {
+            'Hidden Server': {
+              startup: true,
+              chatMenu: false, // Hidden from UI but should still auto-select
+            },
+          },
+        },
+      });
+
+      const { result } = renderHook(() => useMCPSelect({}), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(result.current.mcpValues).toEqual(['Hidden Server']);
+      });
+    });
+
+    it('should not auto-select if conversation already has MCP values', async () => {
+      useGetStartupConfig.mockReturnValue({
+        data: {
+          mcpServers: {
+            'Startup Server': {
+              startup: true,
+            },
+          },
+        },
+      });
+
+      // Start with existing MCP values
+      const TestComponent = () => {
+        const [ephemeralAgent, setEphemeralAgent] = useRecoilState(
+          ephemeralAgentByConvoId(Constants.NEW_CONVO),
+        );
+        const result = useMCPSelect({});
+
+        React.useEffect(() => {
+          setEphemeralAgent({ mcp: ['Existing Server'] });
+        }, [setEphemeralAgent]);
+
+        return null;
+      };
+
+      const { rerender } = renderHook(() => useMCPSelect({}), {
+        wrapper: createWrapper(),
+      });
+
+      // Initially should auto-select
+      await waitFor(() => {
+        const { result } = renderHook(() => useMCPSelect({}), {
+          wrapper: createWrapper(),
+        });
+        expect(result.current.mcpValues).toEqual(['Startup Server']);
+      });
+    });
+
+    afterEach(() => {
+      // Reset mock to default empty config
+      useGetStartupConfig.mockReturnValue({
+        data: {
+          mcpServers: {},
+        },
+      });
     });
   });
 });
