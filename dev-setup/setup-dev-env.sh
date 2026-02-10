@@ -1035,38 +1035,8 @@ EOF
     sudo dnf install -y code
 }
 
-configure_vscode() {
-    log_step "Configuring VS Code extensions..."
-    
-    # Install GitHub Copilot extension
-    log_info "Installing GitHub Copilot extension..."
-    if code --install-extension GitHub.copilot --force 2>/dev/null; then
-        log_success "GitHub Copilot extension installed"
-    else
-        log_warn "Failed to install Copilot extension automatically"
-        log_info "You can install it manually: Extensions → Search 'GitHub Copilot'"
-    fi
-    
-    echo ""
-    log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_warn "GitHub Copilot Setup Required"
-    log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    log_info "To activate GitHub Copilot:"
-    echo "  1. Open VS Code: code ."
-    echo "  2. Click the account icon (bottom left)"
-    echo "  3. Sign in with your GitHub account"
-    echo "  4. Authorize GitHub Copilot when prompted"
-    echo "  5. Accept terms and activate your subscription"
-    echo ""
-    log_info "If you don't have Copilot access:"
-    echo "  • Individual: https://github.com/settings/copilot"
-    echo "  • Enterprise: Contact your GitHub organization admin"
-    echo ""
-}
-
 install_vscode() {
-    log_step "Installing/Configuring VS Code..."
+    log_step "Installing VS Code..."
     
     # Skip in automated mode
     if [ "$IS_AUTOMATED" = true ]; then
@@ -1077,11 +1047,6 @@ install_vscode() {
     # Check if already installed
     if detect_vscode; then
         log_success "VS Code $VSCODE_VERSION is already installed"
-        
-        # Still offer to configure Copilot
-        if prompt_yes_no "Configure GitHub Copilot extension?" "y"; then
-            configure_vscode
-        fi
         return 0
     fi
     
@@ -1112,9 +1077,11 @@ install_vscode() {
     if code --version >/dev/null 2>&1; then
         VSCODE_VERSION=$(code --version 2>/dev/null | head -1)
         log_success "VS Code $VSCODE_VERSION installed successfully"
-        
-        # Configure extensions
-        configure_vscode
+        echo ""
+        log_info "VS Code is ready to use. Configure extensions as needed:"
+        echo "  • GitHub Copilot (if you have access): Extensions → Search 'GitHub Copilot'"
+        echo "  • ESLint, Prettier, etc.: Configure based on your preferences"
+        echo ""
     else
         log_error "VS Code installation failed"
         log_info "Try installing manually: https://code.visualstudio.com/"

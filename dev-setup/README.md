@@ -17,13 +17,37 @@ The script will:
 1. Detect your OS (Ubuntu or Rocky Linux)
 2. Install Node.js 20+ via nvm
 3. Install Docker and Docker Compose
-4. Install GitHub CLI (optional)
-5. Set up MongoDB in a Docker container
-6. Configure your `.env` file
-7. Install npm dependencies
-8. Build packages
-9. Configure deployment mode (Native or Docker Compose)
-10. Verify the installation
+4. Configure Docker daemon for Paychex VDI (registry access, disk management)
+5. Install GitHub CLI (optional)
+6. Install Visual Studio Code (optional)
+7. Set up MongoDB 4.4 in a Docker container
+8. Configure your `.env` file with generated secrets
+9. Install npm dependencies
+10. Build packages
+11. Configure deployment mode (Native or Docker Compose)
+12. Verify the installation
+
+### Prerequisites
+
+Before running the setup script, you'll need:
+
+**For Paychex Developers:**
+1. **Docker Registry Configuration** (if you need access to internal registries):
+   ```bash
+   # Copy the template
+   cp docker-daemon.json.example docker-daemon.json.local
+   
+   # Edit with your registry URLs (consult Paychex LibreChat wiki)
+   code docker-daemon.json.local
+   ```
+   
+   The script will use this file to configure `/etc/docker/daemon.json` with your private registries.
+   
+   **Security Note:** The `docker-daemon.json.local` file is git-ignored to prevent committing internal URLs to the public repository.
+
+2. **SSL Certificate** (if required for your network):
+   - Place `paychex-root.pem` in the LibreChat root directory
+   - The script will configure npm and Node.js to trust this certificate
 
 ## Testing the Setup Script
 
@@ -61,6 +85,12 @@ Run automated end-to-end tests:
 
 # Test on Rocky Linux 9
 ./test-docker-rocky.sh
+
+# Test with specific branch
+./test-docker-ubuntu.sh --branch feature/my-branch
+
+# Test with fresh Docker environment
+./test-docker-ubuntu.sh --fresh
 ```
 
 These scripts:
@@ -76,6 +106,8 @@ dev-setup/
 ├── setup-dev-env.sh                    # Main setup script
 ├── README.md                           # This file
 │
+├── docker-daemon.json.example          # Template for Docker registry config
+│
 ├── interactive-test-ubuntu.sh          # Interactive Ubuntu testing
 ├── interactive-test-rocky.sh           # Interactive Rocky Linux testing
 │
@@ -85,6 +117,32 @@ dev-setup/
 ├── Dockerfile.test-ubuntu              # Ubuntu test image
 └── Dockerfile.test-rocky               # Rocky test image
 ```
+
+## Key Features
+
+### Security & Compliance
+
+**No Internal URLs Committed:** The script uses a template pattern for Docker daemon configuration:
+- `docker-daemon.json.example` - Committed to repo with placeholder URLs
+- `docker-daemon.json.local` - Git-ignored, user-created with actual registry URLs
+
+This prevents Paychex internal infrastructure from being exposed in the public repository.
+
+### Paychex VDI Optimizations
+
+**Docker Home Relocation:**
+- Automatically moves Docker data from `/var/lib/docker` to `/home/docker`
+- Prevents filling up the smaller `/var` partition on VDI systems
+- Creates symlink for transparent operation
+
+**MongoDB 4.4 Compatibility:**
+- Uses MongoDB 4.4 for CPUs without AVX support (common in VDI environments)
+- Generates random credentials for local development
+
+**Interactive User Guidance:**
+- Prompts for registry configuration if template doesn't exist
+- Provides clear instructions for VDI-specific setup
+- Offers to apply docker group permissions in current session
 
 ## Environment Variables
 
@@ -199,6 +257,43 @@ docker logs librechat-mongo
 
 # Restart
 docker restart librechat-mongo
+
+# Recreate if needed
+docker stop librechat-mongo
+docker rm librechat-mongo
+docker volume rm librechat-mongo
+# Then re-run setup script
+```
+
+### Docker Daemon Issues
+
+**Docker fails to start after configuration:**
+```bash
+# Check systemd status
+sudo systemctl status docker
+
+# View recent logs
+sudo journalctl -u docker.service -n 50
+
+# Verify daemon.json is valid JSON
+sudo python3 -m json.tool /etc/docker/daemon.json
+
+# Check symlink
+ls -la /var/lib/docker /home/docker
+```
+
+**Permission denied when running docker commands:**
+```bash
+# Verify docker group membership
+groups | grep docker
+
+# If not in docker group, add yourself
+sudo usermod -aG docker $USER
+
+# Apply group changes (choose one):
+# Option 1: Log out and back in
+# Option 2: Start new shell with docker group
+newgrp docker
 ```
 
 ### Node.js Not Found After Installation
@@ -206,19 +301,37 @@ docker restart librechat-mongo
 # Source nvm manually
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+# Or add to your shell profile (~/.bashrc or ~/.zshrc):
+echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc
+echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> ~/.bashrc
+source ~/.bashrc
 ```
 
-### Docker Permission Denied
+### VS Code Installation
+
+VS Code is installed optionally. If you need it:
 ```bash
-# Add user to docker group
-sudo usermod -aG docker $USER
+# Re-run the setup script - it will detect missing VS Code and offer to install
+./dev-setup/setup-dev-env.sh
 
-# Log out and back in, or run:
-newgrp docker
+# Or install manually:
+# Ubuntu: https://code.visualstudio.com/docs/setup/linux
+# Rocky: https://code.visualstudio.com/docs/setup/linux
 ```
+
+**Extensions:** The script does not install extensions automatically. Configure GitHub Copilot and other extensions manually based on your needs and corporate license availability.
 
 ### Re-run Setup
-The script is idempotent - you can safely re-run it if anything fails. It will detect existing installations and skip or update as needed.
+The script is idempotent and designed to repair broken environments:
+- Detects existing installations and skips or updates as needed
+- Can be safely re-run after failures
+- Repairs common configuration issues (broken symlinks, missing permissions, etc.)
+
+```bash
+# Safe to run multiple times
+./dev-setup/setup-dev-env.sh
+```
 
 ## CI/CD Integration
 
@@ -261,5 +374,4 @@ When making changes to `setup-dev-env.sh`:
 
 For issues or questions:
 1. Check the troubleshooting section above
-2. Check [LibreChat documentation](https://wiki.paychex.com/spaces/AIML/pages/2327061128/LibreChat+Local+Development+Setup+with+Docker+and+MongoDB+in+Linux+VDI)
-3. Contact the development team
+2. Contact the development team
