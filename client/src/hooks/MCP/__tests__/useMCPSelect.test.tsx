@@ -7,6 +7,7 @@ import { Constants, LocalStorageKeys } from 'librechat-data-provider';
 import { ephemeralAgentByConvoId } from '~/store';
 import { setTimestamp } from '~/utils/timestamps';
 import { useMCPSelect } from '../useMCPSelect';
+import * as dataProvider from '~/data-provider';
 
 // Mock dependencies
 jest.mock('~/utils/timestamps', () => ({
@@ -512,7 +513,7 @@ describe('useMCPSelect', () => {
   });
 
   describe('Auto-Select Functionality', () => {
-    const useGetStartupConfig = require('~/data-provider').useGetStartupConfig;
+    const useGetStartupConfig = jest.spyOn(dataProvider, 'useGetStartupConfig');
 
     it('should auto-select MCP servers with startup: true on new conversations', async () => {
       // Mock config with a startup server
@@ -621,29 +622,12 @@ describe('useMCPSelect', () => {
         },
       });
 
-      // Start with existing MCP values
-      const TestComponent = () => {
-        const [ephemeralAgent, setEphemeralAgent] = useRecoilState(
-          ephemeralAgentByConvoId(Constants.NEW_CONVO),
-        );
-        const result = useMCPSelect({});
-
-        React.useEffect(() => {
-          setEphemeralAgent({ mcp: ['Existing Server'] });
-        }, [setEphemeralAgent]);
-
-        return null;
-      };
-
-      const { rerender } = renderHook(() => useMCPSelect({}), {
+      const { result } = renderHook(() => useMCPSelect({}), {
         wrapper: createWrapper(),
       });
 
       // Initially should auto-select
       await waitFor(() => {
-        const { result } = renderHook(() => useMCPSelect({}), {
-          wrapper: createWrapper(),
-        });
         expect(result.current.mcpValues).toEqual(['Startup Server']);
       });
     });
