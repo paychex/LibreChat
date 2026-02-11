@@ -4,7 +4,7 @@ import TavilySources from '../TavilySources';
 
 // Mock dependencies
 jest.mock('~/hooks', () => ({
-  useLocalize: () => (key: string, values?: any) => {
+  useLocalize: () => (key: string, _values?: any) => {
     const translations: Record<string, string> = {
       com_ui_result: 'Result',
       com_ui_untitled: 'Untitled',
@@ -17,6 +17,7 @@ jest.mock('~/hooks', () => ({
 }));
 
 jest.mock('lucide-react', () => ({
+  // eslint-disable-next-line i18next/no-literal-string
   ExternalLink: () => <span data-testid="external-link-icon">ExternalLink</span>,
 }));
 
@@ -232,7 +233,12 @@ describe('TavilySources', () => {
 
       render(<TavilySources output={output} />);
 
-      expect(screen.getByText('86%')).toBeInTheDocument();
+      const scoreBadge = screen.getByText('86%');
+      expect(scoreBadge).toBeInTheDocument();
+      expect(scoreBadge).toHaveAttribute(
+        'title',
+        'Relevance score: how well this result matches your search',
+      );
     });
 
     it('should not render score badge when score is missing', () => {
@@ -462,7 +468,12 @@ describe('TavilySources', () => {
 
       render(<TavilySources output={output} />);
 
-      expect(screen.getByText('0%')).toBeInTheDocument();
+      const scoreBadge = screen.getByText('0%');
+      expect(scoreBadge).toBeInTheDocument();
+      expect(scoreBadge).toHaveAttribute(
+        'title',
+        'Relevance score: how well this result matches your search',
+      );
     });
 
     it('should handle score of 1', () => {
@@ -472,7 +483,12 @@ describe('TavilySources', () => {
 
       render(<TavilySources output={output} />);
 
-      expect(screen.getByText('100%')).toBeInTheDocument();
+      const scoreBadge = screen.getByText('100%');
+      expect(scoreBadge).toBeInTheDocument();
+      expect(scoreBadge).toHaveAttribute(
+        'title',
+        'Relevance score: how well this result matches your search',
+      );
     });
   });
 });

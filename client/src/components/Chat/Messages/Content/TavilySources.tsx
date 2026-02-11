@@ -115,7 +115,10 @@ export default function TavilySources({ output, showFallback }: TavilySourcesPro
                 {/* Score badge if available */}
                 {result.score !== undefined && (
                   <div className="flex-shrink-0">
-                    <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                    <span
+                      className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+                      title="Relevance score: how well this result matches your search"
+                    >
                       {(result.score * 100).toFixed(0)}%
                     </span>
                   </div>
