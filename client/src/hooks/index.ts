@@ -3,6 +3,7 @@ export * from './Assistants';
 export * from './Agents';
 export * from './Chat';
 export * from './Config';
+export * from './Pendo';
 export * from './Conversations';
 export * from './Nav';
 export * from './Files';
