@@ -1,0 +1,50 @@
+FROM rockylinux:9
+
+# Copy corporate CA certificates from build context
+# The build script creates dummy.crt if no certificates exist
+COPY *.crt /etc/pki/ca-trust/source/anchors/
+
+# Update CA trust before making any network calls
+RUN update-ca-trust
+
+# Install minimal bootstrap tools
+# Use --allowerasing to replace curl-minimal with full curl
+RUN dnf install -y --allowerasing \
+    git \
+    curl \
+    ca-certificates \
+    sudo \
+    && dnf clean all
+
+# Create a non-root user (simulates VDI environment)
+RUN useradd -m -s /bin/bash testuser && \
+    usermod -aG wheel testuser && \
+    echo "testuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy required project files for setup to work
+COPY .env.example /workspace/.env.example
+COPY package.json /workspace/package.json
+COPY package-lock.json /workspace/package-lock.json
+COPY librechat.dev.yaml /workspace/librechat.dev.yaml
+
+# Copy the setup script and related files
+COPY dev-setup/setup-dev-env.sh /workspace/dev-setup/
+COPY dev-setup/test-*.sh /workspace/dev-setup/
+
+# Make scripts executable and change ownership to testuser
+RUN chmod +x /workspace/dev-setup/*.sh && \
+    chown -R testuser:testuser /workspace
+
+# Switch to non-root user
+USER testuser
+
+# Set environment variables for non-interactive testing
+ENV CI=true
+ENV AUTOMATED_TEST=true
+ENV TEST_MODE=1
+
+# Default command runs the setup script
+CMD ["/workspace/dev-setup/setup-dev-env.sh"]

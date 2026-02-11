@@ -1,0 +1,28 @@
+# Docker Daemon Configuration Template
+# 
+# This file is used by dev-setup/setup-dev-env.sh to configure Docker
+# for corporate/VDI environments with custom registries.
+#
+# PAYCHEX DEVELOPERS:
+#   1. Copy this file: cp docker-daemon.json.example docker-daemon.json.local
+#   2. Replace <placeholders> with actual values from internal wiki
+#   3. Run setup script: ./dev-setup/setup-dev-env.sh
+#
+# SECURITY NOTE:
+#   - docker-daemon.json.local is in .gitignore
+#   - NEVER commit actual internal URLs to the public repository
+#   - Consult internal Paychex LibreChat wiki for real values
+#
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  },
+  "insecure-registries": [
+    "<your-registry-1.example.com>",
+    "<your-registry-2.example.com>",
+    "<your-registry-3.example.com>",
+    "<your-registry-4.example.com>"
+  ]
+}

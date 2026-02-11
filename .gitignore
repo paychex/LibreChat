@@ -40,6 +40,18 @@ client/public/main.js
 client/public/main.js.map
 client/public/main.js.LICENSE.txt
 
+# Rollup TypeScript plugin cache
+**/undefined/
+
+# Backup files created by setup scripts
+*.bak
+*.backup
+*.backup.*
+*docker-compose-override*.bak*
+docker-compose.override.yml.backup*
+librechat.yaml.backup*
+.env.backup*
+
 # Azure Blob Storage Emulator (Azurite)
 __azurite**
 __blobstorage__/**/*
@@ -76,6 +88,7 @@ librechat.yml
 my.secrets
 !**/.env.example
 !**/.env.test.example
+!.env.paychex
 cache.json
 api/data/
 owner.yml
@@ -85,6 +98,9 @@ src/style - official.css
 /e2e/specs/.test-results/
 /e2e/playwright-report/
 /playwright/.cache/
+
+# Docker daemon configuration (contains internal URLs)
+docker-daemon.json.local
 .DS_Store
 *.code-workspace
 .idx
