@@ -67,6 +67,9 @@ mcpServers:
     url: https://mcp.tavily.com/mcp/
     headers:
       Authorization: "Bearer ${TAVILY_API_KEY}"
+    startup: true
+    chatMenu: false
+    requiresOAuth: false
 endpoints:
   azureOpenAI:
     # Endpoint-level configuration
@@ -74,29 +77,29 @@ endpoints:
     plugins: false
     assistants: false
     groups:
-    # Group-level configuration
-    - group: "Prod East US"
-      instanceName: "Prod OpenAI"
-      apiKey: "${AZURE_OPENAI_API_KEY}"
-      baseURL: "${AZURE_OPENAI_BASEURL}"
-      version: "2024-10-21"
-      # Model-level configuration
-      models:
-        gpt-5:
-          deploymentName: gpt-5
-          version: "2024-10-21"
-        gpt-4o:
-          deploymentName: gpt-4o
-          version: "2024-10-21"
-        gpt-4o-mini:
-          deploymentName: gpt-4o-mini
-          version: "2024-10-21"
-        gpt-41:
-          deploymentName: gpt-41
-          version: "2024-10-21"
-        gpt-41-mini:
-          deploymentName: gpt-41-mini
-          version: "2024-10-21"
+      # Group-level configuration
+      - group: "Prod East US"
+        instanceName: "Prod OpenAI"
+        apiKey: "${AZURE_OPENAI_API_KEY}"
+        baseURL: "${AZURE_OPENAI_BASEURL}"
+        version: "2024-10-21"
+        # Model-level configuration
+        models:
+          gpt-5:
+            deploymentName: gpt-5
+            version: "2024-10-21"
+          gpt-4o:
+            deploymentName: gpt-4o
+            version: "2024-10-21"
+          gpt-4o-mini:
+            deploymentName: gpt-4o-mini
+            version: "2024-10-21"
+          gpt-41:
+            deploymentName: gpt-41
+            version: "2024-10-21"
+          gpt-41-mini:
+            deploymentName: gpt-41-mini
+            version: "2024-10-21"
   custom:
     - name: "Gemini 2.5 Pro"
       apiKey: "${GCP_VERTEXAI_API_KEY}"
