@@ -119,7 +119,7 @@ resource "azurerm_key_vault_access_policy" "container_app" {
 }
 
 resource "azurerm_role_assignment" "container_app_acr_pull" {
-  count                = local.acr_id != null ? 1 : 0
+  count                = local.acr_id != null && !var.skip_acr_role_assignment ? 1 : 0
   scope                = local.acr_id
   role_definition_name = "AcrPull"
   principal_id         = azurerm_user_assigned_identity.container_app.principal_id

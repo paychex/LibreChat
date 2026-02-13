@@ -31,9 +31,11 @@ storage_network_default_action = "Deny"
 librechat_image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
 rag_api_image   = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
 
-# Existing ACR (shared across environments)
+# Existing ACR (shared across environments - in prod subscription)
+# Role assignment skipped - grant AcrPull manually to N2A managed identity
 existing_acr_name           = "conpaychexaiprod001"
 existing_acr_resource_group = "rg-playai-eastus-prod-001"
+skip_acr_role_assignment    = true
 
 # Domain Configuration
 domain = "play.ain2a.paychex.com"

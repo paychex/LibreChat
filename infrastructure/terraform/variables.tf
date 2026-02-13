@@ -244,6 +244,12 @@ variable "existing_acr_resource_group" {
   default     = null
 }
 
+variable "skip_acr_role_assignment" {
+  description = "Skip ACR role assignment (use when ACR is in different subscription - grant manually)"
+  type        = bool
+  default     = false
+}
+
 variable "key_vault_name_override" {
   description = "Override the Key Vault name (uses naming convention if not provided)"
   type        = string
