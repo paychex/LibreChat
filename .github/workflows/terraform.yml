@@ -331,6 +331,64 @@ jobs:
         if: steps.plan.outputs.no_changes != 'true'
         run: terraform apply -auto-approve deploy.tfplan
 
+      # Cross-subscription ACR role assignment for n2a
+      # N2A container app in nonprod needs AcrPull on prod ACR
+      - name: Grant ACR Pull (cross-subscription)
+        if: |
+          github.event.inputs.environment == 'n2a' &&
+          steps.plan.outputs.no_changes != 'true'
+        run: |
+          set -e
+
+          # Get the managed identity principal ID from Terraform
+          PRINCIPAL_ID=$(terraform output -raw container_app_identity_principal_id)
+          if [ -z "$PRINCIPAL_ID" ]; then
+            echo "⚠️ No principal ID found, skipping ACR role assignment"
+            exit 0
+          fi
+          echo "Principal ID: $PRINCIPAL_ID"
+
+          # Login to prod subscription
+          echo "Logging into prod subscription..."
+          az login --service-principal \
+            -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_PROD }} \
+            -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_PROD }} \
+            --tenant ${{ secrets.AZURE_TENANT_ID }} \
+            --output none
+          az account set --subscription ${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}
+
+          # ACR scope (prod ACR shared by n2a, n1, prod environments)
+          ACR_SCOPE="/subscriptions/${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}/resourceGroups/rg-playai-eastus-prod-001/providers/Microsoft.ContainerRegistry/registries/conpaychexaiprod001"
+          echo "ACR scope: $ACR_SCOPE"
+
+          # Check if role assignment already exists
+          EXISTING=$(az role assignment list --assignee "$PRINCIPAL_ID" --scope "$ACR_SCOPE" --role "AcrPull" --query "[0].id" -o tsv 2>/dev/null || echo "")
+          if [ -n "$EXISTING" ]; then
+            echo "✅ AcrPull role assignment already exists"
+          else
+            echo "Creating AcrPull role assignment on prod ACR..."
+            az role assignment create \
+              --assignee-object-id "$PRINCIPAL_ID" \
+              --assignee-principal-type ServicePrincipal \
+              --role "AcrPull" \
+              --scope "$ACR_SCOPE" \
+              --output none
+            echo "✅ AcrPull role assignment created"
+          fi
+
+      # Always re-authenticate to nonprod after cross-subscription step
+      - name: Re-authenticate to nonprod
+        if: |
+          github.event.inputs.environment == 'n2a' &&
+          steps.plan.outputs.no_changes != 'true'
+        run: |
+          az login --service-principal \
+            -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }} \
+            -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }} \
+            --tenant ${{ secrets.AZURE_TENANT_ID }} \
+            --output none
+          echo "✅ Re-authenticated to nonprod"
+
       - name: Get URL
         id: get_url
         run: |
