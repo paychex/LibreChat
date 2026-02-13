@@ -1,0 +1,8 @@
+# Production Environment Backend Configuration
+# State stored in global Terraform state storage account
+
+resource_group_name  = "rg-paychexai-tf-eastus-prod-001"
+storage_account_name = "sapaychexaitfprod001"
+container_name       = "tfstate"
+key                  = "librechat/prod.tfstate"
+subscription_id      = "9c0bd682-b2b9-49a2-996a-f33eb0af2fff"

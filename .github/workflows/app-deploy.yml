@@ -1,0 +1,422 @@
+name: Application Deployment
+
+# =============================================================================
+# ENTERPRISE-GRADE APPLICATION DEPLOYMENT PIPELINE
+# =============================================================================
+# This workflow handles application code deployments (container images).
+# Infrastructure changes are managed separately by terraform.yml.
+#
+# ⚠️  STATUS: DISABLED - Using existing n2a-build-and-push.yml for now
+#     Enable this workflow after Terraform manages all environments.
+#
+# Deployment Strategy:
+#   1. Build & Push: Creates Docker image with commit SHA tag
+#   2. Deploy to n2a: Automatic on push to main (development)
+#   3. Promote to n1: Manual trigger, uses same image from n2a
+#   4. Promote to prod: Manual trigger, uses same image from n1
+#
+# Image Promotion Flow:
+#   main branch → n2a (auto) → n1 (manual) → prod (manual)
+#   Same image SHA is promoted through environments (no rebuild)
+# =============================================================================
+
+on:
+  # DISABLED: Don't auto-deploy until Terraform manages infrastructure
+  # push:
+  #   branches:
+  #     - main
+  #   paths-ignore:
+  #     - 'infrastructure/**'
+  #     - '*.md'
+  #     - '.github/workflows/terraform.yml'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - build-and-deploy
+          - promote
+          - rollback
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - sandbox
+          - n2a
+          - n1
+          - prod
+      image_tag:
+        description: 'Image tag to deploy (for promote/rollback, leave empty for latest)'
+        required: false
+        type: string
+      build_rag_api:
+        description: 'Also build/deploy RAG API'
+        required: false
+        type: boolean
+        default: true
+
+env:
+  ACR_HOST: ${{ vars.REGISTRY_LOGIN_SERVER_PROD }}
+  ACR_REPOSITORY: paychex/librechat
+  RAG_API_REPOSITORY: paychex/rag_api
+
+# Prevent concurrent deployments to same environment
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'n2a' }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+jobs:
+  # ============================================================================
+  # BUILD: Create and push Docker image
+  # ============================================================================
+  build:
+    name: Build Image
+    if: |
+      github.event_name == 'push' || 
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'build-and-deploy')
+    runs-on: paychex-ai-platform-arc-nonprod
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+      full_image: ${{ steps.meta.outputs.full_image }}
+      commit_sha: ${{ steps.meta.outputs.commit_sha }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate Image Metadata
+        id: meta
+        run: |
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          FULL_SHA=$(git rev-parse HEAD)
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          TAG="${COMMIT_SHA}-${TIMESTAMP}"
+          
+          echo "commit_sha=${FULL_SHA}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "full_image=${{ env.ACR_HOST }}/${{ env.ACR_REPOSITORY }}:${TAG}" >> $GITHUB_OUTPUT
+          
+          echo "### Build Metadata" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${FULL_SHA} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag | ${TAG} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Determine Config File
+        id: config
+        run: |
+          # Use n2a config for builds (promoted images work in all envs)
+          ENV="${{ github.event.inputs.environment || 'n2a' }}"
+          echo "config_file=librechat.${ENV}.yml" >> $GITHUB_OUTPUT
+
+      - name: Prepare Build Context
+        run: |
+          # Copy environment-specific config
+          cp ${{ steps.config.outputs.config_file }} librechat.yaml
+          
+          # Use Paychex-specific dockerignore
+          if [ -f .paychex.dockerignore ]; then
+            cp .paychex.dockerignore .dockerignore
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to ACR
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ env.ACR_HOST }}
+          username: ${{ secrets.REGISTRY_USERNAME_PROD }}
+          password: ${{ secrets.REGISTRY_PASSWORD_PROD }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.ACR_HOST }}/${{ env.ACR_REPOSITORY }}:${{ steps.meta.outputs.tag }}
+            ${{ env.ACR_HOST }}/${{ env.ACR_REPOSITORY }}:${{ github.event.inputs.environment || 'n2a' }}.latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            COMMIT_SHA=${{ steps.meta.outputs.commit_sha }}
+
+      - name: Trigger RAG API Build
+        if: github.event.inputs.build_rag_api != 'false'
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_PAT }}
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/paychex/rag_api/actions/workflows/build.yml/dispatches" \
+            -d '{"ref":"main","inputs":{"environment":"${{ github.event.inputs.environment || 'n2a' }}"}}' \
+            --fail --silent --show-error || echo "⚠️ RAG API trigger failed (non-blocking)"
+
+  # ============================================================================
+  # DEPLOY SANDBOX: Deployment to sandbox environment
+  # ============================================================================
+  deploy-sandbox:
+    name: Deploy to Sandbox
+    needs: build
+    if: |
+      github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'build-and-deploy' && github.event.inputs.environment == 'sandbox'
+    runs-on: paychex-ai-platform-arc-nonprod
+    environment:
+      name: sandbox
+      url: https://play.aisandbox.paychex.com
+    
+    steps:
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Container App
+        run: |
+          az containerapp update \
+            --name conpaichateastussandbox001 \
+            --resource-group rg-playai-eastus-sandbox-001 \
+            --image ${{ needs.build.outputs.full_image }}
+          
+          echo "### ✅ Deployed to Sandbox" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | ${{ needs.build.outputs.full_image }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | sandbox |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Verify Deployment
+        run: |
+          echo "Waiting for deployment to stabilize..."
+          sleep 30
+          
+          # Check revision status
+          REVISION=$(az containerapp revision list \
+            --name conpaichateastussandbox001 \
+            --resource-group rg-playai-eastus-sandbox-001 \
+            --query "[0].name" -o tsv)
+          
+          echo "Active revision: $REVISION"
+
+  # ============================================================================
+  # DEPLOY N2A: Automatic deployment to development environment
+  # ============================================================================
+  deploy-n2a:
+    name: Deploy to N2A
+    needs: build
+    if: |
+      github.event_name == 'push' || 
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'build-and-deploy' && github.event.inputs.environment == 'n2a')
+    runs-on: paychex-ai-platform-arc-nonprod
+    environment:
+      name: n2a
+      url: https://play.ain2a.paychex.com
+    
+    steps:
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Container App
+        run: |
+          az containerapp update \
+            --name conpaichateastusn2a001 \
+            --resource-group rg-playai-eastus-n2a-001 \
+            --image ${{ needs.build.outputs.full_image }}
+          
+          echo "### ✅ Deployed to N2A" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | ${{ needs.build.outputs.full_image }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | n2a |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Verify Deployment
+        run: |
+          echo "Waiting for deployment to stabilize..."
+          sleep 30
+          
+          # Check revision status
+          REVISION=$(az containerapp revision list \
+            --name conpaichateastusn2a001 \
+            --resource-group rg-playai-eastus-n2a-001 \
+            --query "[0].name" -o tsv)
+          
+          echo "Active revision: $REVISION"
+
+      - name: Record Deployment
+        run: |
+          # Store deployment metadata for promotion
+          echo "${{ needs.build.outputs.image_tag }}" > /tmp/last-n2a-deployment.txt
+          echo "Deployment recorded for promotion tracking"
+
+  # ============================================================================
+  # PROMOTE: Deploy a tested image to higher environment
+  # ============================================================================
+  promote:
+    name: Promote to ${{ github.event.inputs.environment }}
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'promote'
+    runs-on: ${{ github.event.inputs.environment == 'prod' && 'paychex-ai-platform-arc-prod' || 'paychex-ai-platform-arc-nonprod' }}
+    environment:
+      name: ${{ github.event.inputs.environment }}
+      url: ${{ github.event.inputs.environment == 'n1' && 'https://play.ain1.paychex.com' || github.event.inputs.environment == 'prod' && 'https://play.ai.paychex.com' || 'https://play.ain2a.paychex.com' }}
+    
+    steps:
+      - name: Validate Promotion
+        run: |
+          TARGET="${{ github.event.inputs.environment }}"
+          
+          if [ "$TARGET" == "n2a" ] || [ "$TARGET" == "sandbox" ]; then
+            echo "❌ Cannot promote to $TARGET. Use build-and-deploy instead."
+            exit 1
+          fi
+          
+          echo "✅ Promoting to $TARGET"
+
+      - name: Determine Image Tag
+        id: image
+        run: |
+          TAG="${{ github.event.inputs.image_tag }}"
+          
+          if [ -z "$TAG" ]; then
+            # Get latest tag from source environment
+            SOURCE_ENV="${{ github.event.inputs.environment == 'n1' && 'n2a' || 'n1' }}"
+            TAG="${SOURCE_ENV}.latest"
+            echo "Using latest from ${SOURCE_ENV}: ${TAG}"
+          fi
+          
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "full_image=${{ env.ACR_HOST }}/${{ env.ACR_REPOSITORY }}:${TAG}" >> $GITHUB_OUTPUT
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ github.event.inputs.environment == 'prod' && secrets.AZURE_PROD_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
+
+      - name: Get Container App Details
+        id: app
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+          
+          case $ENV in
+            n1)
+              echo "name=conpaichateastusn1001" >> $GITHUB_OUTPUT
+              echo "rg=rg-playai-eastus-n1-001" >> $GITHUB_OUTPUT
+              ;;
+            prod)
+              echo "name=conpaichateastusprod001" >> $GITHUB_OUTPUT
+              echo "rg=rg-playai-eastus-prod-001" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Deploy Image
+        run: |
+          az containerapp update \
+            --name ${{ steps.app.outputs.name }} \
+            --resource-group ${{ steps.app.outputs.rg }} \
+            --image ${{ steps.image.outputs.full_image }}
+          
+          echo "### ✅ Promoted to ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | ${{ steps.image.outputs.full_image }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ github.event.inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Promoted by | @${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Tag Image for Environment
+        run: |
+          # Also tag as environment.latest for tracking
+          az acr login --name ${{ env.ACR_HOST }}
+          
+          docker pull ${{ steps.image.outputs.full_image }}
+          docker tag ${{ steps.image.outputs.full_image }} \
+            ${{ env.ACR_HOST }}/${{ env.ACR_REPOSITORY }}:${{ github.event.inputs.environment }}.latest
+          docker push ${{ env.ACR_HOST }}/${{ env.ACR_REPOSITORY }}:${{ github.event.inputs.environment }}.latest
+
+  # ============================================================================
+  # ROLLBACK: Quickly revert to a previous image
+  # ============================================================================
+  rollback:
+    name: Rollback ${{ github.event.inputs.environment }}
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'rollback'
+    runs-on: ${{ github.event.inputs.environment == 'prod' && 'paychex-ai-platform-arc-prod' || 'paychex-ai-platform-arc-nonprod' }}
+    environment:
+      name: ${{ github.event.inputs.environment }}-rollback
+    
+    steps:
+      - name: Validate Rollback Tag
+        run: |
+          TAG="${{ github.event.inputs.image_tag }}"
+          
+          if [ -z "$TAG" ]; then
+            echo "❌ image_tag is required for rollback"
+            echo "Provide the tag of a known-good image to roll back to."
+            exit 1
+          fi
+          
+          echo "Rolling back to: $TAG"
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ github.event.inputs.environment == 'prod' && secrets.AZURE_PROD_SUBSCRIPTION_ID || github.event.inputs.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
+
+      - name: Get Container App Details
+        id: app
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+          
+          case $ENV in
+            sandbox)
+              echo "name=conpaichateastussandbox001" >> $GITHUB_OUTPUT
+              echo "rg=rg-playai-eastus-sandbox-001" >> $GITHUB_OUTPUT
+              ;;
+            n2a)
+              echo "name=conpaichateastusn2a001" >> $GITHUB_OUTPUT
+              echo "rg=rg-playai-eastus-n2a-001" >> $GITHUB_OUTPUT
+              ;;
+            n1)
+              echo "name=conpaichateastusn1001" >> $GITHUB_OUTPUT
+              echo "rg=rg-playai-eastus-n1-001" >> $GITHUB_OUTPUT
+              ;;
+            prod)
+              echo "name=conpaichateastusprod001" >> $GITHUB_OUTPUT
+              echo "rg=rg-playai-eastus-prod-001" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Execute Rollback
+        run: |
+          FULL_IMAGE="${{ env.ACR_HOST }}/${{ env.ACR_REPOSITORY }}:${{ github.event.inputs.image_tag }}"
+          
+          az containerapp update \
+            --name ${{ steps.app.outputs.name }} \
+            --resource-group ${{ steps.app.outputs.rg }} \
+            --image $FULL_IMAGE
+          
+          echo "### ⚠️ Rollback Executed" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | $FULL_IMAGE |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ github.event.inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Rolled back by | @${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY

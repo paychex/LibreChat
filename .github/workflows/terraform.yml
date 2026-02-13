@@ -1,0 +1,433 @@
+name: Terraform Infrastructure
+
+# =============================================================================
+# ROLLOUT STATUS:
+#   ✅ sandbox  - Ready for Terraform management
+#   ✅ n2a      - Ready for Terraform management (parallel deployment)
+#   ⏳ n1       - Existing infra, import required before Terraform management  
+#   ⏳ prod     - Existing infra, import required before Terraform management
+#
+# To enable additional environments:
+#   1. Import existing resources: terraform import ...
+#   2. Add environment to the 'options' list below
+#   3. Test with 'plan' action first
+# =============================================================================
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/terraform/**'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - sandbox
+          - n2a
+          # Uncomment below after importing existing infrastructure:
+          # - n1
+          # - prod
+
+concurrency:
+  group: terraform-${{ github.event.inputs.environment || 'ci' }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: '1.9.8'
+  TF_WORKING_DIR: './infrastructure/terraform'
+  # ARC runners use managed identity - no OIDC config needed
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+  issues: write
+  actions: read
+
+jobs:
+  # ============================================================================
+  # VALIDATION - Runs on all PRs
+  # ============================================================================
+  validate:
+    name: Validate
+    runs-on: paychex-ai-platform-arc-sandbox
+    outputs:
+      environments: ${{ steps.set-matrix.outputs.environments }}
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Init (validation only)
+        run: terraform init -backend=false
+
+      - name: Validate
+        run: terraform validate
+
+      - name: Set Environment Matrix
+        id: set-matrix
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo 'environments=["${{ github.event.inputs.environment }}"]' >> $GITHUB_OUTPUT
+          else
+            # Only plan sandbox on PRs until other environments are imported
+            echo 'environments=["sandbox"]' >> $GITHUB_OUTPUT
+          fi
+
+  # ============================================================================
+  # PLAN - Generates plan for review (PRs plan all envs, manual plans single)
+  # ============================================================================
+  plan:
+    name: Plan (${{ matrix.environment }})
+    needs: validate
+    if: |
+      github.event_name == 'pull_request' || 
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+    runs-on: paychex-ai-platform-arc-sandbox
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.validate.outputs.environments) }}
+    environment: ${{ matrix.environment }}-plan
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+    env:
+      # Map environment to subscription credentials
+      ARM_SUBSCRIPTION_ID: ${{ matrix.environment == 'n2a' && secrets.AZURE_NONPROD_SUBSCRIPTION_ID || secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}
+      ARM_CLIENT_ID: ${{ matrix.environment == 'n2a' && secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD || secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX }}
+      ARM_CLIENT_SECRET: ${{ matrix.environment == 'n2a' && secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD || secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_subscription_id: ${{ matrix.environment == 'n2a' && secrets.AZURE_NONPROD_SUBSCRIPTION_ID || secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}
+      # First deploy flag - defaults to true (relaxed networking) unless <ENV>_FIRST_DEPLOY=false
+      TF_VAR_first_deploy: ${{ !((matrix.environment == 'sandbox' && vars.SANDBOX_FIRST_DEPLOY == 'false') || (matrix.environment == 'n2a' && vars.N2A_FIRST_DEPLOY == 'false') || (matrix.environment == 'n1' && vars.N1_FIRST_DEPLOY == 'false') || (matrix.environment == 'prod' && vars.PROD_FIRST_DEPLOY == 'false')) }}
+      # Paychex tags - from GitHub repository variables
+      TF_VAR_payx_owner: ${{ vars.PAYX_OWNER }}
+      TF_VAR_payx_servicenow_group: ${{ vars.PAYX_SERVICENOW_GROUP }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            if [ "${{ matrix.environment }}" == "n2a" ]; then
+              az login --service-principal -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }} -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+              az account set --subscription "${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}"
+            else
+              az login --service-principal -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX }} -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+              az account set --subscription "${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}"
+            fi
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Init
+        run: terraform init -backend-config=backends/${{ matrix.environment }}.tfbackend
+
+      - name: Plan
+        id: plan
+        run: |
+          set +e
+          terraform plan \
+            -var-file=environments/${{ matrix.environment }}.tfvars \
+            -out=${{ matrix.environment }}.tfplan \
+            -detailed-exitcode \
+            -no-color 2>&1 | tee plan_output.txt
+          exit_code=$?
+          set -e
+
+          # Exit code 2 means changes, 0 means no changes, 1 means error
+          if [ "$exit_code" == "1" ]; then
+            echo "has_changes=error" >> $GITHUB_OUTPUT
+            exit 1
+          elif [ "$exit_code" == "2" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Upload Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ matrix.environment }}
+          path: |
+            ${{ env.TF_WORKING_DIR }}/${{ matrix.environment }}.tfplan
+            ${{ env.TF_WORKING_DIR }}/plan_output.txt
+          retention-days: 7
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const planPath = '${{ env.TF_WORKING_DIR }}/plan_output.txt';
+            let planOutput = '';
+
+            try {
+              planOutput = fs.readFileSync(planPath, 'utf8');
+            } catch (e) {
+              planOutput = 'Unable to read plan output';
+            }
+
+            const truncated = planOutput.length > 60000 
+              ? planOutput.substring(0, 60000) + '\n\n... (truncated)'
+              : planOutput;
+
+            const hasChanges = '${{ steps.plan.outputs.has_changes }}';
+            const icon = hasChanges === 'true' ? '🔄' : (hasChanges === 'false' ? '✅' : '❌');
+
+            const body = [
+              `### ${icon} Terraform Plan - \`${{ matrix.environment }}\``,
+              '',
+              `**Changes Detected:** ${hasChanges === 'true' ? 'Yes' : (hasChanges === 'false' ? 'No changes' : 'Error')}`,
+              '',
+              '<details><summary>Show Plan Output</summary>',
+              '',
+              '```hcl',
+              truncated,
+              '```',
+              '',
+              '</details>',
+              '',
+              '---',
+              '*Triggered by @${{ github.actor }}*'
+            ].join('\n');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  # ============================================================================
+  # BLOCK NOTICE - Shows when apply is attempted on locked environments
+  # ============================================================================
+  apply-blocked:
+    name: Apply Blocked (${{ github.event.inputs.environment }})
+    needs: validate
+    if: |
+      github.event_name == 'workflow_dispatch' && 
+      github.event.inputs.action == 'apply' &&
+      github.event.inputs.environment != 'sandbox' &&
+      github.event.inputs.environment != 'n2a'
+    runs-on: paychex-ai-platform-arc-sandbox
+    steps:
+      - name: Block Apply
+        run: |
+          echo "::error::Apply is currently blocked for ${{ github.event.inputs.environment }}."
+          echo "::notice::Only 'plan' action is available until existing infrastructure is imported."
+          echo ""
+          echo "To enable apply for ${{ github.event.inputs.environment }}:"
+          echo "  1. Import existing resources: terraform import ..."
+          echo "  2. Update workflow to allow apply for this environment"
+          exit 1
+
+  # ============================================================================
+  # APPLY - Manual deployment
+  # ============================================================================
+  deploy:
+    name: Apply (${{ github.event.inputs.environment }})
+    needs: validate
+    if: |
+      github.event_name == 'workflow_dispatch' && 
+      github.event.inputs.action == 'apply' &&
+      (github.event.inputs.environment == 'sandbox' || github.event.inputs.environment == 'n2a')
+    runs-on: paychex-ai-platform-arc-sandbox
+    environment:
+      name: ${{ github.event.inputs.environment }}
+      url: ${{ steps.get_url.outputs.url }}
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+    env:
+      # Credentials mapped per environment
+      ARM_SUBSCRIPTION_ID: ${{ github.event.inputs.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
+      ARM_CLIENT_ID: ${{ github.event.inputs.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX || secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }}
+      ARM_CLIENT_SECRET: ${{ github.event.inputs.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX || secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_subscription_id: ${{ github.event.inputs.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
+      # First deploy flag - defaults to true (relaxed networking) unless <ENV>_FIRST_DEPLOY=false
+      TF_VAR_first_deploy: ${{ !((github.event.inputs.environment == 'sandbox' && vars.SANDBOX_FIRST_DEPLOY == 'false') || (github.event.inputs.environment == 'n2a' && vars.N2A_FIRST_DEPLOY == 'false') || (github.event.inputs.environment == 'n1' && vars.N1_FIRST_DEPLOY == 'false') || (github.event.inputs.environment == 'prod' && vars.PROD_FIRST_DEPLOY == 'false')) }}
+      # Paychex tags - from GitHub repository variables
+      TF_VAR_payx_owner: ${{ vars.PAYX_OWNER }}
+      TF_VAR_payx_servicenow_group: ${{ vars.PAYX_SERVICENOW_GROUP }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            if [ "${{ github.event.inputs.environment }}" == "sandbox" ]; then
+              az login --service-principal -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX }} -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+              az account set --subscription "${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}"
+            else
+              az login --service-principal -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }} -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+              az account set --subscription "${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}"
+            fi
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Init
+        run: terraform init -backend-config=backends/${{ github.event.inputs.environment }}.tfbackend
+
+      - name: Plan
+        id: plan
+        run: |
+          set +e
+          terraform plan \
+            -var-file=environments/${{ github.event.inputs.environment }}.tfvars \
+            -out=deploy.tfplan \
+            -detailed-exitcode
+          exit_code=$?
+          set -e
+
+          if [ "$exit_code" == "1" ]; then
+            echo "❌ Terraform plan failed" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          elif [ "$exit_code" == "0" ]; then
+            echo "ℹ️ No changes to apply" >> $GITHUB_STEP_SUMMARY
+            echo "no_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Apply
+        if: steps.plan.outputs.no_changes != 'true'
+        run: terraform apply -auto-approve deploy.tfplan
+
+      - name: Get URL
+        id: get_url
+        run: |
+          URL=$(terraform output -raw application_url 2>/dev/null || echo "")
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
+      - name: Capture Outputs
+        run: terraform output -json > outputs.json
+
+      - name: Upload Outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: outputs-${{ github.event.inputs.environment }}
+          path: ${{ env.TF_WORKING_DIR }}/outputs.json
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "## ✅ Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | ${{ github.event.inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Deployed by** | @${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Promotion Path" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "sandbox → n2a → n1 → prod" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # DESTROY - Teardown infrastructure (heavily protected)
+  # ============================================================================
+  destroy:
+    name: Destroy (${{ github.event.inputs.environment }})
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+    runs-on: paychex-ai-platform-arc-sandbox
+    environment: ${{ github.event.inputs.environment }}-destroy
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+    env:
+      # Credentials mapped per environment
+      ARM_SUBSCRIPTION_ID: ${{ github.event.inputs.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
+      ARM_CLIENT_ID: ${{ github.event.inputs.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX || secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }}
+      ARM_CLIENT_SECRET: ${{ github.event.inputs.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX || secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_subscription_id: ${{ github.event.inputs.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
+      # First deploy flag - defaults to true (relaxed networking) unless <ENV>_FIRST_DEPLOY=false
+      TF_VAR_first_deploy: ${{ !((github.event.inputs.environment == 'sandbox' && vars.SANDBOX_FIRST_DEPLOY == 'false') || (github.event.inputs.environment == 'n2a' && vars.N2A_FIRST_DEPLOY == 'false') || (github.event.inputs.environment == 'n1' && vars.N1_FIRST_DEPLOY == 'false') || (github.event.inputs.environment == 'prod' && vars.PROD_FIRST_DEPLOY == 'false')) }}
+      # Paychex tags - from GitHub repository variables
+      TF_VAR_payx_owner: ${{ vars.PAYX_OWNER }}
+      TF_VAR_payx_servicenow_group: ${{ vars.PAYX_SERVICENOW_GROUP }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            if [ "${{ github.event.inputs.environment }}" == "sandbox" ]; then
+              az login --service-principal -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX }} -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+              az account set --subscription "${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}"
+            else
+              az login --service-principal -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }} -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+              az account set --subscription "${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}"
+            fi
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Init
+        run: terraform init -backend-config=backends/${{ github.event.inputs.environment }}.tfbackend
+
+      - name: Plan Destroy
+        run: |
+          terraform plan \
+            -var-file=environments/${{ github.event.inputs.environment }}.tfvars \
+            -destroy \
+            -out=destroy.tfplan
+
+      - name: Destroy
+        run: terraform apply -auto-approve destroy.tfplan
+
+      - name: Summary
+        run: |
+          echo "## 🗑️ Environment Destroyed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | ${{ github.event.inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Destroyed by** | @${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **Note:** State file retained for audit purposes" >> $GITHUB_STEP_SUMMARY

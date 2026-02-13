@@ -1,0 +1,8 @@
+# N2A Environment Backend Configuration
+# State stored in global Terraform state storage account
+
+resource_group_name  = "rg-paychexai-tf-eastus-nonprod-001"
+storage_account_name = "sapaychexaitfnonprod001"
+container_name       = "tfstate"
+key                  = "librechat/n2a.tfstate"
+subscription_id      = "819386da-14b6-4ae4-a16d-7475c98e6a9b"

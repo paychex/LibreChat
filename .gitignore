@@ -170,3 +170,38 @@ coordination/orchestration/*
 claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
+### Terraform ###
+# State files (stored in Azure)
+infrastructure/terraform/*.tfstate
+infrastructure/terraform/*.tfstate.*
+infrastructure/terraform/*.tfstate.backup
+
+# Plan files
+infrastructure/terraform/*.tfplan
+infrastructure/terraform/*.plan
+infrastructure/terraform/plan_output.txt
+
+# Crash logs
+infrastructure/terraform/crash.log
+infrastructure/terraform/crash.*.log
+
+# Override files
+infrastructure/terraform/override.tf
+infrastructure/terraform/override.tf.json
+infrastructure/terraform/*_override.tf
+infrastructure/terraform/*_override.tf.json
+
+# CLI configuration
+infrastructure/terraform/.terraformrc
+infrastructure/terraform/terraform.rc
+
+# Local provider cache
+infrastructure/terraform/.terraform/
+
+# Lock file - INCLUDE in git for consistent provider versions
+# infrastructure/terraform/.terraform.lock.hcl
+
+# Local override files
+infrastructure/terraform/*.local.tfvars
+infrastructure/terraform/.env
+infrastructure/terraform/.env.*

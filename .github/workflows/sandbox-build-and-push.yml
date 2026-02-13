@@ -1,0 +1,88 @@
+name: Sandbox - Build and Push
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/infrastructure'
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/workflows/terraform.yml'
+      - 'infrastructure/**'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build'
+        required: true
+        default: 'main'
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    name: Build and Deploy
+    runs-on: paychex-ai-platform-arc-sandbox
+    environment: sandbox
+    concurrency:
+      group: sandbox-deploy
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Get commit SHA
+        id: vars
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Create Config File
+        run: |
+          cp librechat.n2a.yml librechat.yaml
+          cp .paychex.dockerignore .dockerignore
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ACR
+        uses: azure/docker-login@v1
+        with:
+          login-server: acrpaychexaisandbox001.azurecr.io
+          username: ${{ secrets.REGISTRY_USERNAME_SANDBOX }}
+          password: ${{ secrets.REGISTRY_PASSWORD_SANDBOX }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            acrpaychexaisandbox001.azurecr.io/paychex/librechat:${{ steps.vars.outputs.sha }}
+            acrpaychexaisandbox001.azurecr.io/paychex/librechat:latest
+
+      - name: Deploy to Container App
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az login --service-principal -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX }} -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX }} --tenant ${{ secrets.AZURE_TENANT_ID }} --output none
+            az account set --subscription "${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}"
+            az containerapp update \
+              --name conpaichateastussandbox001 \
+              --resource-group rg-playai-eastus-sandbox-001 \
+              --container-name conpaichat \
+              --image acrpaychexaisandbox001.azurecr.io/paychex/librechat:${{ steps.vars.outputs.sha }}
+
+      - name: Summary
+        run: |
+          echo "## 🚀 Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image** | \`${{ steps.vars.outputs.sha_short }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Branch** | \`${{ github.event.inputs.branch || github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY

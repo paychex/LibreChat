@@ -1,0 +1,7 @@
+# Sandbox Environment - Terraform State Backend
+# Storage account in the sandbox subscription
+
+resource_group_name  = "rg-paychexai-tf-eastus-sandbox-001"
+storage_account_name = "sapaychexaitfsb001"
+container_name       = "tfstate"
+key                  = "librechat/sandbox.tfstate"

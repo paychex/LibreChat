@@ -1,0 +1,67 @@
+# Example Terraform Variables - Copy to environments/<env>.tfvars and fill in values
+# Note: subscription_id is injected from GitHub secrets via TF_VAR_subscription_id
+
+# General Configuration
+environment = "n1"  # Options: sandbox, n1, n2a, prod
+location    = "East US"
+
+# Container Images
+librechat_image = "your-registry.azurecr.io/librechat:latest"
+rag_api_image   = "your-registry.azurecr.io/rag_api:latest"
+
+# Existing ACR (if using shared registry)
+# existing_acr_id = "/subscriptions/xxx/resourceGroups/xxx/providers/Microsoft.ContainerRegistry/registries/xxx"
+
+# Domain Configuration
+domain = "play.ai.example.com"
+
+# OpenID Configuration
+openid_issuer    = "https://login.microsoftonline.com/<tenant-id>/v2.0/"
+openid_client_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# External Service URLs
+azure_openai_baseurl      = "https://your-openai-endpoint.openai.azure.com/"
+gcp_vertexai_baseurl      = "https://your-vertex-endpoint"
+rag_azure_openai_endpoint = "https://your-openai-endpoint.openai.azure.com/"
+
+# Workload Profile Configuration
+workload_profile_type      = "D4"  # Options: D4, D8, D16, D32, E4, E8, E16, E32
+workload_profile_min_count = 1
+workload_profile_max_count = 3
+
+# Container Resources
+librechat_cpu     = 1    # CPU cores
+librechat_memory  = "2Gi" # Memory allocation
+rag_api_cpu       = 1
+rag_api_memory    = "2Gi"
+
+# Scaling Configuration
+librechat_min_replicas        = 1
+librechat_max_replicas        = 3
+librechat_concurrent_requests = 25
+
+# Application Settings
+allow_registration = false
+allow_email_login  = false
+allow_social_login = true
+debug_logging      = true
+console_json       = true
+
+# Health Probes
+enable_health_probes          = true
+readiness_probe_initial_delay = 10
+readiness_probe_period        = 5
+liveness_probe_initial_delay  = 45
+liveness_probe_period         = 15
+
+# Storage
+storage_share_quota = 100  # GB
+
+# Key Vault
+key_vault_soft_delete_retention_days = 7
+
+# Custom Tags (optional)
+tags = {
+  team        = "your-team"
+  cost-center = "your-cost-center"
+}
