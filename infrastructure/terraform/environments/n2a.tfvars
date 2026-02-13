@@ -73,7 +73,7 @@ allow_social_login = true
 debug_logging      = true
 console_json       = true
 
-# Health Probes
+# Health Probes (auto-disabled when first_deploy=true)
 enable_health_probes          = true
 readiness_probe_initial_delay = 10
 readiness_probe_period        = 5

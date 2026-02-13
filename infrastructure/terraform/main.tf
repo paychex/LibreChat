@@ -499,8 +499,9 @@ module "container_app" {
   }
 
   # Health probes
-  enable_health_probes = var.enable_health_probes
-  readiness_probe = var.enable_health_probes ? {
+  # first_deploy=true: disables health probes (placeholder images don't have /health endpoint)
+  enable_health_probes = !var.first_deploy && var.enable_health_probes
+  readiness_probe = (!var.first_deploy && var.enable_health_probes) ? {
     path              = "/health"
     port              = 3080
     initial_delay     = var.readiness_probe_initial_delay
@@ -510,7 +511,7 @@ module "container_app" {
     failure_threshold = 3
   } : null
 
-  liveness_probe = var.enable_health_probes ? {
+  liveness_probe = (!var.first_deploy && var.enable_health_probes) ? {
     path              = "/health"
     port              = 3080
     initial_delay     = var.liveness_probe_initial_delay
@@ -590,8 +591,9 @@ module "application_gateway" {
   min_capacity = var.app_gateway_min_capacity
   max_capacity = var.app_gateway_max_capacity
 
-  # SSL configuration - can be disabled for initial testing
-  enable_ssl                          = var.app_gateway_enable_ssl
+  # SSL configuration
+  # first_deploy=true: disables SSL (cert must be manually added to Key Vault first)
+  enable_ssl                          = !var.first_deploy && var.app_gateway_enable_ssl
   ssl_certificate_name                = var.app_gateway_ssl_certificate_name
   ssl_certificate_key_vault_secret_id = "${azurerm_key_vault.main.vault_uri}secrets/${var.app_gateway_ssl_certificate_name}"
   key_vault_id                        = azurerm_key_vault.main.id
