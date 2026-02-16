@@ -20,7 +20,6 @@ private_endpoint_subnet_name = "snet-paychexai-privateendpoints-n1-001"
 # key_vault_subnet_ids auto-derived from private_endpoint_subnet when enable_private_endpoints=true
 key_vault_network_default_action    = "Deny"
 key_vault_ip_rules                  = ["141.123.123.100/32", "141.123.223.100/32"]
-key_vault_enable_rbac_authorization = true
 
 # Storage Network Security
 storage_public_network_access  = false
