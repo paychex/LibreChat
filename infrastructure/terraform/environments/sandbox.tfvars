@@ -38,6 +38,9 @@ rag_api_image   = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
 existing_acr_name           = "acrpaychexaisandbox001"
 existing_acr_resource_group = "rg-paychexai-aks-eastus-sandbox-001"
 
+# Key Vault authorization mode
+key_vault_enable_rbac_authorization = true
+
 key_vault_name_override = "kv-pyxplayai-sandbox-001"
 # Use the actual Container App FQDN (custom domain not configured yet)
 domain = "conpaichateastussandbox001.agreeablemeadow-1fccb990.eastus.azurecontainerapps.io"

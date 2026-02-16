@@ -346,9 +346,20 @@ variable "key_vault_soft_delete_retention_days" {
 }
 
 variable "key_vault_enable_rbac_authorization" {
-  description = "Enable RBAC authorization for Key Vault (recommended for new deployments)"
+  description = "Enable RBAC authorization for Key Vault (recommended over access policies)"
   type        = bool
   default     = false
+}
+
+variable "key_vault_rbac_propagation_wait_seconds" {
+  description = "Wait time in seconds for Key Vault RBAC role assignment propagation before creating/updating dependent resources"
+  type        = number
+  default     = 180
+
+  validation {
+    condition     = var.key_vault_rbac_propagation_wait_seconds >= 0 && var.key_vault_rbac_propagation_wait_seconds <= 900
+    error_message = "Key Vault RBAC propagation wait must be between 0 and 900 seconds."
+  }
 }
 
 variable "workload_profile_name" {

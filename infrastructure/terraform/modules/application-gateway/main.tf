@@ -19,6 +19,31 @@ resource "azurerm_key_vault_access_policy" "appgw" {
   certificate_permissions = ["Get", "List"]
 }
 
+# RBAC mode: grant App Gateway identity access to KV secrets and certificates
+resource "azurerm_role_assignment" "appgw_kv_secrets_user" {
+  count                = var.enable_ssl && var.key_vault_enable_rbac ? 1 : 0
+  scope                = var.key_vault_id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azurerm_user_assigned_identity.appgw[0].principal_id
+}
+
+resource "azurerm_role_assignment" "appgw_kv_certificate_user" {
+  count                = var.enable_ssl && var.key_vault_enable_rbac ? 1 : 0
+  scope                = var.key_vault_id
+  role_definition_name = "Key Vault Certificate User"
+  principal_id         = azurerm_user_assigned_identity.appgw[0].principal_id
+}
+
+resource "time_sleep" "wait_for_kv_rbac_propagation" {
+  count           = var.enable_ssl && var.key_vault_enable_rbac ? 1 : 0
+  create_duration = "${var.rbac_propagation_wait_seconds}s"
+
+  depends_on = [
+    azurerm_role_assignment.appgw_kv_secrets_user,
+    azurerm_role_assignment.appgw_kv_certificate_user
+  ]
+}
+
 resource "azurerm_application_gateway" "this" {
   name                = var.name
   location            = var.location
@@ -129,8 +154,11 @@ resource "azurerm_application_gateway" "this" {
     backend_http_settings_name = "https-backend-settings"
   }
 
-  # Ensure KV access is granted before creating App Gateway (only when SSL enabled)
-  depends_on = [azurerm_key_vault_access_policy.appgw]
+  # Ensure KV access is granted before creating App Gateway (supports access policy and RBAC modes)
+  depends_on = [
+    azurerm_key_vault_access_policy.appgw,
+    time_sleep.wait_for_kv_rbac_propagation
+  ]
 
   lifecycle {
     # Ignore changes to tags that may be added by Azure policies
