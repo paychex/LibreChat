@@ -18,8 +18,8 @@ enable_private_endpoints = false
 # private_endpoint_subnet_name = "<PROD_PRIVATE_ENDPOINT_SUBNET_NAME>"
 
 # Key Vault Network Security
-key_vault_network_default_action    = "Deny"
-key_vault_ip_rules                  = ["141.123.123.100/32", "141.123.223.100/32"]
+key_vault_network_default_action = "Deny"
+key_vault_ip_rules               = ["141.123.123.100/32", "141.123.223.100/32"]
 # key_vault_subnet_ids auto-derived from private_endpoint_subnet when enable_private_endpoints=true
 
 # Key Vault - production-grade retention
