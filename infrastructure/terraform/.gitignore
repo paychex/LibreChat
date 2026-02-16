@@ -1,0 +1,31 @@
+# Terraform working directory
+.terraform/
+
+# Backend configs (contain subscription IDs - provided inline via workflow)
+backends/
+
+# Plan files (may contain secrets in plaintext)
+*.tfplan
+tfdata.json
+
+# State files (managed remotely, should never be local)
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Override files (for local dev overrides)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI config
+.terraformrc
+terraform.rc
+
+# OS files
+.DS_Store
