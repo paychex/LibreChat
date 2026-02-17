@@ -1,0 +1,342 @@
+# =============================================================================
+# APPLICATION DEPLOYMENT — Terraform-Managed Environments
+# =============================================================================
+# This workflow handles build + deploy for environments whose infrastructure
+# is managed by Terraform (terraform.yml).
+#
+# Existing (non-TF) environments use their own workflows:
+#   n2a-build-and-push.yml  →  N2A-001 (conpaichateastusn2a001)
+#   n1-build-and-push.yml   →  N1-001
+#   prod-build-and-push.yml →  Prod-001
+#
+# Architecture:
+#   Terraform manages the full Container App spec (env vars, secrets, volumes,
+#   scaling, health probes). This workflow only updates the container image:
+#     az containerapp update --container-name <name> --image <image>
+#
+# Environments:
+#   sandbox  →  conpaichateastussandbox001  (RAG as sidecar)
+#   n2a      →  conpaichateastusn2a002      (RAG standalone: conpairageastusn2a002)
+# =============================================================================
+
+name: Deploy Application
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - sandbox
+          - n2a
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - build-and-deploy
+          - deploy-only
+          - rollback
+        default: build-and-deploy
+      branch:
+        description: 'Branch to build (defaults to triggering ref)'
+        required: false
+        type: string
+      build_rag_api:
+        description: 'Trigger RAG API build in paychex/rag_api'
+        required: false
+        type: boolean
+        default: true
+      image_tag:
+        description: 'Image tag for deploy-only/rollback (e.g. n2a.abc123def)'
+        required: false
+        type: string
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+# =============================================================================
+jobs:
+
+  # ─── Configuration ──────────────────────────────────────────────
+  # Maps environment name to concrete Azure resource names and runner.
+  # Extend this job when adding new TF-managed environments (n1, prod).
+  # ────────────────────────────────────────────────────────────────
+  config:
+    name: Configure · ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.cfg.outputs.environment }}
+      runner:      ${{ steps.cfg.outputs.runner }}
+      acr_host:    ${{ steps.cfg.outputs.acr_host }}
+      app_name:    ${{ steps.cfg.outputs.app_name }}
+      rg:          ${{ steps.cfg.outputs.rg }}
+      rag_mode:    ${{ steps.cfg.outputs.rag_mode }}
+      rag_app:     ${{ steps.cfg.outputs.rag_app }}
+      tag_prefix:  ${{ steps.cfg.outputs.tag_prefix }}
+      config_file: ${{ steps.cfg.outputs.config_file }}
+      acr_tier:    ${{ steps.cfg.outputs.acr_tier }}
+
+    steps:
+      - name: Resolve environment config
+        id: cfg
+        run: |
+          ENV="${{ inputs.environment }}"
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+
+          case $ENV in
+            sandbox)
+              echo "runner=paychex-ai-platform-arc-sandbox"              >> $GITHUB_OUTPUT
+              echo "acr_host=acrpaychexaisandbox001.azurecr.io"          >> $GITHUB_OUTPUT
+              echo "app_name=conpaichateastussandbox001"                  >> $GITHUB_OUTPUT
+              echo "rg=rg-playai-eastus-sandbox-001"                     >> $GITHUB_OUTPUT
+              echo "rag_mode=sidecar"                                    >> $GITHUB_OUTPUT
+              echo "rag_app="                                            >> $GITHUB_OUTPUT
+              echo "tag_prefix=sandbox"                                  >> $GITHUB_OUTPUT
+              echo "config_file=librechat.n2a.yml"                       >> $GITHUB_OUTPUT
+              echo "acr_tier=sandbox"                                    >> $GITHUB_OUTPUT
+              ;;
+            n2a)
+              echo "runner=paychex-ai-platform-arc-nonprod"              >> $GITHUB_OUTPUT
+              echo "acr_host=conpaychexaiprod001.azurecr.io"             >> $GITHUB_OUTPUT
+              echo "app_name=conpaichateastusn2a002"                     >> $GITHUB_OUTPUT
+              echo "rg=rg-playai-eastus-n2a-002"                         >> $GITHUB_OUTPUT
+              echo "rag_mode=standalone"                                 >> $GITHUB_OUTPUT
+              echo "rag_app=conpairageastusn2a002"                       >> $GITHUB_OUTPUT
+              echo "tag_prefix=n2a"                                      >> $GITHUB_OUTPUT
+              echo "config_file=librechat.n2a.yml"                       >> $GITHUB_OUTPUT
+              echo "acr_tier=prod"                                       >> $GITHUB_OUTPUT
+              ;;
+            # ── Future environments ──────────────────────────────
+            # n1)
+            #   echo "runner=paychex-ai-platform-arc-nonprod"            >> $GITHUB_OUTPUT
+            #   echo "acr_host=conpaychexaiprod001.azurecr.io"           >> $GITHUB_OUTPUT
+            #   echo "app_name=conpaichateastusn1002"                    >> $GITHUB_OUTPUT
+            #   echo "rg=rg-playai-eastus-n1-002"                       >> $GITHUB_OUTPUT
+            #   echo "rag_mode=standalone"                               >> $GITHUB_OUTPUT
+            #   echo "rag_app=conpairageastusn1002"                      >> $GITHUB_OUTPUT
+            #   echo "tag_prefix=n1"                                     >> $GITHUB_OUTPUT
+            #   echo "config_file=librechat.n1.yml"                      >> $GITHUB_OUTPUT
+            #   echo "acr_tier=prod"                                     >> $GITHUB_OUTPUT
+            #   ;;
+            # prod)
+            #   echo "runner=paychex-ai-platform-arc-prod"               >> $GITHUB_OUTPUT
+            #   echo "acr_host=conpaychexaiprod001.azurecr.io"           >> $GITHUB_OUTPUT
+            #   echo "app_name=conpaichateastusprod002"                   >> $GITHUB_OUTPUT
+            #   echo "rg=rg-playai-eastus-prod-002"                      >> $GITHUB_OUTPUT
+            #   echo "rag_mode=standalone"                                >> $GITHUB_OUTPUT
+            #   echo "rag_app=conpairageastusprod002"                     >> $GITHUB_OUTPUT
+            #   echo "tag_prefix=prod"                                    >> $GITHUB_OUTPUT
+            #   echo "config_file=librechat.prod.yml"                     >> $GITHUB_OUTPUT
+            #   echo "acr_tier=prod"                                      >> $GITHUB_OUTPUT
+            #   ;;
+            *)
+              echo "::error::Unknown environment: $ENV"
+              exit 1
+              ;;
+          esac
+
+  # ─── Build ──────────────────────────────────────────────────────
+  build:
+    name: Build · ${{ needs.config.outputs.tag_prefix }}
+    needs: config
+    if: inputs.action == 'build-and-deploy'
+    runs-on: ${{ needs.config.outputs.runner }}
+    outputs:
+      image_tag:  ${{ steps.meta.outputs.tag }}
+      full_image: ${{ steps.meta.outputs.full_image }}
+      commit_sha: ${{ steps.meta.outputs.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.branch || github.ref }}
+
+      - name: Image metadata
+        id: meta
+        run: |
+          SHA=$(git rev-parse HEAD)
+          SHORT=$(git rev-parse --short HEAD)
+          TAG="${{ needs.config.outputs.tag_prefix }}.${SHA}"
+
+          echo "sha=${SHA}"       >> $GITHUB_OUTPUT
+          echo "short=${SHORT}"   >> $GITHUB_OUTPUT
+          echo "tag=${TAG}"       >> $GITHUB_OUTPUT
+          echo "full_image=${{ needs.config.outputs.acr_host }}/paychex/librechat:${TAG}" >> $GITHUB_OUTPUT
+
+      - name: Prepare build context
+        run: |
+          cp "${{ needs.config.outputs.config_file }}" librechat.yaml
+          [ -f .paychex.dockerignore ] && cp .paychex.dockerignore .dockerignore || true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ACR login — sandbox uses its own ACR; all other environments use the shared prod ACR
+      - name: Login to ACR (sandbox)
+        if: needs.config.outputs.acr_tier == 'sandbox'
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ needs.config.outputs.acr_host }}
+          username: ${{ secrets.REGISTRY_USERNAME_SANDBOX }}
+          password: ${{ secrets.REGISTRY_PASSWORD_SANDBOX }}
+
+      - name: Login to ACR (prod)
+        if: needs.config.outputs.acr_tier == 'prod'
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ needs.config.outputs.acr_host }}
+          username: ${{ secrets.REGISTRY_USERNAME_PROD }}
+          password: ${{ secrets.REGISTRY_PASSWORD_PROD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.full_image }}
+            ${{ needs.config.outputs.acr_host }}/paychex/librechat:${{ needs.config.outputs.tag_prefix }}.latest
+
+      - name: Trigger RAG API build
+        if: inputs.build_rag_api
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_PAT }}
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/paychex/rag_api/actions/workflows/build.yml/dispatches" \
+            -d "{\"ref\":\"main\",\"inputs\":{\"environment\":\"${{ needs.config.outputs.environment }}\"}}" \
+            --fail --silent --show-error || echo "::warning::RAG API trigger failed (non-blocking)"
+
+      - name: Build summary
+        run: |
+          echo "### 🔨 Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | \`${{ steps.meta.outputs.full_image }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ steps.meta.outputs.short }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | \`${{ inputs.branch || github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+
+  # ─── Deploy ─────────────────────────────────────────────────────
+  deploy:
+    name: Deploy · ${{ needs.config.outputs.environment }}
+    needs: [config, build]
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ${{ needs.config.outputs.runner }}
+
+    steps:
+      - name: Determine image
+        id: image
+        run: |
+          ACTION="${{ inputs.action }}"
+
+          if [ "$ACTION" == "build-and-deploy" ]; then
+            FULL_IMAGE="${{ needs.build.outputs.full_image }}"
+          elif [ -n "${{ inputs.image_tag }}" ]; then
+            FULL_IMAGE="${{ needs.config.outputs.acr_host }}/paychex/librechat:${{ inputs.image_tag }}"
+          else
+            echo "::error::image_tag is required for ${ACTION}"
+            exit 1
+          fi
+
+          echo "full_image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
+          echo "Deploying image: ${FULL_IMAGE}"
+
+      # Azure login — one step per credential set, gated by environment
+      - name: Deploy to Container App (sandbox)
+        if: needs.config.outputs.environment == 'sandbox'
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az login --service-principal \
+              -u "${{ secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX }}" \
+              -p "${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX }}" \
+              --tenant "${{ secrets.AZURE_TENANT_ID }}" --output none
+            az account set --subscription "${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}"
+
+            echo "Updating LibreChat container..."
+            az containerapp update \
+              --name "${{ needs.config.outputs.app_name }}" \
+              --resource-group "${{ needs.config.outputs.rg }}" \
+              --container-name conpaichat \
+              --image "${{ steps.image.outputs.full_image }}"
+
+      - name: Deploy to Container App (nonprod)
+        if: needs.config.outputs.environment != 'sandbox'
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az login --service-principal \
+              -u "${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }}" \
+              -p "${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}" \
+              --tenant "${{ secrets.AZURE_TENANT_ID }}" --output none
+            az account set --subscription "${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}"
+
+            echo "Updating LibreChat container..."
+            az containerapp update \
+              --name "${{ needs.config.outputs.app_name }}" \
+              --resource-group "${{ needs.config.outputs.rg }}" \
+              --container-name conpaichat \
+              --image "${{ steps.image.outputs.full_image }}"
+
+      - name: Verify deployment
+        if: always()
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            # Re-login for verification step
+            if [ "${{ needs.config.outputs.environment }}" == "sandbox" ]; then
+              az login --service-principal \
+                -u "${{ secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX }}" \
+                -p "${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX }}" \
+                --tenant "${{ secrets.AZURE_TENANT_ID }}" --output none
+              az account set --subscription "${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}"
+            else
+              az login --service-principal \
+                -u "${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }}" \
+                -p "${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}" \
+                --tenant "${{ secrets.AZURE_TENANT_ID }}" --output none
+              az account set --subscription "${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}"
+            fi
+
+            echo "Waiting for deployment to stabilize..."
+            sleep 15
+
+            STATUS=$(az containerapp show \
+              --name "${{ needs.config.outputs.app_name }}" \
+              --resource-group "${{ needs.config.outputs.rg }}" \
+              --query "properties.runningStatus" -o tsv 2>/dev/null || echo "Unknown")
+
+            REVISION=$(az containerapp revision list \
+              --name "${{ needs.config.outputs.app_name }}" \
+              --resource-group "${{ needs.config.outputs.rg }}" \
+              --query "sort_by(@, &properties.createdTime)[-1].name" -o tsv 2>/dev/null || echo "Unknown")
+
+            FQDN=$(az containerapp show \
+              --name "${{ needs.config.outputs.app_name }}" \
+              --resource-group "${{ needs.config.outputs.rg }}" \
+              --query "properties.configuration.ingress.fqdn" -o tsv 2>/dev/null || echo "N/A")
+
+            echo "### ✅ Deployed to ${{ needs.config.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+            echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|"  >> $GITHUB_STEP_SUMMARY
+            echo "| Environment | \`${{ needs.config.outputs.environment }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Container App | \`${{ needs.config.outputs.app_name }}\` |"  >> $GITHUB_STEP_SUMMARY
+            echo "| Image | \`${{ steps.image.outputs.full_image }}\` |"         >> $GITHUB_STEP_SUMMARY
+            echo "| Revision | \`${REVISION}\` |"   >> $GITHUB_STEP_SUMMARY
+            echo "| Status | \`${STATUS}\` |"        >> $GITHUB_STEP_SUMMARY
+            echo "| FQDN | \`${FQDN}\` |"            >> $GITHUB_STEP_SUMMARY
+            echo "| Action | \`${{ inputs.action }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Actor | @${{ github.actor }} |"   >> $GITHUB_STEP_SUMMARY

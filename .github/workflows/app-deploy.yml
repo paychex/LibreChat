@@ -1,35 +1,19 @@
-name: Application Deployment
+name: Application Deployment (DEPRECATED)
 
 # =============================================================================
-# ENTERPRISE-GRADE APPLICATION DEPLOYMENT PIPELINE
+# DEPRECATED: Replaced by deploy.yml
 # =============================================================================
-# This workflow handles application code deployments (container images).
-# Infrastructure changes are managed separately by terraform.yml.
+# This workflow was a draft unified deploy pipeline that was never enabled.
+# It has been superseded by deploy.yml which handles Terraform-managed
+# environments (sandbox, n2a-002, and future n1-002, prod-002).
 #
-# ⚠️  STATUS: DISABLED - Using existing n2a-build-and-push.yml for now
-#     Enable this workflow after Terraform manages all environments.
-#
-# Deployment Strategy:
-#   1. Build & Push: Creates Docker image with commit SHA tag
-#   2. Deploy to n2a: Automatic on push to main (development)
-#   3. Promote to n1: Manual trigger, uses same image from n2a
-#   4. Promote to prod: Manual trigger, uses same image from n1
-#
-# Image Promotion Flow:
-#   main branch → n2a (auto) → n1 (manual) → prod (manual)
-#   Same image SHA is promoted through environments (no rebuild)
+# Non-TF environments (001) continue using their dedicated workflows:
+#   n2a-build-and-push.yml, n1-build-and-push.yml, prod-build-and-push.yml
 # =============================================================================
 
 on:
-  # DISABLED: Don't auto-deploy until Terraform manages infrastructure
-  # push:
-  #   branches:
-  #     - main
-  #   paths-ignore:
-  #     - 'infrastructure/**'
-  #     - '*.md'
-  #     - '.github/workflows/terraform.yml'
-  workflow_dispatch:
+  # FULLY DISABLED — use deploy.yml instead
+  # workflow_dispatch:
     inputs:
       action:
         description: 'Action to perform'

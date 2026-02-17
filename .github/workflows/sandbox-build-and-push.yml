@@ -1,15 +1,22 @@
-name: Sandbox - Build and Push
+name: Sandbox - Build and Push (DEPRECATED)
+
+# =============================================================================
+# DEPRECATED: Replaced by deploy.yml for Terraform-managed sandbox environment.
+# This workflow targeted the pre-TF sandbox setup. Use deploy.yml instead:
+#   gh workflow run deploy.yml -f environment=sandbox -f action=build-and-deploy
+# =============================================================================
 
 on:
-  push:
-    branches:
-      - main
-      - 'feat/infrastructure'
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/workflows/terraform.yml'
-      - 'infrastructure/**'
+  # DISABLED: push triggers removed — use deploy.yml instead
+  # push:
+  #   branches:
+  #     - main
+  #     - 'feat/infrastructure'
+  #   paths-ignore:
+  #     - '**.md'
+  #     - 'docs/**'
+  #     - '.github/workflows/terraform.yml'
+  #     - 'infrastructure/**'
   workflow_dispatch:
     inputs:
       branch:
