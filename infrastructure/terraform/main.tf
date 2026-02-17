@@ -381,8 +381,8 @@ module "container_app" {
   user_assigned_identity_ids = [azurerm_user_assigned_identity.container_app.id]
 
   # Use UAMI for ACR pull
-  registry_server   = local.librechat_image_uses_acr ? local.acr_login_server : null
-  registry_identity = local.librechat_image_uses_acr ? azurerm_user_assigned_identity.container_app.id : null
+  registry_server   = local.acr_id != null ? local.acr_login_server : null
+  registry_identity = local.acr_id != null ? azurerm_user_assigned_identity.container_app.id : null
 
   # RAG API mode
   enable_rag_sidecar = var.enable_rag_sidecar
