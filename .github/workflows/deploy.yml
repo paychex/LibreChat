@@ -286,6 +286,23 @@ jobs:
               --tenant "${{ secrets.AZURE_TENANT_ID }}" --output none
             az account set --subscription "${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}"
 
+            IDENTITY_NAME="id-${{ needs.config.outputs.app_name }}"
+            IDENTITY_ID=$(az identity show \
+              --name "${IDENTITY_NAME}" \
+              --resource-group "${{ needs.config.outputs.rg }}" \
+              --query id -o tsv)
+            if [ -z "${IDENTITY_ID}" ]; then
+              echo "::error::Unable to resolve identity ID for ${IDENTITY_NAME}"
+              exit 1
+            fi
+
+            az containerapp registry set \
+              --name "${{ needs.config.outputs.app_name }}" \
+              --resource-group "${{ needs.config.outputs.rg }}" \
+              --server "${{ needs.config.outputs.acr_host }}" \
+              --identity "${IDENTITY_ID}" \
+              --output none
+
             echo "Updating LibreChat container..."
             az containerapp update \
               --name "${{ needs.config.outputs.app_name }}" \
@@ -352,6 +369,23 @@ jobs:
               -p "${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}" \
               --tenant "${{ secrets.AZURE_TENANT_ID }}" --output none
             az account set --subscription "${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}"
+
+            IDENTITY_NAME="id-${{ needs.config.outputs.app_name }}"
+            IDENTITY_ID=$(az identity show \
+              --name "${IDENTITY_NAME}" \
+              --resource-group "${{ needs.config.outputs.rg }}" \
+              --query id -o tsv)
+            if [ -z "${IDENTITY_ID}" ]; then
+              echo "::error::Unable to resolve identity ID for ${IDENTITY_NAME}"
+              exit 1
+            fi
+
+            az containerapp registry set \
+              --name "${{ needs.config.outputs.app_name }}" \
+              --resource-group "${{ needs.config.outputs.rg }}" \
+              --server "${{ needs.config.outputs.acr_host }}" \
+              --identity "${IDENTITY_ID}" \
+              --output none
 
             echo "Updating LibreChat container..."
             az containerapp update \
