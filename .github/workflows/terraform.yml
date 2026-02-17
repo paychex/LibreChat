@@ -367,6 +367,7 @@ jobs:
       # This avoids first-pass failures when Container App revisions are created
       # before ACR permissions are in place.
       - name: Bootstrap UAMI
+        if: env.TF_VAR_first_deploy == 'true'
         run: |
           terraform apply -auto-approve \
             -var-file=environments/${{ github.event.inputs.environment }}.tfvars \
@@ -375,6 +376,7 @@ jobs:
 
       # Ensure AcrPull exists before full apply for Terraform-managed environments.
       - name: Grant ACR Pull (pre-apply)
+        if: env.TF_VAR_first_deploy == 'true'
         run: |
           set -e
 
@@ -465,7 +467,24 @@ jobs:
 
       - name: Apply
         if: steps.plan.outputs.no_changes != 'true'
-        run: terraform apply -auto-approve deploy.tfplan
+        run: |
+          set +e
+          terraform apply -auto-approve deploy.tfplan 2>&1 | tee /tmp/tf-apply.log
+          APPLY_EXIT=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$APPLY_EXIT" -eq 0 ]; then
+            exit 0
+          fi
+
+          if [ "${TF_VAR_first_deploy}" = "true" ] && grep -qi "UNAUTHORIZED: authentication required" /tmp/tf-apply.log; then
+            echo "⚠️ First deploy hit ACR auth propagation delay; waiting 10 minutes, then retrying once."
+            sleep 600
+            terraform apply -auto-approve deploy.tfplan
+            exit 0
+          fi
+
+          exit "$APPLY_EXIT"
 
       - name: Get URL
         id: get_url
