@@ -14,33 +14,34 @@ name: Application Deployment (DEPRECATED)
 on:
   # FULLY DISABLED — use deploy.yml instead
   # workflow_dispatch:
-    inputs:
-      action:
-        description: 'Action to perform'
-        required: true
-        type: choice
-        options:
-          - build-and-deploy
-          - promote
-          - rollback
-      environment:
-        description: 'Target environment'
-        required: true
-        type: choice
-        options:
-          - sandbox
-          - n2a
-          - n1
-          - prod
-      image_tag:
-        description: 'Image tag to deploy (for promote/rollback, leave empty for latest)'
-        required: false
-        type: string
-      build_rag_api:
-        description: 'Also build/deploy RAG API'
-        required: false
-        type: boolean
-        default: true
+  #   inputs:
+  #     action:
+  #       description: 'Action to perform'
+  #       required: true
+  #       type: choice
+  #       options:
+  #         - build-and-deploy
+  #         - promote
+  #         - rollback
+  #     environment:
+  #       description: 'Target environment'
+  #       required: true
+  #       type: choice
+  #       options:
+  #         - sandbox
+  #         - n2a
+  #         - n1
+  #         - prod
+  #     image_tag:
+  #       description: 'Image tag to deploy (for promote/rollback, leave empty for latest)'
+  #       required: false
+  #       type: string
+  #     build_rag_api:
+  #       description: 'Also build/deploy RAG API'
+  #       required: false
+  #       type: boolean
+  #       default: true
+  workflow_dispatch:
 
 env:
   ACR_HOST: ${{ vars.REGISTRY_LOGIN_SERVER_PROD }}

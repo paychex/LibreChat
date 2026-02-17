@@ -22,6 +22,16 @@
 name: Deploy Application
 
 on:
+  # Push trigger — registers the workflow in the GitHub Actions UI.
+  # Only fires when the workflow file itself changes; actual deploys
+  # require manual workflow_dispatch.
+  push:
+    branches:
+      - main
+      - 'feat/infrastructure'
+    paths:
+      - '.github/workflows/deploy.yml'
+
   workflow_dispatch:
     inputs:
       environment:
@@ -71,6 +81,7 @@ jobs:
   # ────────────────────────────────────────────────────────────────
   config:
     name: Configure · ${{ inputs.environment }}
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.cfg.outputs.environment }}
