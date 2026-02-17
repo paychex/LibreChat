@@ -388,6 +388,12 @@ jobs:
 
           case "${{ github.event.inputs.environment }}" in
             sandbox)
+              az login --service-principal \
+                -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX }} \
+                -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX }} \
+                --tenant ${{ secrets.AZURE_TENANT_ID }} \
+                --output none
+              az account set --subscription ${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}
               ACR_SCOPE="/subscriptions/${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}/resourceGroups/rg-paychexai-aks-eastus-sandbox-001/providers/Microsoft.ContainerRegistry/registries/acrpaychexaisandbox001"
               ;;
             n2a)
