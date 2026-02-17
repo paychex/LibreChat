@@ -34,7 +34,7 @@
     "version",
     "action"
   ],
-  "base_branches": ["main"],
+  "base_branches": ["develop"],
   "sort": {
     "order": "ASC",
     "on_property": "mergedAt"
