@@ -74,6 +74,14 @@ locals {
   # Private endpoint subnet: prefer name-based construction, fall back to explicit ID
   resolved_private_endpoint_subnet_id = var.private_endpoint_subnet_name != null ? "${local._vnet_base}/subnets/${var.private_endpoint_subnet_name}" : var.private_endpoint_subnet_id
 
+  # Shared private DNS zone IDs used by private endpoints
+  private_dns_zone_ids_key_vault = var.enable_private_endpoints ? [
+    "/subscriptions/${var.private_dns_zone_subscription_id}/resourceGroups/${var.private_dns_zone_resource_group}/providers/Microsoft.Network/privateDnsZones/${var.private_dns_zone_name_key_vault}"
+  ] : []
+  private_dns_zone_ids_storage = var.enable_private_endpoints ? [
+    "/subscriptions/${var.private_dns_zone_subscription_id}/resourceGroups/${var.private_dns_zone_resource_group}/providers/Microsoft.Network/privateDnsZones/${var.private_dns_zone_name_storage}"
+  ] : []
+
   # Key Vault subnet IDs: only needed when NOT using private endpoints
   # When private endpoints are enabled, the PE handles VNet-level access (no service endpoint needed)
   # When private endpoints are disabled, use explicit subnet IDs if provided

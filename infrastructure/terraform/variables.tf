@@ -200,6 +200,35 @@ variable "private_endpoint_subnet_name" {
   }
 }
 
+variable "private_dns_zone_subscription_id" {
+  description = "Subscription ID hosting shared private DNS zones (injected via TF_VAR_private_dns_zone_subscription_id)"
+  type        = string
+  default     = null
+
+  validation {
+    condition     = !var.enable_private_endpoints || var.private_dns_zone_subscription_id != null
+    error_message = "When enable_private_endpoints=true, provide private_dns_zone_subscription_id."
+  }
+}
+
+variable "private_dns_zone_resource_group" {
+  description = "Resource group containing shared private DNS zones"
+  type        = string
+  default     = "rg-dns-shared-eastus-global-001"
+}
+
+variable "private_dns_zone_name_key_vault" {
+  description = "Private DNS zone name for Key Vault private endpoints"
+  type        = string
+  default     = "privatelink.vaultcore.azure.net"
+}
+
+variable "private_dns_zone_name_storage" {
+  description = "Private DNS zone name for Storage private endpoints"
+  type        = string
+  default     = "privatelink.file.core.windows.net"
+}
+
 variable "key_vault_network_default_action" {
   description = "Default action for Key Vault network ACLs (Deny recommended for production)"
   type        = string

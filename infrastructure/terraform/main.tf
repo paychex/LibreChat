@@ -294,8 +294,8 @@ module "private_endpoint_key_vault" {
   subresource_names              = ["vault"]
   tags                           = local.common_tags
 
-  # DNS managed externally by hub network team
-  private_dns_zone_ids = []
+  # Attach to shared private DNS zones so records are created on private endpoint provisioning
+  private_dns_zone_ids = local.private_dns_zone_ids_key_vault
 }
 
 module "private_endpoint_storage" {
@@ -310,8 +310,8 @@ module "private_endpoint_storage" {
   subresource_names              = ["file"]
   tags                           = local.common_tags
 
-  # DNS managed externally by hub network team
-  private_dns_zone_ids = []
+  # Attach to shared private DNS zones so records are created on private endpoint provisioning
+  private_dns_zone_ids = local.private_dns_zone_ids_storage
 }
 
 module "container_apps_environment" {
