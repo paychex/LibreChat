@@ -455,9 +455,23 @@ jobs:
           terraform plan \
             -var-file=environments/${{ github.event.inputs.environment }}.tfvars \
             -out=deploy.tfplan \
-            -detailed-exitcode
-          exit_code=$?
+            -detailed-exitcode 2>&1 | tee /tmp/tf-plan.log
+          exit_code=${PIPESTATUS[0]}
           set -e
+
+          # Key Vault data-plane contact reads can intermittently time out on locked-down networks.
+          # Retry once without refresh so plan can proceed with current state.
+          if [ "$exit_code" == "1" ] && grep -q 'retrieving `contact` for KeyVault' /tmp/tf-plan.log; then
+            echo "⚠️ Key Vault contact read timed out; retrying plan with -refresh=false"
+            set +e
+            terraform plan \
+              -refresh=false \
+              -var-file=environments/${{ github.event.inputs.environment }}.tfvars \
+              -out=deploy.tfplan \
+              -detailed-exitcode 2>&1 | tee /tmp/tf-plan-refreshfalse.log
+            exit_code=${PIPESTATUS[0]}
+            set -e
+          fi
 
           if [ "$exit_code" == "1" ]; then
             echo "❌ Terraform plan failed" >> $GITHUB_STEP_SUMMARY
