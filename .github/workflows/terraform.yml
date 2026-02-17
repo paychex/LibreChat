@@ -480,7 +480,10 @@ jobs:
           if [ "${TF_VAR_first_deploy}" = "true" ] && grep -qi "UNAUTHORIZED: authentication required" /tmp/tf-apply.log; then
             echo "⚠️ First deploy hit ACR auth propagation delay; waiting 10 minutes, then retrying once."
             sleep 600
-            terraform apply -auto-approve deploy.tfplan
+            terraform plan \
+              -var-file=environments/${{ github.event.inputs.environment }}.tfvars \
+              -out=deploy-retry.tfplan
+            terraform apply -auto-approve deploy-retry.tfplan
             exit 0
           fi
 
