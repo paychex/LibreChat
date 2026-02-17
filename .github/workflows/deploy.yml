@@ -162,7 +162,6 @@ jobs:
     runs-on: ${{ needs.config.outputs.runner }}
     outputs:
       image_tag:  ${{ steps.meta.outputs.tag }}
-      full_image: ${{ steps.meta.outputs.full_image }}
       commit_sha: ${{ steps.meta.outputs.sha }}
 
     steps:
@@ -182,7 +181,9 @@ jobs:
           echo "sha=${SHA}"       >> $GITHUB_OUTPUT
           echo "short=${SHORT}"   >> $GITHUB_OUTPUT
           echo "tag=${TAG}"       >> $GITHUB_OUTPUT
-          echo "full_image=${{ needs.config.outputs.acr_host }}/paychex/librechat:${TAG}" >> $GITHUB_OUTPUT
+          # Note: full_image is NOT set as output because GitHub secret masking
+          # can blank ACR hostnames in cross-job outputs. The deploy job
+          # reconstructs the full image from config.acr_host + build.image_tag.
 
       - name: Prepare build context
         run: |
@@ -215,7 +216,7 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ steps.meta.outputs.full_image }}
+            ${{ needs.config.outputs.acr_host }}/paychex/librechat:${{ steps.meta.outputs.tag }}
             ${{ needs.config.outputs.acr_host }}/paychex/librechat:${{ needs.config.outputs.tag_prefix }}.latest
 
       - name: Trigger RAG API build
@@ -236,7 +237,7 @@ jobs:
           echo "### 🔨 Build Complete" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Image | \`${{ steps.meta.outputs.full_image }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | \`${{ needs.config.outputs.acr_host }}/paychex/librechat:${{ steps.meta.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | \`${{ steps.meta.outputs.short }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Branch | \`${{ inputs.branch || github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
 
@@ -244,7 +245,10 @@ jobs:
   deploy:
     name: Deploy · ${{ needs.config.outputs.environment }}
     needs: [config, build]
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    if: |
+      always() &&
+      needs.config.result == 'success' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ${{ needs.config.outputs.runner }}
 
     steps:
@@ -254,7 +258,12 @@ jobs:
           ACTION="${{ inputs.action }}"
 
           if [ "$ACTION" == "build-and-deploy" ]; then
-            FULL_IMAGE="${{ needs.build.outputs.full_image }}"
+            # Reconstruct from config + build outputs (avoids GitHub secret masking on ACR host)
+            FULL_IMAGE="${{ needs.config.outputs.acr_host }}/paychex/librechat:${{ needs.build.outputs.image_tag }}"
+            if [ -z "${{ needs.build.outputs.image_tag }}" ]; then
+              echo "::error::Build completed but no image_tag output found"
+              exit 1
+            fi
           elif [ -n "${{ inputs.image_tag }}" ]; then
             FULL_IMAGE="${{ needs.config.outputs.acr_host }}/paychex/librechat:${{ inputs.image_tag }}"
           else
