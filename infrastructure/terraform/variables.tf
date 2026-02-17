@@ -116,12 +116,22 @@ variable "infrastructure_subnet_name" {
   description = "Name of existing subnet for Container Apps (alternative to infrastructure_subnet_id - constructs ID from subscription_id + VNet details)"
   type        = string
   default     = null
+
+  validation {
+    condition     = var.infrastructure_subnet_name == null || (var.existing_vnet_name != null && var.existing_vnet_resource_group != null)
+    error_message = "When infrastructure_subnet_name is set, existing_vnet_name and existing_vnet_resource_group must also be set."
+  }
 }
 
 variable "create_subnet" {
   description = "Create a new subnet in an existing VNet for Container Apps"
   type        = bool
   default     = false
+
+  validation {
+    condition     = !var.create_subnet || (var.existing_vnet_name != null && var.existing_vnet_resource_group != null && var.new_subnet_name != null && var.new_subnet_address_prefix != null)
+    error_message = "When create_subnet=true, existing_vnet_name, existing_vnet_resource_group, new_subnet_name, and new_subnet_address_prefix are required."
+  }
 }
 
 variable "existing_vnet_name" {
@@ -152,6 +162,11 @@ variable "internal_load_balancer_enabled" {
   description = "Use internal load balancer (requires subnet)"
   type        = bool
   default     = false
+
+  validation {
+    condition     = !var.internal_load_balancer_enabled || var.create_subnet || var.infrastructure_subnet_id != null || var.infrastructure_subnet_name != null
+    error_message = "When internal_load_balancer_enabled=true, provide a subnet via create_subnet=true, infrastructure_subnet_id, or infrastructure_subnet_name."
+  }
 }
 
 # Private Endpoints Configuration
@@ -161,6 +176,11 @@ variable "enable_private_endpoints" {
   description = "Enable private endpoints for Key Vault and Storage (requires private_endpoint_subnet_id)"
   type        = bool
   default     = false
+
+  validation {
+    condition     = !var.enable_private_endpoints || var.private_endpoint_subnet_id != null || var.private_endpoint_subnet_name != null
+    error_message = "When enable_private_endpoints=true, provide private_endpoint_subnet_id or private_endpoint_subnet_name."
+  }
 }
 
 variable "private_endpoint_subnet_id" {
@@ -173,6 +193,11 @@ variable "private_endpoint_subnet_name" {
   description = "Name of existing subnet for private endpoints (alternative to private_endpoint_subnet_id - constructs ID from subscription_id + VNet details)"
   type        = string
   default     = null
+
+  validation {
+    condition     = var.private_endpoint_subnet_name == null || (var.existing_vnet_name != null && var.existing_vnet_resource_group != null)
+    error_message = "When private_endpoint_subnet_name is set, existing_vnet_name and existing_vnet_resource_group must also be set."
+  }
 }
 
 variable "key_vault_network_default_action" {
@@ -249,6 +274,11 @@ variable "existing_acr_name" {
   description = "Name of existing Container Registry to use"
   type        = string
   default     = null
+
+  validation {
+    condition     = var.existing_acr_name == null || var.existing_acr_resource_group != null
+    error_message = "When existing_acr_name is set, existing_acr_resource_group must also be set."
+  }
 }
 
 variable "existing_acr_resource_group" {
@@ -619,6 +649,11 @@ variable "enable_app_gateway" {
   description = "Enable Application Gateway for stable DNS endpoint (internal only)"
   type        = bool
   default     = false
+
+  validation {
+    condition     = !var.enable_app_gateway || (var.app_gateway_subnet_name != null && var.app_gateway_host_name != null)
+    error_message = "When enable_app_gateway=true, app_gateway_subnet_name and app_gateway_host_name are required."
+  }
 }
 
 variable "app_gateway_subnet_name" {
@@ -643,6 +678,11 @@ variable "app_gateway_enable_ssl" {
   description = "Enable SSL/HTTPS on Application Gateway (requires certificate in Key Vault). If false, uses HTTP."
   type        = bool
   default     = true
+
+  validation {
+    condition     = !var.enable_app_gateway || !var.app_gateway_enable_ssl || var.app_gateway_ssl_certificate_name != null
+    error_message = "When enable_app_gateway=true and app_gateway_enable_ssl=true, app_gateway_ssl_certificate_name is required."
+  }
 }
 
 variable "app_gateway_ssl_certificate_name" {

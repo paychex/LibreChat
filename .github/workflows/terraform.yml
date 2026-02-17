@@ -4,13 +4,9 @@ name: Terraform Infrastructure
 # ROLLOUT STATUS:
 #   ✅ sandbox  - Ready for Terraform management
 #   ✅ n2a      - Ready for Terraform management (parallel deployment)
-#   ⏳ n1       - Existing infra, import required before Terraform management  
-#   ⏳ prod     - Existing infra, import required before Terraform management
+#   ⛔ n1/prod  - Explicitly out of scope for Terraform changes in this workflow
 #
-# To enable additional environments:
-#   1. Import existing resources: terraform import ...
-#   2. Add environment to the 'options' list below
-#   3. Test with 'plan' action first
+# This workflow is intentionally restricted to sandbox + n2a only.
 # =============================================================================
 
 on:
@@ -36,9 +32,6 @@ on:
         options:
           - sandbox
           - n2a
-          # Uncomment below after importing existing infrastructure:
-          # - n1
-          # - prod
 
 concurrency:
   group: terraform-${{ github.event.inputs.environment || 'ci' }}-${{ github.ref }}
@@ -93,8 +86,8 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo 'environments=["${{ github.event.inputs.environment }}"]' >> $GITHUB_OUTPUT
           else
-            # Only plan sandbox on PRs until other environments are imported
-            echo 'environments=["sandbox"]' >> $GITHUB_OUTPUT
+            # Plan all Terraform-managed environments on PRs
+            echo 'environments=["sandbox","n2a"]' >> $GITHUB_OUTPUT
           fi
 
   # ============================================================================
@@ -106,7 +99,7 @@ jobs:
     if: |
       github.event_name == 'pull_request' || 
       (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
-    runs-on: ${{ matrix.environment == 'sandbox' && 'paychex-ai-platform-arc-sandbox' || (matrix.environment == 'prod' && 'paychex-ai-platform-arc-prod' || 'paychex-ai-platform-arc-nonprod') }}
+    runs-on: ${{ matrix.environment == 'sandbox' && 'paychex-ai-platform-arc-sandbox' || 'paychex-ai-platform-arc-nonprod' }}
     strategy:
       fail-fast: false
       matrix:
@@ -117,13 +110,13 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
     env:
       # Map environment to subscription credentials
-      ARM_SUBSCRIPTION_ID: ${{ matrix.environment == 'n2a' && secrets.AZURE_NONPROD_SUBSCRIPTION_ID || secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}
-      ARM_CLIENT_ID: ${{ matrix.environment == 'n2a' && secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD || secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX }}
-      ARM_CLIENT_SECRET: ${{ matrix.environment == 'n2a' && secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD || secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX }}
+      ARM_SUBSCRIPTION_ID: ${{ matrix.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
+      ARM_CLIENT_ID: ${{ matrix.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX || secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }}
+      ARM_CLIENT_SECRET: ${{ matrix.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX || secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      TF_VAR_subscription_id: ${{ matrix.environment == 'n2a' && secrets.AZURE_NONPROD_SUBSCRIPTION_ID || secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}
-      # First deploy flag - defaults to false (production-safe), set <ENV>_FIRST_DEPLOY=true to enable relaxed settings
-      TF_VAR_first_deploy: ${{ (matrix.environment == 'sandbox' && vars.SANDBOX_FIRST_DEPLOY == 'true') || (matrix.environment == 'n2a' && vars.N2A_FIRST_DEPLOY == 'true') || (matrix.environment == 'n1' && vars.N1_FIRST_DEPLOY == 'true') || (matrix.environment == 'prod' && vars.PROD_FIRST_DEPLOY == 'true') }}
+      TF_VAR_subscription_id: ${{ matrix.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
+      # First deploy flag for authorized environments only (sandbox/n2a)
+      TF_VAR_first_deploy: ${{ (matrix.environment == 'sandbox' && (vars.SANDBOX_FIRST_DEPLOY == 'true' || secrets.SANDBOX_FIRST_DEPLOY == 'true')) || (matrix.environment == 'n2a' && (vars.N2A_FIRST_DEPLOY == 'true' || secrets.N2A_FIRST_DEPLOY == 'true')) }}
       # Paychex tags - from GitHub repository variables
       TF_VAR_payx_owner: ${{ vars.PAYX_OWNER }}
       TF_VAR_payx_servicenow_group: ${{ vars.PAYX_SERVICENOW_GROUP }}
@@ -136,12 +129,12 @@ jobs:
         uses: azure/cli@v2
         with:
           inlineScript: |
-            if [ "${{ matrix.environment }}" == "n2a" ]; then
-              az login --service-principal -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }} -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }} --tenant ${{ secrets.AZURE_TENANT_ID }}
-              az account set --subscription "${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}"
-            else
+            if [ "${{ matrix.environment }}" == "sandbox" ]; then
               az login --service-principal -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX }} -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX }} --tenant ${{ secrets.AZURE_TENANT_ID }}
               az account set --subscription "${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}"
+            else
+              az login --service-principal -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }} -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+              az account set --subscription "${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}"
             fi
 
       - name: Setup Terraform
@@ -153,7 +146,6 @@ jobs:
         env:
           SANDBOX_SUB: ${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}
           NONPROD_SUB: ${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
-          PROD_SUB: ${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}
         run: |
           case "${{ matrix.environment }}" in
             sandbox)
@@ -161,15 +153,14 @@ jobs:
               echo "TF_BACKEND_SA=sapaychexaitfsb001" >> $GITHUB_ENV
               echo "TF_BACKEND_SUB=$SANDBOX_SUB" >> $GITHUB_ENV
               ;;
-            n2a|n1)
+            n2a)
               echo "TF_BACKEND_RG=rg-paychexai-tf-eastus-nonprod-001" >> $GITHUB_ENV
               echo "TF_BACKEND_SA=sapaychexaitfnonprod001" >> $GITHUB_ENV
               echo "TF_BACKEND_SUB=$NONPROD_SUB" >> $GITHUB_ENV
               ;;
-            prod)
-              echo "TF_BACKEND_RG=rg-paychexai-tf-eastus-prod-001" >> $GITHUB_ENV
-              echo "TF_BACKEND_SA=sapaychexaitfprod001" >> $GITHUB_ENV
-              echo "TF_BACKEND_SUB=$PROD_SUB" >> $GITHUB_ENV
+            *)
+              echo "::error::Unsupported environment '${{ matrix.environment }}'. Only sandbox and n2a are authorized."
+              exit 1
               ;;
           esac
 
@@ -260,6 +251,12 @@ jobs:
               body: body
             });
 
+      - name: Fail on plan error
+        if: always() && steps.plan.outputs.has_changes == 'error'
+        run: |
+          echo "::error::Terraform plan failed for ${{ matrix.environment }}"
+          exit 1
+
   # ============================================================================
   # BLOCK NOTICE - Shows when apply is attempted on locked environments
   # ============================================================================
@@ -293,7 +290,7 @@ jobs:
       github.event_name == 'workflow_dispatch' && 
       github.event.inputs.action == 'apply' &&
       (github.event.inputs.environment == 'sandbox' || github.event.inputs.environment == 'n2a')
-    runs-on: ${{ github.event.inputs.environment == 'sandbox' && 'paychex-ai-platform-arc-sandbox' || (github.event.inputs.environment == 'prod' && 'paychex-ai-platform-arc-prod' || 'paychex-ai-platform-arc-nonprod') }}
+    runs-on: ${{ github.event.inputs.environment == 'sandbox' && 'paychex-ai-platform-arc-sandbox' || 'paychex-ai-platform-arc-nonprod' }}
     environment:
       name: ${{ github.event.inputs.environment }}
       url: ${{ steps.get_url.outputs.url }}
@@ -307,8 +304,8 @@ jobs:
       ARM_CLIENT_SECRET: ${{ github.event.inputs.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX || secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_subscription_id: ${{ github.event.inputs.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
-      # First deploy flag - defaults to false (production-safe), set <ENV>_FIRST_DEPLOY=true to enable relaxed settings
-      TF_VAR_first_deploy: ${{ (github.event.inputs.environment == 'sandbox' && vars.SANDBOX_FIRST_DEPLOY == 'true') || (github.event.inputs.environment == 'n2a' && vars.N2A_FIRST_DEPLOY == 'true') || (github.event.inputs.environment == 'n1' && vars.N1_FIRST_DEPLOY == 'true') || (github.event.inputs.environment == 'prod' && vars.PROD_FIRST_DEPLOY == 'true') }}
+      # First deploy flag for authorized environments only (sandbox/n2a)
+      TF_VAR_first_deploy: ${{ (github.event.inputs.environment == 'sandbox' && (vars.SANDBOX_FIRST_DEPLOY == 'true' || secrets.SANDBOX_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'n2a' && (vars.N2A_FIRST_DEPLOY == 'true' || secrets.N2A_FIRST_DEPLOY == 'true')) }}
       # Paychex tags - from GitHub repository variables
       TF_VAR_payx_owner: ${{ vars.PAYX_OWNER }}
       TF_VAR_payx_servicenow_group: ${{ vars.PAYX_SERVICENOW_GROUP }}
@@ -339,7 +336,6 @@ jobs:
         env:
           SANDBOX_SUB: ${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}
           NONPROD_SUB: ${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
-          PROD_SUB: ${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}
         run: |
           case "${{ github.event.inputs.environment }}" in
             sandbox)
@@ -347,15 +343,14 @@ jobs:
               echo "TF_BACKEND_SA=sapaychexaitfsb001" >> $GITHUB_ENV
               echo "TF_BACKEND_SUB=$SANDBOX_SUB" >> $GITHUB_ENV
               ;;
-            n2a|n1)
+            n2a)
               echo "TF_BACKEND_RG=rg-paychexai-tf-eastus-nonprod-001" >> $GITHUB_ENV
               echo "TF_BACKEND_SA=sapaychexaitfnonprod001" >> $GITHUB_ENV
               echo "TF_BACKEND_SUB=$NONPROD_SUB" >> $GITHUB_ENV
               ;;
-            prod)
-              echo "TF_BACKEND_RG=rg-paychexai-tf-eastus-prod-001" >> $GITHUB_ENV
-              echo "TF_BACKEND_SA=sapaychexaitfprod001" >> $GITHUB_ENV
-              echo "TF_BACKEND_SUB=$PROD_SUB" >> $GITHUB_ENV
+            *)
+              echo "::error::Unsupported environment '${{ github.event.inputs.environment }}'. Only sandbox and n2a are authorized."
+              exit 1
               ;;
           esac
 
@@ -367,6 +362,81 @@ jobs:
             -backend-config="container_name=tfstate" \
             -backend-config="key=librechat/${{ github.event.inputs.environment }}.tfstate" \
             -backend-config="subscription_id=$TF_BACKEND_SUB"
+
+      # Bootstrap identity before planning so AcrPull can be granted pre-apply.
+      # This avoids first-pass failures when Container App revisions are created
+      # before ACR permissions are in place.
+      - name: Bootstrap UAMI
+        run: |
+          terraform apply -auto-approve \
+            -var-file=environments/${{ github.event.inputs.environment }}.tfvars \
+            -target=azurerm_resource_group.main \
+            -target=azurerm_user_assigned_identity.container_app
+
+      # Ensure AcrPull exists before full apply for Terraform-managed environments.
+      - name: Grant ACR Pull (pre-apply)
+        run: |
+          set -e
+
+          # Resolve UAMI principal ID from Terraform state
+          PRINCIPAL_ID=$(terraform state show -no-color azurerm_user_assigned_identity.container_app | awk -F'=' '/principal_id/ {gsub(/[ "]/,"",$2); print $2; exit}')
+          if [ -z "$PRINCIPAL_ID" ]; then
+            echo "::error::Unable to resolve managed identity principal ID"
+            exit 1
+          fi
+          echo "Principal ID: $PRINCIPAL_ID"
+
+          case "${{ github.event.inputs.environment }}" in
+            sandbox)
+              ACR_SCOPE="/subscriptions/${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}/resourceGroups/rg-paychexai-aks-eastus-sandbox-001/providers/Microsoft.ContainerRegistry/registries/acrpaychexaisandbox001"
+              ;;
+            n2a)
+              # n2a pulls from shared prod ACR
+              az login --service-principal \
+                -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_PROD }} \
+                -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_PROD }} \
+                --tenant ${{ secrets.AZURE_TENANT_ID }} \
+                --output none
+              az account set --subscription ${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}
+              ACR_SCOPE="/subscriptions/${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}/resourceGroups/rg-paychexai-shared-eastus-prod-001/providers/Microsoft.ContainerRegistry/registries/conpaychexaiprod001"
+              ;;
+            *)
+              echo "::error::Unsupported environment '${{ github.event.inputs.environment }}'"
+              exit 1
+              ;;
+          esac
+
+          EXISTING=$(az role assignment list --assignee "$PRINCIPAL_ID" --scope "$ACR_SCOPE" --role "AcrPull" --query "[0].id" -o tsv 2>/dev/null || echo "")
+          if [ -n "$EXISTING" ]; then
+            echo "✅ AcrPull role assignment already exists"
+          else
+            az role assignment create \
+              --assignee-object-id "$PRINCIPAL_ID" \
+              --assignee-principal-type ServicePrincipal \
+              --role "AcrPull" \
+              --scope "$ACR_SCOPE" \
+              --output none
+            echo "✅ AcrPull role assignment created"
+            # Allow Azure RBAC propagation before full apply.
+            sleep 30
+          fi
+
+          # Restore original auth context for any later Azure CLI use in this job.
+          if [ "${{ github.event.inputs.environment }}" == "sandbox" ]; then
+            az login --service-principal \
+              -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX }} \
+              -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX }} \
+              --tenant ${{ secrets.AZURE_TENANT_ID }} \
+              --output none
+            az account set --subscription "${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}"
+          else
+            az login --service-principal \
+              -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }} \
+              -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }} \
+              --tenant ${{ secrets.AZURE_TENANT_ID }} \
+              --output none
+            az account set --subscription "${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}"
+          fi
 
       - name: Plan
         id: plan
@@ -390,66 +460,6 @@ jobs:
       - name: Apply
         if: steps.plan.outputs.no_changes != 'true'
         run: terraform apply -auto-approve deploy.tfplan
-
-      # Cross-subscription ACR role assignment for n2a
-      # N2A container app in nonprod needs AcrPull on prod ACR
-      - name: Grant ACR Pull (cross-subscription)
-        if: |
-          github.event.inputs.environment == 'n2a' &&
-          steps.plan.outputs.no_changes != 'true' &&
-          env.TF_VAR_first_deploy == 'true'
-        run: |
-          set -e
-
-          # Get the managed identity principal ID from Terraform
-          PRINCIPAL_ID=$(terraform output -raw container_app_identity_principal_id)
-          if [ -z "$PRINCIPAL_ID" ]; then
-            echo "⚠️ No principal ID found, skipping ACR role assignment"
-            exit 0
-          fi
-          echo "Principal ID: $PRINCIPAL_ID"
-
-          # Login to prod subscription
-          echo "Logging into prod subscription..."
-          az login --service-principal \
-            -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_PROD }} \
-            -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_PROD }} \
-            --tenant ${{ secrets.AZURE_TENANT_ID }} \
-            --output none
-          az account set --subscription ${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}
-
-          # ACR scope (prod ACR shared by n2a, n1, prod environments)
-          ACR_SCOPE="/subscriptions/${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}/resourceGroups/rg-paychexai-shared-eastus-prod-001/providers/Microsoft.ContainerRegistry/registries/conpaychexaiprod001"
-          echo "ACR scope: $ACR_SCOPE"
-
-          # Check if role assignment already exists
-          EXISTING=$(az role assignment list --assignee "$PRINCIPAL_ID" --scope "$ACR_SCOPE" --role "AcrPull" --query "[0].id" -o tsv 2>/dev/null || echo "")
-          if [ -n "$EXISTING" ]; then
-            echo "✅ AcrPull role assignment already exists"
-          else
-            echo "Creating AcrPull role assignment on prod ACR..."
-            az role assignment create \
-              --assignee-object-id "$PRINCIPAL_ID" \
-              --assignee-principal-type ServicePrincipal \
-              --role "AcrPull" \
-              --scope "$ACR_SCOPE" \
-              --output none
-            echo "✅ AcrPull role assignment created"
-          fi
-
-      # Always re-authenticate to nonprod after cross-subscription step
-      - name: Re-authenticate to nonprod
-        if: |
-          github.event.inputs.environment == 'n2a' &&
-          steps.plan.outputs.no_changes != 'true' &&
-          env.TF_VAR_first_deploy == 'true'
-        run: |
-          az login --service-principal \
-            -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }} \
-            -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }} \
-            --tenant ${{ secrets.AZURE_TENANT_ID }} \
-            --output none
-          echo "✅ Re-authenticated to nonprod"
 
       - name: Get URL
         id: get_url
@@ -479,7 +489,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Promotion Path" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "sandbox → n2a → n1 → prod" >> $GITHUB_STEP_SUMMARY
+          echo "sandbox → n2a" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
   # ============================================================================
@@ -512,7 +522,7 @@ jobs:
       github.event_name == 'workflow_dispatch' && 
       github.event.inputs.action == 'destroy' &&
       (github.event.inputs.environment == 'sandbox' || github.event.inputs.environment == 'n2a')
-    runs-on: ${{ github.event.inputs.environment == 'sandbox' && 'paychex-ai-platform-arc-sandbox' || (github.event.inputs.environment == 'prod' && 'paychex-ai-platform-arc-prod' || 'paychex-ai-platform-arc-nonprod') }}
+    runs-on: ${{ github.event.inputs.environment == 'sandbox' && 'paychex-ai-platform-arc-sandbox' || 'paychex-ai-platform-arc-nonprod' }}
     environment: ${{ github.event.inputs.environment }}-destroy
     defaults:
       run:
@@ -524,8 +534,8 @@ jobs:
       ARM_CLIENT_SECRET: ${{ github.event.inputs.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX || secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_subscription_id: ${{ github.event.inputs.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
-      # First deploy flag - defaults to false (production-safe), set <ENV>_FIRST_DEPLOY=true to enable relaxed settings
-      TF_VAR_first_deploy: ${{ (github.event.inputs.environment == 'sandbox' && vars.SANDBOX_FIRST_DEPLOY == 'true') || (github.event.inputs.environment == 'n2a' && vars.N2A_FIRST_DEPLOY == 'true') || (github.event.inputs.environment == 'n1' && vars.N1_FIRST_DEPLOY == 'true') || (github.event.inputs.environment == 'prod' && vars.PROD_FIRST_DEPLOY == 'true') }}
+      # First deploy flag for authorized environments only (sandbox/n2a)
+      TF_VAR_first_deploy: ${{ (github.event.inputs.environment == 'sandbox' && (vars.SANDBOX_FIRST_DEPLOY == 'true' || secrets.SANDBOX_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'n2a' && (vars.N2A_FIRST_DEPLOY == 'true' || secrets.N2A_FIRST_DEPLOY == 'true')) }}
       # Paychex tags - from GitHub repository variables
       TF_VAR_payx_owner: ${{ vars.PAYX_OWNER }}
       TF_VAR_payx_servicenow_group: ${{ vars.PAYX_SERVICENOW_GROUP }}
@@ -555,7 +565,6 @@ jobs:
         env:
           SANDBOX_SUB: ${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}
           NONPROD_SUB: ${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
-          PROD_SUB: ${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}
         run: |
           case "${{ github.event.inputs.environment }}" in
             sandbox)
@@ -563,15 +572,14 @@ jobs:
               echo "TF_BACKEND_SA=sapaychexaitfsb001" >> $GITHUB_ENV
               echo "TF_BACKEND_SUB=$SANDBOX_SUB" >> $GITHUB_ENV
               ;;
-            n2a|n1)
+            n2a)
               echo "TF_BACKEND_RG=rg-paychexai-tf-eastus-nonprod-001" >> $GITHUB_ENV
               echo "TF_BACKEND_SA=sapaychexaitfnonprod001" >> $GITHUB_ENV
               echo "TF_BACKEND_SUB=$NONPROD_SUB" >> $GITHUB_ENV
               ;;
-            prod)
-              echo "TF_BACKEND_RG=rg-paychexai-tf-eastus-prod-001" >> $GITHUB_ENV
-              echo "TF_BACKEND_SA=sapaychexaitfprod001" >> $GITHUB_ENV
-              echo "TF_BACKEND_SUB=$PROD_SUB" >> $GITHUB_ENV
+            *)
+              echo "::error::Unsupported environment '${{ github.event.inputs.environment }}'. Only sandbox and n2a are authorized."
+              exit 1
               ;;
           esac
 
@@ -589,6 +597,7 @@ jobs:
           terraform plan \
             -var-file=environments/${{ github.event.inputs.environment }}.tfvars \
             -destroy \
+            -refresh=false \
             -out=destroy.tfplan
 
       - name: Destroy

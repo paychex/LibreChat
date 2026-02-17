@@ -293,6 +293,55 @@ jobs:
               --container-name conpaichat \
               --image "${{ steps.image.outputs.full_image }}"
 
+      # Ensure n2a workload identity can pull from shared prod ACR.
+      # This keeps deploy workflow resilient when identity/revisions are recreated.
+      - name: Ensure n2a AcrPull on shared ACR
+        if: needs.config.outputs.environment == 'n2a'
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            set -e
+
+            # Get n2a managed identity principal from nonprod subscription
+            az login --service-principal \
+              -u "${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }}" \
+              -p "${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}" \
+              --tenant "${{ secrets.AZURE_TENANT_ID }}" --output none
+            az account set --subscription "${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}"
+
+            IDENTITY_NAME="id-${{ needs.config.outputs.app_name }}"
+            PRINCIPAL_ID=$(az identity show \
+              --name "${IDENTITY_NAME}" \
+              --resource-group "${{ needs.config.outputs.rg }}" \
+              --query principalId -o tsv)
+
+            if [ -z "${PRINCIPAL_ID}" ]; then
+              echo "::error::Unable to resolve principal ID for ${IDENTITY_NAME}"
+              exit 1
+            fi
+
+            # Grant AcrPull on shared prod ACR if missing
+            az login --service-principal \
+              -u "${{ secrets.ARC_RUNNER_SP_CLIENT_ID_PROD }}" \
+              -p "${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_PROD }}" \
+              --tenant "${{ secrets.AZURE_TENANT_ID }}" --output none
+            az account set --subscription "${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}"
+
+            ACR_SCOPE="/subscriptions/${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}/resourceGroups/rg-paychexai-shared-eastus-prod-001/providers/Microsoft.ContainerRegistry/registries/conpaychexaiprod001"
+            EXISTING=$(az role assignment list --assignee "${PRINCIPAL_ID}" --scope "${ACR_SCOPE}" --role "AcrPull" --query "[0].id" -o tsv 2>/dev/null || true)
+
+            if [ -z "${EXISTING}" ]; then
+              az role assignment create \
+                --assignee-object-id "${PRINCIPAL_ID}" \
+                --assignee-principal-type ServicePrincipal \
+                --role "AcrPull" \
+                --scope "${ACR_SCOPE}" \
+                --output none
+              echo "Created AcrPull assignment for n2a identity."
+            else
+              echo "AcrPull assignment already present for n2a identity."
+            fi
+
       - name: Deploy to Container App (nonprod)
         if: needs.config.outputs.environment != 'sandbox'
         uses: azure/cli@v2

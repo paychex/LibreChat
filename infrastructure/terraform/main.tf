@@ -69,7 +69,7 @@ resource "azurerm_key_vault" "main" {
   # Security settings
   soft_delete_retention_days      = var.key_vault_soft_delete_retention_days
   purge_protection_enabled        = local.is_production
-  enable_rbac_authorization       = var.key_vault_enable_rbac_authorization
+  rbac_authorization_enabled      = var.key_vault_enable_rbac_authorization
   enabled_for_disk_encryption     = false
   enabled_for_deployment          = false
   enabled_for_template_deployment = false
@@ -174,6 +174,7 @@ resource "time_sleep" "wait_for_rbac_propagation" {
   create_duration = "${var.key_vault_rbac_propagation_wait_seconds}s"
 
   depends_on = [
+    azurerm_role_assignment.kv_secrets_user_uami,
     azurerm_role_assignment.kv_secrets_officer_deployer,
     azurerm_role_assignment.kv_certificates_officer_deployer
   ]
@@ -592,7 +593,10 @@ module "container_app" {
 
   # Ensure Key Vault secrets and access policy exist before Container App
   depends_on = [
+    module.container_apps_environment,
     azurerm_key_vault_access_policy.container_app_uami,
+    azurerm_role_assignment.kv_secrets_user_uami,
+    time_sleep.wait_for_rbac_propagation,
     azurerm_key_vault_secret.secrets,
   ]
 
@@ -762,7 +766,10 @@ resource "azurerm_container_app" "rag_api" {
   }
 
   depends_on = [
+    module.container_apps_environment,
     azurerm_key_vault_access_policy.container_app_uami,
+    azurerm_role_assignment.kv_secrets_user_uami,
+    time_sleep.wait_for_rbac_propagation,
     azurerm_key_vault_secret.secrets,
   ]
 }
@@ -781,7 +788,7 @@ module "application_gateway" {
   count  = var.enable_app_gateway ? 1 : 0
   source = "./modules/application-gateway"
 
-  name                = "appgw-${local.name_prefix}-${local.location_short}-${var.environment}-001"
+  name                = "appgw-${local.name_prefix}-${local.location_short}-${var.environment}-${var.resource_suffix}"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   tags                = local.common_tags
