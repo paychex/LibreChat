@@ -115,7 +115,7 @@ jobs:
       ARM_CLIENT_SECRET: ${{ matrix.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX || secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_subscription_id: ${{ matrix.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
-      TF_VAR_private_dns_zone_subscription_id: ${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}
+      TF_VAR_private_dns_zone_subscription_id: ${{ secrets.AZURE_CLOUDPAYX_PROD_SUBSCRIPTION_ID }}
       # First deploy flag for authorized environments only (sandbox/n2a)
       TF_VAR_first_deploy: ${{ (matrix.environment == 'sandbox' && (vars.SANDBOX_FIRST_DEPLOY == 'true' || secrets.SANDBOX_FIRST_DEPLOY == 'true')) || (matrix.environment == 'n2a' && (vars.N2A_FIRST_DEPLOY == 'true' || secrets.N2A_FIRST_DEPLOY == 'true')) }}
       # Paychex tags - from GitHub repository variables
@@ -305,7 +305,7 @@ jobs:
       ARM_CLIENT_SECRET: ${{ github.event.inputs.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX || secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_subscription_id: ${{ github.event.inputs.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
-      TF_VAR_private_dns_zone_subscription_id: ${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}
+      TF_VAR_private_dns_zone_subscription_id: ${{ secrets.AZURE_CLOUDPAYX_PROD_SUBSCRIPTION_ID }}
       # First deploy flag for authorized environments only (sandbox/n2a)
       TF_VAR_first_deploy: ${{ (github.event.inputs.environment == 'sandbox' && (vars.SANDBOX_FIRST_DEPLOY == 'true' || secrets.SANDBOX_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'n2a' && (vars.N2A_FIRST_DEPLOY == 'true' || secrets.N2A_FIRST_DEPLOY == 'true')) }}
       # Paychex tags - from GitHub repository variables
@@ -407,8 +407,8 @@ jobs:
                 -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_PROD }} \
                 --tenant ${{ secrets.AZURE_TENANT_ID }} \
                 --output none
-              az account set --subscription ${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}
-              ACR_SCOPE="/subscriptions/${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}/resourceGroups/rg-paychexai-shared-eastus-prod-001/providers/Microsoft.ContainerRegistry/registries/conpaychexaiprod001"
+              az account set --subscription ${{ secrets.AZURE_CLOUDPAYX_PROD_SUBSCRIPTION_ID }}
+              ACR_SCOPE="/subscriptions/${{ secrets.AZURE_CLOUDPAYX_PROD_SUBSCRIPTION_ID }}/resourceGroups/rg-paychexai-shared-eastus-prod-001/providers/Microsoft.ContainerRegistry/registries/conpaychexaiprod001"
               ;;
             *)
               echo "::error::Unsupported environment '${{ github.event.inputs.environment }}'"
@@ -578,7 +578,7 @@ jobs:
       ARM_CLIENT_SECRET: ${{ github.event.inputs.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX || secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_subscription_id: ${{ github.event.inputs.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
-      TF_VAR_private_dns_zone_subscription_id: ${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}
+      TF_VAR_private_dns_zone_subscription_id: ${{ secrets.AZURE_CLOUDPAYX_PROD_SUBSCRIPTION_ID }}
       # First deploy flag for authorized environments only (sandbox/n2a)
       TF_VAR_first_deploy: ${{ (github.event.inputs.environment == 'sandbox' && (vars.SANDBOX_FIRST_DEPLOY == 'true' || secrets.SANDBOX_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'n2a' && (vars.N2A_FIRST_DEPLOY == 'true' || secrets.N2A_FIRST_DEPLOY == 'true')) }}
       # Paychex tags - from GitHub repository variables
