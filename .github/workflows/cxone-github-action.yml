@@ -2,6 +2,9 @@ name: Checkmarx Code Scan
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - release/*
   pull_request:
     branches:
       - develop
