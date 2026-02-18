@@ -460,15 +460,15 @@ jobs:
           set -e
 
           # Key Vault data-plane contact reads can intermittently time out on locked-down networks.
-          # Retry once without refresh so plan can proceed with current state.
+          # Retry once with normal refresh to avoid masking real infrastructure drift.
           if [ "$exit_code" == "1" ] && grep -q 'retrieving `contact` for KeyVault' /tmp/tf-plan.log; then
-            echo "⚠️ Key Vault contact read timed out; retrying plan with -refresh=false"
+            echo "⚠️ Key Vault contact read timed out; retrying plan once"
+            sleep 20
             set +e
             terraform plan \
-              -refresh=false \
               -var-file=environments/${{ github.event.inputs.environment }}.tfvars \
               -out=deploy.tfplan \
-              -detailed-exitcode 2>&1 | tee /tmp/tf-plan-refreshfalse.log
+              -detailed-exitcode 2>&1 | tee /tmp/tf-plan-retry.log
             exit_code=${PIPESTATUS[0]}
             set -e
           fi
