@@ -16,7 +16,7 @@ infrastructure_subnet_id       = null
 
 # Private Endpoints - enterprise network security
 # Subnet ID constructed from subscription_id + VNet details (no hardcoded subscription IDs)
-enable_private_endpoints     = false
+enable_private_endpoints     = true
 private_endpoint_subnet_name = "snet-paychexai-privateendpoints-n2a-001"
 
 # Key Vault Network Security - Deny by default, first_deploy=true temporarily allows
