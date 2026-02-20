@@ -172,7 +172,13 @@ const getUserEntraGroups = async (accessToken, sub) => {
       .post({ securityEnabledOnly: false });
 
     const groupIds = Array.isArray(response?.value) ? response.value : [];
-    return [...new Set(groupIds.map((groupId) => String(groupId)))];
+    const uniqueGroupIds = [...new Set(groupIds.map((groupId) => String(groupId)))];
+    logger.info('[getUserEntraGroups] Retrieved group membership from Graph API', {
+      sub,
+      groupCount: uniqueGroupIds.length,
+      sampleGroupIds: uniqueGroupIds.slice(0, 5),
+    });
+    return uniqueGroupIds;
   } catch (error) {
     logger.error('[getUserEntraGroups] Error fetching user groups:', error);
     return [];

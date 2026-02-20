@@ -455,16 +455,23 @@ const ensureGroupPrincipalExists = async function (principal, authContext = null
  */
 const syncUserEntraGroupMemberships = async (user, accessToken, session = null) => {
   try {
-    if (!entraIdPrincipalFeatureEnabled(user) || !accessToken || !user.idOnTheSource) {
+    const featureEnabled = entraIdPrincipalFeatureEnabled(user);
+    if (!featureEnabled || !accessToken || !user.idOnTheSource) {
+      logger.debug('[PermissionService.syncUserEntraGroupMemberships] Skipping sync', {
+        featureEnabled,
+        hasAccessToken: !!accessToken,
+        hasSourceId: !!user?.idOnTheSource,
+      });
       return;
     }
 
     const memberGroupIds = await getUserEntraGroups(accessToken, user.openidId);
     let allGroupIds = [...(memberGroupIds || [])];
+    let ownedGroupIds = [];
 
     // Include owned groups if feature is enabled
     if (isEnabled(process.env.ENTRA_ID_INCLUDE_OWNERS_AS_MEMBERS)) {
-      const ownedGroupIds = await getUserOwnedEntraGroups(accessToken, user.openidId);
+      ownedGroupIds = await getUserOwnedEntraGroups(accessToken, user.openidId);
       if (ownedGroupIds && ownedGroupIds.length > 0) {
         allGroupIds.push(...ownedGroupIds);
         // Remove duplicates
@@ -473,12 +480,25 @@ const syncUserEntraGroupMemberships = async (user, accessToken, session = null) 
     }
 
     if (!allGroupIds || allGroupIds.length === 0) {
+      logger.info('[PermissionService.syncUserEntraGroupMemberships] No Entra groups returned', {
+        userIdOnTheSource: user.idOnTheSource,
+        memberGroupCount: memberGroupIds.length,
+        ownedGroupCount: ownedGroupIds.length,
+      });
       return;
     }
 
+    logger.info('[PermissionService.syncUserEntraGroupMemberships] Retrieved Entra group IDs', {
+      userIdOnTheSource: user.idOnTheSource,
+      memberGroupCount: memberGroupIds.length,
+      ownedGroupCount: ownedGroupIds.length,
+      totalGroupCount: allGroupIds.length,
+      sampleGroupIds: allGroupIds.slice(0, 5),
+    });
+
     const sessionOptions = session ? { session } : {};
 
-    await Group.updateMany(
+    const addResult = await Group.updateMany(
       {
         idOnTheSource: { $in: allGroupIds },
         source: 'entra',
@@ -488,7 +508,7 @@ const syncUserEntraGroupMemberships = async (user, accessToken, session = null) 
       sessionOptions,
     );
 
-    await Group.updateMany(
+    const removeResult = await Group.updateMany(
       {
         source: 'entra',
         memberIds: user.idOnTheSource,
@@ -497,6 +517,11 @@ const syncUserEntraGroupMemberships = async (user, accessToken, session = null) 
       { $pull: { memberIds: user.idOnTheSource } },
       sessionOptions,
     );
+    logger.info('[PermissionService.syncUserEntraGroupMemberships] Completed membership sync', {
+      userIdOnTheSource: user.idOnTheSource,
+      addedMemberships: addResult?.modifiedCount ?? 0,
+      removedMemberships: removeResult?.modifiedCount ?? 0,
+    });
   } catch (error) {
     logger.error(`[PermissionService.syncUserEntraGroupMemberships] Error syncing groups:`, error);
   }
