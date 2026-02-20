@@ -13,7 +13,7 @@ const { sanitizeSchemaMetadata } = require('@librechat/api');
  * to sanitize output and remove $schema fields.
  */
 
-// Patch zod-to-json-schema (for completeness, though LangChain caches the reference)
+// Patch zod-to-json-schema (best-effort)
 const zodModulePath = (() => {
   try {
     return require.resolve('zod-to-json-schema');
@@ -47,12 +47,10 @@ if (zodModulePath) {
   }
 }
 
-// Patch @langchain/core's toJsonSchema directly
-// This is critical because LangChain caches the zod-to-json-schema reference
-// at module load time, so patching zod-to-json-schema alone doesn't work.
+// Patch @langchain/core's toJsonSchema directly. This is critical because
+// LangChain caches zod-to-json-schema reference at module load time.
 const langchainModulePath = (() => {
   try {
-    // Use the proper exported path, then resolve to the actual file
     const path = require('path');
     const corePkgPath = require.resolve('@langchain/core/package.json');
     const coreDir = path.dirname(corePkgPath);
@@ -73,8 +71,6 @@ if (langchainModulePath) {
     };
 
     patchedToJsonSchema.__lcSanitized = true;
-
-    // Update both the module object and the cache exports
     lcModule.toJsonSchema = patchedToJsonSchema;
     if (require.cache[langchainModulePath]) {
       require.cache[langchainModulePath].exports.toJsonSchema = patchedToJsonSchema;
