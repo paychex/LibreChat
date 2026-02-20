@@ -159,28 +159,98 @@ const searchEntraIdPrincipals = async (accessToken, sub, query, type = 'all', li
 
 /**
  * Get current user's Entra ID group memberships from Microsoft Graph
- * Uses /me/getMemberGroups endpoint to get transitive groups the user is a member of
+ * Uses /me/getMemberGroups and /me/memberOf to compare available memberships
  * @param {string} accessToken - OpenID Connect access token
  * @param {string} sub - Subject identifier
- * @returns {Promise<Array<string>>} Array of group ID strings (GUIDs)
+ * @param {{ includeDiagnostics?: boolean }} [options]
+ * @returns {Promise<Array<string> | { groupIds: Array<string>, diagnostics: Record<string, unknown> }>} Array of group ID strings (GUIDs) or diagnostics payload
  */
-const getUserEntraGroups = async (accessToken, sub) => {
+const getUserEntraGroups = async (accessToken, sub, options = {}) => {
+  const includeDiagnostics = options?.includeDiagnostics === true;
+  const diagnostics = {
+    getMemberGroupsAccess: false,
+    getMemberGroupsCount: 0,
+    getMemberGroupsError: null,
+    memberOfAccess: false,
+    memberOfGroupCount: 0,
+    memberOfError: null,
+  };
   try {
     const graphClient = await createGraphClient(accessToken, sub);
-    const response = await graphClient
-      .api('/me/getMemberGroups')
-      .post({ securityEnabledOnly: false });
 
-    const groupIds = Array.isArray(response?.value) ? response.value : [];
-    const uniqueGroupIds = [...new Set(groupIds.map((groupId) => String(groupId)))];
-    logger.info('[getUserEntraGroups] Retrieved group membership from Graph API', {
+    let groupIdsFromMemberGroups = [];
+    try {
+      const response = await graphClient
+        .api('/me/getMemberGroups')
+        .post({ securityEnabledOnly: false });
+
+      const groupIds = Array.isArray(response?.value) ? response.value : [];
+      groupIdsFromMemberGroups = [...new Set(groupIds.map((groupId) => String(groupId)))];
+      diagnostics.getMemberGroupsAccess = true;
+      diagnostics.getMemberGroupsCount = groupIdsFromMemberGroups.length;
+    } catch (error) {
+      diagnostics.getMemberGroupsError = error.message;
+      logger.warn('[getUserEntraGroups] getMemberGroups endpoint failed', {
+        sub,
+        message: error.message,
+      });
+    }
+
+    let groupIdsFromMemberOf = [];
+    try {
+      let nextLink = '/me/memberOf';
+      while (nextLink) {
+        const response = await graphClient.api(nextLink).select('id').top(999).get();
+        const entries = response?.value || [];
+        for (const entry of entries) {
+          const entryId = entry?.id;
+          const odataType = String(entry?.['@odata.type'] || '').toLowerCase();
+          if (typeof entryId === 'string' && (!odataType || odataType.endsWith('.group'))) {
+            groupIdsFromMemberOf.push(entryId);
+          }
+        }
+        nextLink = response?.['@odata.nextLink']
+          ? response['@odata.nextLink']
+              .replace(/^https:\/\/graph\.microsoft\.com\/v1\.0/, '')
+              .trim() || null
+          : null;
+      }
+      groupIdsFromMemberOf = [...new Set(groupIdsFromMemberOf.map((groupId) => String(groupId)))];
+      diagnostics.memberOfAccess = true;
+      diagnostics.memberOfGroupCount = groupIdsFromMemberOf.length;
+    } catch (error) {
+      diagnostics.memberOfError = error.message;
+      logger.warn('[getUserEntraGroups] memberOf endpoint failed', {
+        sub,
+        message: error.message,
+      });
+    }
+
+    const uniqueGroupIds = [
+      ...new Set([...groupIdsFromMemberGroups, ...groupIdsFromMemberOf].map((id) => String(id))),
+    ];
+    logger.info('[getUserEntraGroups] Graph membership endpoint results', {
       sub,
-      groupCount: uniqueGroupIds.length,
+      getMemberGroupsAccess: diagnostics.getMemberGroupsAccess,
+      getMemberGroupsCount: diagnostics.getMemberGroupsCount,
+      memberOfAccess: diagnostics.memberOfAccess,
+      memberOfGroupCount: diagnostics.memberOfGroupCount,
+      totalGroupCount: uniqueGroupIds.length,
       sampleGroupIds: uniqueGroupIds.slice(0, 5),
+      getMemberGroupsError: diagnostics.getMemberGroupsError,
+      memberOfError: diagnostics.memberOfError,
     });
+    if (includeDiagnostics) {
+      return { groupIds: uniqueGroupIds, diagnostics };
+    }
     return uniqueGroupIds;
   } catch (error) {
     logger.error('[getUserEntraGroups] Error fetching user groups:', error);
+    diagnostics.getMemberGroupsError = diagnostics.getMemberGroupsError || error.message;
+    diagnostics.memberOfError = diagnostics.memberOfError || error.message;
+    if (includeDiagnostics) {
+      return { groupIds: [], diagnostics };
+    }
     return [];
   }
 };

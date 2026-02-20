@@ -6,6 +6,8 @@ jest.mock('@librechat/data-schemas', () => ({
   logger: {
     error: jest.fn(),
     debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
   },
 }));
 jest.mock('~/config', () => ({
@@ -515,53 +517,65 @@ describe('GraphApiService', () => {
   });
 
   describe('getUserEntraGroups', () => {
-    it('should fetch user groups using getMemberGroups endpoint', async () => {
-      const mockGroupsResponse = {
+    it('should merge groups from getMemberGroups and memberOf endpoints', async () => {
+      mockGraphClient.post.mockResolvedValue({
         value: ['group-1', 'group-2'],
-      };
-
-      mockGraphClient.post.mockResolvedValue(mockGroupsResponse);
+      });
+      mockGraphClient.get.mockResolvedValue({
+        value: [
+          { id: 'group-2', '@odata.type': '#microsoft.graph.group' },
+          { id: 'group-3', '@odata.type': '#microsoft.graph.group' },
+          { id: 'role-1', '@odata.type': '#microsoft.graph.directoryRole' },
+        ],
+      });
 
       const result = await GraphApiService.getUserEntraGroups('token', 'user');
 
       expect(mockGraphClient.api).toHaveBeenCalledWith('/me/getMemberGroups');
       expect(mockGraphClient.post).toHaveBeenCalledWith({ securityEnabledOnly: false });
-
-      expect(result).toEqual(['group-1', 'group-2']);
+      expect(mockGraphClient.api).toHaveBeenCalledWith('/me/memberOf');
+      expect(result).toEqual(['group-1', 'group-2', 'group-3']);
     });
 
-    it('should deduplicate returned group ids', async () => {
+    it('should deduplicate returned group ids across both endpoints', async () => {
       mockGraphClient.post.mockResolvedValue({
         value: ['group-1', 'group-2', 'group-1'],
+      });
+      mockGraphClient.get.mockResolvedValue({
+        value: [
+          { id: 'group-2', '@odata.type': '#microsoft.graph.group' },
+          { id: 'group-3', '@odata.type': '#microsoft.graph.group' },
+          { id: 'group-3', '@odata.type': '#microsoft.graph.group' },
+        ],
       });
 
       const result = await GraphApiService.getUserEntraGroups('token', 'user');
 
-      expect(result).toEqual(['group-1', 'group-2']);
+      expect(result).toEqual(['group-1', 'group-2', 'group-3']);
     });
 
-    it('should return empty array on error', async () => {
-      mockGraphClient.post.mockRejectedValue(new Error('API error'));
+    it('should return memberOf groups when getMemberGroups fails', async () => {
+      mockGraphClient.post.mockRejectedValue(new Error('getMemberGroups failed'));
+      mockGraphClient.get.mockResolvedValue({
+        value: [{ id: 'group-9', '@odata.type': '#microsoft.graph.group' }],
+      });
 
       const result = await GraphApiService.getUserEntraGroups('token', 'user');
 
-      expect(result).toEqual([]);
+      expect(result).toEqual(['group-9']);
     });
 
-    it('should handle empty response', async () => {
-      const mockGroupsResponse = {
-        value: [],
-      };
-
-      mockGraphClient.post.mockResolvedValue(mockGroupsResponse);
+    it('should return empty array when both endpoints fail', async () => {
+      mockGraphClient.post.mockRejectedValue(new Error('getMemberGroups failed'));
+      mockGraphClient.get.mockRejectedValue(new Error('memberOf failed'));
 
       const result = await GraphApiService.getUserEntraGroups('token', 'user');
-
       expect(result).toEqual([]);
     });
 
-    it('should handle missing value property', async () => {
+    it('should handle empty and missing response payloads', async () => {
       mockGraphClient.post.mockResolvedValue({});
+      mockGraphClient.get.mockResolvedValue({});
 
       const result = await GraphApiService.getUserEntraGroups('token', 'user');
 

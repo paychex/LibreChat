@@ -499,7 +499,15 @@ const syncUserEntraGroupMemberships = async (user, accessToken, session = null) 
       return;
     }
 
-    const memberGroupIds = await getUserEntraGroups(accessToken, user.openidId);
+    const groupMembership = await getUserEntraGroups(accessToken, user.openidId, {
+      includeDiagnostics: true,
+    });
+    const memberGroupIds = Array.isArray(groupMembership)
+      ? groupMembership
+      : groupMembership?.groupIds || [];
+    const endpointDiagnostics = Array.isArray(groupMembership)
+      ? {}
+      : groupMembership?.diagnostics || {};
     let allGroupIds = [...(memberGroupIds || [])];
     let ownedGroupIds = [];
 
@@ -519,11 +527,23 @@ const syncUserEntraGroupMemberships = async (user, accessToken, session = null) 
         openidId: user.openidId,
         memberGroupCount: memberGroupIds.length,
         ownedGroupCount: ownedGroupIds.length,
+        getMemberGroupsAccess: endpointDiagnostics.getMemberGroupsAccess ?? null,
+        memberOfAccess: endpointDiagnostics.memberOfAccess ?? null,
+        getMemberGroupsCount: endpointDiagnostics.getMemberGroupsCount ?? null,
+        memberOfGroupCount: endpointDiagnostics.memberOfGroupCount ?? null,
+        getMemberGroupsError: endpointDiagnostics.getMemberGroupsError ?? null,
+        memberOfError: endpointDiagnostics.memberOfError ?? null,
       });
       logger.info('[PermissionService.syncUserEntraGroupMemberships] No Entra groups returned', {
         userIdOnTheSource: user.idOnTheSource,
         memberGroupCount: memberGroupIds.length,
         ownedGroupCount: ownedGroupIds.length,
+        getMemberGroupsAccess: endpointDiagnostics.getMemberGroupsAccess ?? null,
+        memberOfAccess: endpointDiagnostics.memberOfAccess ?? null,
+        getMemberGroupsCount: endpointDiagnostics.getMemberGroupsCount ?? null,
+        memberOfGroupCount: endpointDiagnostics.memberOfGroupCount ?? null,
+        getMemberGroupsError: endpointDiagnostics.getMemberGroupsError ?? null,
+        memberOfError: endpointDiagnostics.memberOfError ?? null,
       });
       return;
     }
@@ -534,6 +554,12 @@ const syncUserEntraGroupMemberships = async (user, accessToken, session = null) 
       ownedGroupCount: ownedGroupIds.length,
       totalGroupCount: allGroupIds.length,
       sampleGroupIds: allGroupIds.slice(0, 5),
+      getMemberGroupsAccess: endpointDiagnostics.getMemberGroupsAccess ?? null,
+      memberOfAccess: endpointDiagnostics.memberOfAccess ?? null,
+      getMemberGroupsCount: endpointDiagnostics.getMemberGroupsCount ?? null,
+      memberOfGroupCount: endpointDiagnostics.memberOfGroupCount ?? null,
+      getMemberGroupsError: endpointDiagnostics.getMemberGroupsError ?? null,
+      memberOfError: endpointDiagnostics.memberOfError ?? null,
     });
     await writeEntraMembershipReplicaLog('groups_retrieved', {
       userIdOnTheSource: user.idOnTheSource,
@@ -542,6 +568,12 @@ const syncUserEntraGroupMemberships = async (user, accessToken, session = null) 
       ownedGroupCount: ownedGroupIds.length,
       totalGroupCount: allGroupIds.length,
       groupIds: allGroupIds,
+      getMemberGroupsAccess: endpointDiagnostics.getMemberGroupsAccess ?? null,
+      memberOfAccess: endpointDiagnostics.memberOfAccess ?? null,
+      getMemberGroupsCount: endpointDiagnostics.getMemberGroupsCount ?? null,
+      memberOfGroupCount: endpointDiagnostics.memberOfGroupCount ?? null,
+      getMemberGroupsError: endpointDiagnostics.getMemberGroupsError ?? null,
+      memberOfError: endpointDiagnostics.memberOfError ?? null,
     });
 
     const sessionOptions = session ? { session } : {};
