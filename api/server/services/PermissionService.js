@@ -1,9 +1,10 @@
+const path = require('path');
+const fs = require('fs/promises');
 const mongoose = require('mongoose');
 const { isEnabled } = require('@librechat/api');
 const { getTransactionSupport, logger } = require('@librechat/data-schemas');
 const { ResourceType, PrincipalType, PrincipalModel } = require('librechat-data-provider');
 const {
-  entraIdPrincipalFeatureEnabled,
   getUserOwnedEntraGroups,
   getUserEntraGroups,
   getGroupMembers,
@@ -27,6 +28,33 @@ const { AclEntry, AccessRole, Group } = require('~/db/models');
 
 /** @type {boolean|null} */
 let transactionSupportCache = null;
+const ENTRA_MEMBERSHIP_REPLICA_LOG_PATH =
+  process.env.ENTRA_MEMBERSHIP_REPLICA_LOG_PATH || '/tmp/entra-membership-debug.log';
+
+/**
+ * Writes Entra membership sync diagnostics to a temporary file for troubleshooting.
+ * @param {string} event
+ * @param {Record<string, unknown>} [payload]
+ */
+const writeEntraMembershipReplicaLog = async (event, payload = {}) => {
+  try {
+    await fs.mkdir(path.dirname(ENTRA_MEMBERSHIP_REPLICA_LOG_PATH), { recursive: true });
+    await fs.appendFile(
+      ENTRA_MEMBERSHIP_REPLICA_LOG_PATH,
+      `${JSON.stringify({
+        timestamp: new Date().toISOString(),
+        event,
+        ...payload,
+      })}\n`,
+      'utf8',
+    );
+  } catch (error) {
+    logger.warn('[PermissionService] Failed to write replica debug log', {
+      path: ENTRA_MEMBERSHIP_REPLICA_LOG_PATH,
+      message: error.message,
+    });
+  }
+};
 
 /**
  * Validates that the resourceType is one of the supported enum values
@@ -455,10 +483,16 @@ const ensureGroupPrincipalExists = async function (principal, authContext = null
  */
 const syncUserEntraGroupMemberships = async (user, accessToken, session = null) => {
   try {
-    const featureEnabled = entraIdPrincipalFeatureEnabled(user);
-    if (!featureEnabled || !accessToken || !user.idOnTheSource) {
+    const isOpenIdUser = user?.provider === 'openid' && !!user?.openidId;
+    if (!isOpenIdUser || !accessToken || !user?.idOnTheSource) {
+      await writeEntraMembershipReplicaLog('sync_skipped', {
+        isOpenIdUser,
+        hasAccessToken: !!accessToken,
+        hasSourceId: !!user?.idOnTheSource,
+        openidId: user?.openidId || null,
+      });
       logger.debug('[PermissionService.syncUserEntraGroupMemberships] Skipping sync', {
-        featureEnabled,
+        isOpenIdUser,
         hasAccessToken: !!accessToken,
         hasSourceId: !!user?.idOnTheSource,
       });
@@ -480,6 +514,12 @@ const syncUserEntraGroupMemberships = async (user, accessToken, session = null) 
     }
 
     if (!allGroupIds || allGroupIds.length === 0) {
+      await writeEntraMembershipReplicaLog('groups_empty', {
+        userIdOnTheSource: user.idOnTheSource,
+        openidId: user.openidId,
+        memberGroupCount: memberGroupIds.length,
+        ownedGroupCount: ownedGroupIds.length,
+      });
       logger.info('[PermissionService.syncUserEntraGroupMemberships] No Entra groups returned', {
         userIdOnTheSource: user.idOnTheSource,
         memberGroupCount: memberGroupIds.length,
@@ -494,6 +534,14 @@ const syncUserEntraGroupMemberships = async (user, accessToken, session = null) 
       ownedGroupCount: ownedGroupIds.length,
       totalGroupCount: allGroupIds.length,
       sampleGroupIds: allGroupIds.slice(0, 5),
+    });
+    await writeEntraMembershipReplicaLog('groups_retrieved', {
+      userIdOnTheSource: user.idOnTheSource,
+      openidId: user.openidId,
+      memberGroupCount: memberGroupIds.length,
+      ownedGroupCount: ownedGroupIds.length,
+      totalGroupCount: allGroupIds.length,
+      groupIds: allGroupIds,
     });
 
     const sessionOptions = session ? { session } : {};
@@ -522,7 +570,18 @@ const syncUserEntraGroupMemberships = async (user, accessToken, session = null) 
       addedMemberships: addResult?.modifiedCount ?? 0,
       removedMemberships: removeResult?.modifiedCount ?? 0,
     });
+    await writeEntraMembershipReplicaLog('sync_completed', {
+      userIdOnTheSource: user.idOnTheSource,
+      openidId: user.openidId,
+      addedMemberships: addResult?.modifiedCount ?? 0,
+      removedMemberships: removeResult?.modifiedCount ?? 0,
+    });
   } catch (error) {
+    await writeEntraMembershipReplicaLog('sync_error', {
+      openidId: user?.openidId || null,
+      userIdOnTheSource: user?.idOnTheSource || null,
+      message: error.message,
+    });
     logger.error(`[PermissionService.syncUserEntraGroupMemberships] Error syncing groups:`, error);
   }
 };

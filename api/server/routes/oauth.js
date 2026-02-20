@@ -36,12 +36,14 @@ const oauthHandler = async (req, res, next) => {
     if (req.banned) {
       return;
     }
-    if (
-      req.user &&
-      req.user.provider == 'openid' &&
-      isEnabled(process.env.OPENID_REUSE_TOKENS) === true
-    ) {
-      await syncUserEntraGroupMemberships(req.user, req.user.tokenset.access_token);
+    const isOpenIdUser = req.user && req.user.provider == 'openid';
+    const openidAccessToken = req.user?.tokenset?.access_token;
+
+    if (isOpenIdUser && openidAccessToken) {
+      await syncUserEntraGroupMemberships(req.user, openidAccessToken);
+    }
+
+    if (isOpenIdUser && isEnabled(process.env.OPENID_REUSE_TOKENS) === true) {
       setOpenIDAuthTokens(req.user.tokenset, res, req.user._id.toString());
     } else {
       await setAuthTokens(req.user._id, res);
