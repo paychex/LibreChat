@@ -129,42 +129,7 @@ export default function TavilySources({ output, showFallback }: TavilySourcesPro
         </div>
       </div>
 
-      {/* Images section if available */}
-      {parsedData.images && parsedData.images.length > 0 && (
-        <div>
-          <div className="mb-2 text-xs font-semibold text-text-secondary">
-            {localize('com_sources_tab_images')} ({parsedData.images.length})
-          </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-            {parsedData.images.slice(0, 6).map((image, index) => (
-              <a
-                key={index}
-                href={image.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group relative aspect-video overflow-hidden rounded-lg bg-surface-secondary"
-              >
-                <img
-                  src={image.url}
-                  alt={
-                    image.description ||
-                    `${localize('com_sources_tab_images')} ${(index + 1).toString()}`
-                  }
-                  className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
-                  loading="lazy"
-                />
-                {image.description && (
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                    <p className="line-clamp-1 text-xs text-white">{image.description}</p>
-                  </div>
-                )}
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Follow-up questions if available */}
+      {/* Follow-up questions if available */
       {parsedData.follow_up_questions && parsedData.follow_up_questions.length > 0 && (
         <div>
           <div className="mb-2 text-xs font-semibold text-text-secondary">

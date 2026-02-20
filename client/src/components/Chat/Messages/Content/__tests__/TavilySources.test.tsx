@@ -9,7 +9,6 @@ jest.mock('~/hooks', () => ({
       com_ui_result: 'Result',
       com_ui_untitled: 'Untitled',
       com_sources_title: 'Sources',
-      com_sources_tab_images: 'Images',
       com_ui_examples: 'Examples',
     };
     return translations[key] || key;
@@ -268,112 +267,6 @@ describe('TavilySources', () => {
     });
   });
 
-  describe('Images Section Rendering', () => {
-    it('should render images section with correct count', () => {
-      const output = JSON.stringify({
-        results: [{ url: 'https://example.com' }],
-        images: [
-          { url: 'https://img1.com/pic1.jpg', description: 'Image 1' },
-          { url: 'https://img2.com/pic2.jpg', description: 'Image 2' },
-        ],
-      });
-
-      render(<TavilySources output={output} />);
-
-      expect(screen.getByText('Images (2)')).toBeInTheDocument();
-    });
-
-    it('should limit images to maximum of 6', () => {
-      const images = Array.from({ length: 10 }, (_, i) => ({
-        url: `https://img${i}.com/pic${i}.jpg`,
-      }));
-
-      const output = JSON.stringify({
-        results: [{ url: 'https://example.com' }],
-        images,
-      });
-
-      render(<TavilySources output={output} />);
-
-      // Should show "Images (10)" but only render 6 img tags
-      expect(screen.getByText('Images (10)')).toBeInTheDocument();
-      const imgElements = screen.getAllByRole('img');
-      expect(imgElements).toHaveLength(6);
-    });
-
-    it('should render image with description overlay', () => {
-      const output = JSON.stringify({
-        results: [{ url: 'https://example.com' }],
-        images: [{ url: 'https://img.com/pic.jpg', description: 'Beautiful sunset' }],
-      });
-
-      render(<TavilySources output={output} />);
-
-      expect(screen.getByText('Beautiful sunset')).toBeInTheDocument();
-      expect(screen.getByAltText('Beautiful sunset')).toBeInTheDocument();
-    });
-
-    it('should render image without description overlay when missing', () => {
-      const output = JSON.stringify({
-        results: [{ url: 'https://example.com' }],
-        images: [{ url: 'https://img.com/pic.jpg' }],
-      });
-
-      const { container } = render(<TavilySources output={output} />);
-
-      // Should have img but no description overlay
-      expect(screen.getByRole('img')).toBeInTheDocument();
-      const overlay = container.querySelector('.absolute.inset-x-0.bottom-0');
-      expect(overlay).not.toBeInTheDocument();
-    });
-
-    it('should use fallback alt text when description is missing', () => {
-      const output = JSON.stringify({
-        results: [{ url: 'https://example.com' }],
-        images: [{ url: 'https://img.com/pic.jpg' }],
-      });
-
-      render(<TavilySources output={output} />);
-
-      expect(screen.getByAltText('Images 1')).toBeInTheDocument();
-    });
-
-    it('should not render images section when images array is empty', () => {
-      const output = JSON.stringify({
-        results: [{ url: 'https://example.com' }],
-        images: [],
-      });
-
-      render(<TavilySources output={output} />);
-
-      expect(screen.queryByText(/Images/i)).not.toBeInTheDocument();
-    });
-
-    it('should not render images section when images field is missing', () => {
-      const output = JSON.stringify({
-        results: [{ url: 'https://example.com' }],
-      });
-
-      render(<TavilySources output={output} />);
-
-      expect(screen.queryByText(/Images/i)).not.toBeInTheDocument();
-    });
-
-    it('should render image links with correct attributes', () => {
-      const output = JSON.stringify({
-        results: [{ url: 'https://example.com' }],
-        images: [{ url: 'https://img.com/pic.jpg' }],
-      });
-
-      const { container } = render(<TavilySources output={output} />);
-
-      const imageLink = container.querySelector('a[href="https://img.com/pic.jpg"]');
-      expect(imageLink).toBeInTheDocument();
-      expect(imageLink).toHaveAttribute('target', '_blank');
-      expect(imageLink).toHaveAttribute('rel', 'noopener noreferrer');
-    });
-  });
-
   describe('Follow-up Questions Rendering', () => {
     it('should render follow-up questions section', () => {
       const output = JSON.stringify({
@@ -431,12 +324,13 @@ describe('TavilySources', () => {
 
       render(<TavilySources output={output} />);
 
-      // Check all sections are rendered
+      // Check all sections are rendered (images excluded)
       expect(screen.getByText('Complete answer')).toBeInTheDocument();
       expect(screen.getByText('Complete Result')).toBeInTheDocument();
-      expect(screen.getByText('Images (1)')).toBeInTheDocument();
       expect(screen.getByText('Examples')).toBeInTheDocument();
       expect(screen.getByText('Follow-up question?')).toBeInTheDocument();
+      // Images should not be rendered
+      expect(screen.queryByText(/Images/i)).not.toBeInTheDocument();
     });
   });
 
