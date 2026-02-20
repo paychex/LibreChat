@@ -129,7 +129,7 @@ export default function TavilySources({ output, showFallback }: TavilySourcesPro
         </div>
       </div>
 
-      {/* Follow-up questions if available */
+      {/* Follow-up questions if available */}
       {parsedData.follow_up_questions && parsedData.follow_up_questions.length > 0 && (
         <div>
           <div className="mb-2 text-xs font-semibold text-text-secondary">
