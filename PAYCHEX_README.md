@@ -1,73 +1,189 @@
-## Making Workflow changes
-Make workflow changes only on the `main` branch. Since workflows need to exist on the main branch to executable on github. The `main` branch is not used for anything else other than storing workflows. Despite the main branch containing code for Librechat. Ignore that code.
+## Branching Strategy
 
-## Syncing Tags from the Upstream Librechat Repository
-From a local terminal, while having the `main` branch checked out, run:
+This repository uses a `develop`-based branching model:
 
-```
-git remote add upstream https://github.com/danny-avila/LibreChat.git #This needs to only be ran once
-git fetch upstream --tags #This should run everytime to fetch the tags
-```
-then:
-```
-git push origin --tags #pushes all tags to our forked repo
-```
+- **`develop`**: The default branch for active development and feature integration
+- **`feature/*`**: Feature branches created from `develop`
+- **`release/*`**: Release branches created from `develop` for deployment
+- **`upstream/*`**: Branches for integrating upstream LibreChat changes
+- **`bugfix/*`**: Bug fix branches created from `release/*` branches
+- **`hotfix/*`**: Emergency fix branches created from release tags
 
+## Making Workflow Changes
 
+Workflow changes should be made on the `develop` branch through pull requests. GitHub Actions workflows execute from the branch they're defined on, so workflows on `develop` will trigger for `develop` branch events.
 
-## Changing Paychex specific files
-The following is a list of files that are specific to the Paychex build and release of Librechat:
+## Syncing Tags from the Upstream LibreChat Repository
 
-- `az_container_app_definitions` - contains the yaml definitions for the ACA.
+From a local terminal, while having the `develop` branch checked out, run:
 
-- `mongodb_atlas_setup` - contains one time JS commands to create Vector-related objects in MongoDB Atlas.
-  
-- `.paychex.dockerignore` - contains files to ignore when building the Paychex docker image.
-
-- `librechat.n1.yml` - contains the N1 configuration for the n1 deployment.
-
-- `librechat.n2a.yml` - contains the N2a configuration for the n2a deployment.
-
-- `librechat.prod.yml` - contains the prod configuration for the prod deployment.
-
-- `paychex-root.pem` - contains the Paychex SSL cert.
-
-- `payx-docker-compose.override.yml` - contains the Paychex docker compose override file.
-
-Only these files exist on `paychex-integration-branch` branch. **If you need to modify or add, it has to be done on this branch.**
-
-
-## Running Librechat Locally
-This process is a somewhat complicated git dance.
-1. Fetch branches and tags `git fetch --tags`.
-2. Ensure you have the latest integration branch, `git checkout paychex-integration-branch && git pull origin paychex-integration-branch`
-3. Checkout the tag you want to run locally. For example, `git checkout v0.8.0-rc2`. You'll now be in Detached Head Mode.
-4. Run a `git merge paychex-integration-branch --allow-unrelated-histories`. Git will complain about the merge unless you have that flag.
-
-Next, copy the contents of `.env.paychex` into `.env`. There are certain sensitive values you'll need, ask Shane for these.
-
-Next, copy the contents of `librechat.n2a.yml` into `librechat.yaml`. NOTE: The file extension for `librechat.yaml` is `.yaml`. This is important.
-
-Next, in `payx-docker-compose.override-yaml`, change the Librechat Image tag to the tag you are working with. ie. `image: ghcr.io/danny-avila/librechat:v0.8.0-rc2`:
-
-```
-api:
-    container_name: LibreChat
-    ports:
-      - "${PORT}:${PORT}"
-    image: ghcr.io/danny-avila/librechat:v0.8.0-rc2 #This part here
+```bash
+git remote add upstream https://github.com/danny-avila/LibreChat.git  # Only needed once
+git fetch upstream --tags
 ```
 
-Next, run the compose files: `docker compose -f docker-compose.yml -f payx-docker-compose.override.yaml up`. This will merge the two compose files together and start up the cluster.
+Then push tags to your fork:
 
-Navigate to `localhost:3080` in browser. If running in a VSCode terminal via remote ssh, ensure the Port is forwarded.
+```bash
+git push origin --tags
+```
 
-Register a test user using the sign-up form, and then login with that test user.
 
-Make any changes to the configuration files as needed. Then, use the following instructions to release.
 
-## Creating a new Paychex-ified Release
-6. Manually port any Paychex file changes into `paychex-integration-branch`. Usually editing the files via Github editor is easiest.
-7. Commit changes, then create a new branch with branch name pattern `release/{original_tag}-payx`. For example, `git checkout -b release/v0.8.0-rc2-payx`.
-8. Push the new branch up. `git push origin release/v0.8.0-rc2-payx`.
-9. Run the workflow for the environment you are targeting. Use the new branch you've created as the input branch. Optionally build the RAG API image (usually this is done once for a new release, and can be skipped if deploying the same release again maybe after troubleshooting, etc.).
+## Paychex-Specific Files
+
+The following files are specific to the Paychex deployment of LibreChat and exist on the `develop` branch:
+
+- **`az_container_app_definitions/`** - Azure Container App definitions (YAML) for N1, N2a, and Prod environments
+- **`mongodb_atlas_setup/`** - One-time JavaScript commands to create vector-related objects in MongoDB Atlas
+- **`.paychex.dockerignore`** - Files to ignore when building the Paychex Docker image
+- **`librechat.n1.yml`** - N1 environment configuration
+- **`librechat.n2a.yml`** - N2a environment configuration
+- **`librechat.prod.yml`** - Production environment configuration
+- **`paychex-root.pem`** - Paychex SSL certificate
+- **`payx-docker-compose.override.yml`** - Paychex-specific Docker Compose override
+- **`client/src/hooks/Pendo/`** - Pendo analytics integration
+- **`.github/workflows/`** - Custom CI/CD workflows for Paychex environments
+
+All Paychex customizations are maintained on the `develop` branch and follow the standard feature branch workflow.
+
+
+## Running LibreChat Locally
+
+1. **Checkout the develop branch:**
+   ```bash
+   git checkout develop
+   git pull origin develop
+   ```
+
+2. **Setup environment configuration:**
+   - Copy `.env.paychex` to `.env` (contact your team for sensitive values)
+   - Copy your target environment config to `librechat.yaml`:
+     ```bash
+     cp librechat.n2a.yml librechat.yaml  # For N2a environment
+     # OR
+     cp librechat.n1.yml librechat.yaml   # For N1 environment
+     ```
+   Note: The file extension must be `.yaml` (not `.yml`)
+
+3. **Update Docker image tag (optional for testing specific versions):**
+   Edit `payx-docker-compose.override.yml` if you need a specific LibreChat version:
+   ```yaml
+   api:
+       container_name: LibreChat
+       ports:
+         - "${PORT}:${PORT}"
+       image: ghcr.io/danny-avila/librechat:v0.8.1  # Update version as needed
+   ```
+
+4. **Start the application:**
+   ```bash
+   docker compose -f docker-compose.yml -f payx-docker-compose.override.yml up
+   ```
+
+5. **Access the application:**
+   - Navigate to `localhost:3080` in your browser
+   - If using VSCode remote SSH, ensure port 3080 is forwarded
+   - Register a test user and log in
+
+## Development Workflow
+
+### Creating a New Feature
+
+1. **Create a feature branch from develop:**
+   ```bash
+   git checkout develop
+   git pull origin develop
+   git checkout -b feature/AIA-XXXX-description
+   ```
+
+2. **Make your changes and commit:**
+   ```bash
+   git add .
+   git commit -m "feat: description of changes"
+   ```
+
+3. **Push and create a pull request:**
+   ```bash
+   git push origin feature/AIA-XXXX-description
+   ```
+   Create a PR targeting the `develop` branch
+
+4. **After approval, the feature will be merged into develop**
+
+### Creating a Release
+
+1. **Create a release branch from develop:**
+   ```bash
+   git checkout develop
+   git pull origin develop
+   git checkout -b release/payx-X.X.X-sXX
+   ```
+
+2. **Push the release branch:**
+   ```bash
+   git push origin release/payx-X.X.X-sXX
+   ```
+
+3. **Deploy to non-production environment:**
+   - Run the appropriate GitHub Actions workflow (N1 or N2a)
+   - Provide the release branch name as input
+   - Optionally build the RAG API image (typically only needed for new releases)
+
+4. **Test and fix issues:**
+   - If bugs are found, create `bugfix/` branches from the release branch
+   - Merge bugfixes back into the release branch
+   - Re-deploy and verify
+
+5. **Merge back to develop:**
+   ```bash
+   git checkout develop
+   git merge release/payx-X.X.X-sXX
+   git push origin develop
+   ```
+
+6. **Tag the release:**
+   ```bash
+   git tag -a payx-X.X.X-sXX -m "Release X.X.X Sprint XX"
+   git push origin payx-X.X.X-sXX
+   ```
+
+7. **Delete the release branch:**
+   ```bash
+   git branch -d release/payx-X.X.X-sXX
+   git push origin --delete release/payx-X.X.X-sXX
+   ```
+
+### Integrating Upstream LibreChat Changes
+
+1. **Create an upstream integration branch:**
+   ```bash
+   git checkout develop
+   git pull origin develop
+   git checkout -b upstream/vX.X.X-integration
+   ```
+
+2. **Fetch and merge upstream changes:**
+   ```bash
+   git fetch upstream
+   git merge upstream/main  # Or specific upstream tag
+   ```
+
+3. **Resolve conflicts and test thoroughly**
+
+4. **Tag the upstream integration:**
+   ```bash
+   git tag -a upstream-vX.X.X -m "Integrated upstream LibreChat vX.X.X"
+   ```
+
+5. **Create PR to merge into develop:**
+   - Create pull request from `upstream/vX.X.X-integration` to `develop`
+   - Review and test
+   - Merge after approval
+
+6. **Push tag and clean up:**
+   ```bash
+   git push origin upstream-vX.X.X
+   git branch -d upstream/vX.X.X-integration
+   git push origin --delete upstream/vX.X.X-integration
+   ```

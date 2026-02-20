@@ -7,10 +7,10 @@ env:
     ACR_PASS: ${{ secrets.REGISTRY_PASSWORD_PROD }}
 
 on:
-  # Automated deploy on push to main branch
+  # Automated deploy on push to develop branch
   push:
     branches:
-      - main
+      - develop
   # Manual trigger
   workflow_dispatch:
       inputs:

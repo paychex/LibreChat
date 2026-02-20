@@ -47,7 +47,7 @@ Project maintainers have the right and responsibility to remove, edit, or reject
 
 ## 2. Development Notes
 
-1. Before starting work, make sure your main branch has the latest commits with `npm run update`.
+1. Before starting work, make sure your develop branch has the latest commits with `npm run update`.
 3. Run linting command to find errors: `npm run lint`. Alternatively, ensure husky pre-commit checks are functioning.
 3. After your changes, reinstall packages in your current branch using `npm run reinstall` and ensure everything still works. 
     - Restart the ESLint server ("ESLint: Restart ESLint Server" in VS Code command bar) and your IDE after reinstalling or updating.
@@ -65,7 +65,7 @@ We utilize a GitFlow workflow to manage changes to this project's codebase. Foll
 2. Implement your changes and ensure that all tests pass.
 3. Commit your changes using conventional commit messages with GitFlow flags. Begin the commit message with a tag indicating the change type, such as "feat" (new feature), "fix" (bug fix), "docs" (documentation), or "refactor" (code refactoring), followed by a brief summary of the changes (e.g., `feat: Add new feature X to the project`).
 4. Submit a pull request with a clear and concise description of your changes and the reasons behind them.
-5. We will review your pull request, provide feedback as needed, and eventually merge the approved changes into the main branch.
+5. We will review your pull request, provide feedback as needed, and eventually merge the approved changes into the develop branch.
 
 ## 4. Commit Message Format
 
