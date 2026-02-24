@@ -777,8 +777,16 @@ resource "azurerm_container_app" "rag_api" {
 # Provides a fixed internal IP that DNS points to, solving the problem of
 # Container Apps URLs changing when the environment is recreated.
 
+resource "azurerm_subnet" "app_gateway" {
+  count                = var.enable_app_gateway && var.app_gateway_create_subnet ? 1 : 0
+  name                 = var.app_gateway_subnet_name
+  resource_group_name  = var.existing_vnet_resource_group
+  virtual_network_name = var.existing_vnet_name
+  address_prefixes     = [var.app_gateway_subnet_address_prefix]
+}
+
 data "azurerm_subnet" "app_gateway" {
-  count                = var.enable_app_gateway ? 1 : 0
+  count                = var.enable_app_gateway && !var.app_gateway_create_subnet ? 1 : 0
   name                 = var.app_gateway_subnet_name
   virtual_network_name = var.existing_vnet_name
   resource_group_name  = var.existing_vnet_resource_group
@@ -793,10 +801,13 @@ module "application_gateway" {
   resource_group_name = azurerm_resource_group.main.name
   tags                = local.common_tags
 
-  # Network - use existing dedicated App Gateway subnet
+  # Network - use dedicated App Gateway subnet (created or existing)
   # IP is calculated dynamically from subnet CIDR using offset (e.g., offset 10 in 10.72.82.0/24 = 10.72.82.10)
-  subnet_id          = data.azurerm_subnet.app_gateway[0].id
-  private_ip_address = cidrhost(data.azurerm_subnet.app_gateway[0].address_prefixes[0], var.app_gateway_private_ip_offset)
+  subnet_id = var.app_gateway_create_subnet ? azurerm_subnet.app_gateway[0].id : data.azurerm_subnet.app_gateway[0].id
+  private_ip_address = cidrhost(
+    var.app_gateway_create_subnet ? azurerm_subnet.app_gateway[0].address_prefixes[0] : data.azurerm_subnet.app_gateway[0].address_prefixes[0],
+    var.app_gateway_private_ip_offset
+  )
 
   # Scaling
   min_capacity = var.app_gateway_min_capacity
@@ -806,7 +817,7 @@ module "application_gateway" {
   # first_deploy=true: disables SSL (cert must be manually added to Key Vault first)
   enable_ssl                          = !var.first_deploy && var.app_gateway_enable_ssl
   ssl_certificate_name                = var.app_gateway_ssl_certificate_name
-  ssl_certificate_key_vault_secret_id = "${azurerm_key_vault.main.vault_uri}secrets/${var.app_gateway_ssl_certificate_name}"
+  ssl_certificate_key_vault_secret_id = var.app_gateway_ssl_certificate_name != null ? "${azurerm_key_vault.main.vault_uri}secrets/${var.app_gateway_ssl_certificate_name}" : null
   key_vault_id                        = azurerm_key_vault.main.id
   key_vault_enable_rbac               = var.key_vault_enable_rbac_authorization
   rbac_propagation_wait_seconds       = var.key_vault_rbac_propagation_wait_seconds

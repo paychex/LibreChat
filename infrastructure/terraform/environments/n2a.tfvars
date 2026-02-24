@@ -15,10 +15,12 @@ new_subnet_address_prefix      = "10.72.58.0/27"
 infrastructure_subnet_id       = null
 
 # Application Gateway: stable internal endpoint for N2A
-enable_app_gateway      = true
-app_gateway_subnet_name = "snet-paychexai-appgw-n2a-001"
-app_gateway_host_name   = "play.ain2a.paychex.com"
-app_gateway_enable_ssl  = false # Disabled until SSL cert uploaded to Key Vault
+enable_app_gateway                = true
+app_gateway_subnet_name           = "snet-paychexai-appgw-n2a-001"
+app_gateway_create_subnet         = true
+app_gateway_subnet_address_prefix = "10.72.82.0/24"
+app_gateway_host_name             = "play.ain2a.paychex.com"
+app_gateway_enable_ssl            = false # Disabled until SSL cert uploaded to Key Vault
 
 # Private Endpoints - enterprise network security
 # Subnet ID constructed from subscription_id + VNet details (no hardcoded subscription IDs)

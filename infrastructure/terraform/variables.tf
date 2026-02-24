@@ -680,13 +680,35 @@ variable "enable_app_gateway" {
   default     = false
 
   validation {
-    condition     = !var.enable_app_gateway || (var.app_gateway_subnet_name != null && var.app_gateway_host_name != null)
-    error_message = "When enable_app_gateway=true, app_gateway_subnet_name and app_gateway_host_name are required."
+    condition = !var.enable_app_gateway || (
+      var.app_gateway_subnet_name != null &&
+      var.app_gateway_host_name != null &&
+      (
+        !var.app_gateway_create_subnet || (
+          var.app_gateway_subnet_address_prefix != null &&
+          var.existing_vnet_name != null &&
+          var.existing_vnet_resource_group != null
+        )
+      )
+    )
+    error_message = "When enable_app_gateway=true, set app_gateway_subnet_name and app_gateway_host_name. If app_gateway_create_subnet=true, also set app_gateway_subnet_address_prefix, existing_vnet_name, and existing_vnet_resource_group."
   }
 }
 
 variable "app_gateway_subnet_name" {
   description = "Name of existing subnet for Application Gateway (must be dedicated)"
+  type        = string
+  default     = null
+}
+
+variable "app_gateway_create_subnet" {
+  description = "Create a dedicated subnet for Application Gateway in the existing VNet"
+  type        = bool
+  default     = false
+}
+
+variable "app_gateway_subnet_address_prefix" {
+  description = "CIDR prefix for App Gateway subnet when app_gateway_create_subnet=true"
   type        = string
   default     = null
 }
