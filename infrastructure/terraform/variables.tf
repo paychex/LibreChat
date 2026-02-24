@@ -713,6 +713,12 @@ variable "app_gateway_resource_group_name" {
   default     = null
 }
 
+variable "app_gateway_name_override" {
+  description = "Override name for Application Gateway (uses naming convention when null)"
+  type        = string
+  default     = null
+}
+
 variable "app_gateway_create_subnet" {
   description = "Create a dedicated subnet for Application Gateway in the existing VNet"
   type        = bool

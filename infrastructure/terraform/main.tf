@@ -805,7 +805,7 @@ module "application_gateway" {
   count  = var.enable_app_gateway ? 1 : 0
   source = "./modules/application-gateway"
 
-  name                = "appgw-${local.name_prefix}-${local.location_short}-${var.environment}-${var.resource_suffix}"
+  name                = coalesce(var.app_gateway_name_override, "appgw-${local.name_prefix}-${local.location_short}-${var.environment}-${var.resource_suffix}")
   location            = azurerm_resource_group.main.location
   resource_group_name = coalesce(var.app_gateway_resource_group_name, azurerm_resource_group.main.name)
   tags                = local.common_tags
