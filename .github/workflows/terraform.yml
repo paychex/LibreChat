@@ -464,6 +464,13 @@ jobs:
               KV_NAME="kv-pyxplayai-${{ github.event.inputs.environment }}-${RESOURCE_SUFFIX}"
             fi
 
+            az login --service-principal \
+              -u "$ARM_CLIENT_ID" \
+              -p "$ARM_CLIENT_SECRET" \
+              --tenant "$ARM_TENANT_ID" \
+              --output none
+            az account set --subscription "$ARM_SUBSCRIPTION_ID"
+
             az keyvault set-policy \
               --name "$KV_NAME" \
               --spn "$ARM_CLIENT_ID" \
