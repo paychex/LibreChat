@@ -282,119 +282,15 @@ jobs:
           exit 1
 
   # ============================================================================
-  # N2A ACR BOOTSTRAP - Prod runner only
-  # ============================================================================
-  grant-acr-pull-prod:
-    name: Grant ACR Pull (n2a bootstrap)
-    needs: validate
-    if: |
-      github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.action == 'apply' &&
-      github.event.inputs.environment == 'n2a'
-    runs-on: paychex-ai-platform-arc-prod
-    defaults:
-      run:
-        working-directory: ${{ env.TF_WORKING_DIR }}
-    env:
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
-      ARM_CLIENT_ID: ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }}
-      ARM_CLIENT_SECRET: ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      TF_VAR_subscription_id: ${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
-      TF_VAR_private_dns_zone_subscription_id: ${{ secrets.AZURE_CLOUDPAYX_PROD_SUBSCRIPTION_ID }}
-      TF_VAR_first_deploy: ${{ vars.N2A_FIRST_DEPLOY == 'true' || secrets.N2A_FIRST_DEPLOY == 'true' }}
-      TF_VAR_payx_owner: ${{ vars.PAYX_OWNER }}
-      TF_VAR_payx_servicenow_group: ${{ vars.PAYX_SERVICENOW_GROUP }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Skip AcrPull bootstrap when first deploy is disabled
-        if: env.TF_VAR_first_deploy != 'true'
-        run: echo "ℹ️ N2A_FIRST_DEPLOY is not true; skipping prod-runner AcrPull bootstrap job."
-
-      - name: Setup Terraform
-        if: env.TF_VAR_first_deploy == 'true'
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-          terraform_wrapper: false
-
-      - name: Init
-        if: env.TF_VAR_first_deploy == 'true'
-        run: |
-          terraform init \
-            -backend-config="resource_group_name=rg-paychexai-tf-eastus-nonprod-001" \
-            -backend-config="storage_account_name=sapaychexaitfnonprod001" \
-            -backend-config="container_name=tfstate" \
-            -backend-config="key=librechat/n2a.tfstate" \
-            -backend-config="subscription_id=${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}"
-
-      - name: Bootstrap UAMI (nonprod)
-        if: env.TF_VAR_first_deploy == 'true'
-        run: |
-          az login --service-principal \
-            -u "${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }}" \
-            -p "${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}" \
-            --tenant "${{ secrets.AZURE_TENANT_ID }}" \
-            --output none
-          az account set --subscription "${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}"
-          terraform apply -auto-approve \
-            -var-file=environments/n2a.tfvars \
-            -target=azurerm_resource_group.main \
-            -target=azurerm_user_assigned_identity.container_app
-
-      - name: Grant AcrPull (prod runner)
-        if: env.TF_VAR_first_deploy == 'true'
-        run: |
-          set -e
-          PRINCIPAL_ID=$(terraform state show -no-color azurerm_user_assigned_identity.container_app | awk -F'=' '/principal_id/ {gsub(/[ "]/,"",$2); print $2; exit}')
-          if [ -z "$PRINCIPAL_ID" ]; then
-            echo "::error::Unable to resolve managed identity principal ID"
-            exit 1
-          fi
-
-          az login --service-principal \
-            -u "${{ secrets.ARC_RUNNER_SP_CLIENT_ID_PROD }}" \
-            -p "${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_PROD }}" \
-            --tenant "${{ secrets.AZURE_TENANT_ID }}" \
-            --output none
-          az account set --subscription "${{ secrets.AZURE_CLOUDPAYX_PROD_SUBSCRIPTION_ID }}"
-
-          ACR_SCOPE=$(az acr show --name conpaychexaiprod001 --query id -o tsv)
-          if [ -z "$ACR_SCOPE" ]; then
-            echo "::error::Unable to resolve prod ACR scope for conpaychexaiprod001"
-            exit 1
-          fi
-
-          EXISTING=$(az role assignment list --assignee "$PRINCIPAL_ID" --scope "$ACR_SCOPE" --role "AcrPull" --query "[0].id" -o tsv 2>/dev/null || echo "")
-          if [ -n "$EXISTING" ]; then
-            echo "✅ AcrPull role assignment already exists"
-          else
-            az role assignment create \
-              --assignee-object-id "$PRINCIPAL_ID" \
-              --assignee-principal-type ServicePrincipal \
-              --role "AcrPull" \
-              --scope "$ACR_SCOPE" \
-              --output none
-            echo "✅ AcrPull role assignment created"
-            sleep 30
-          fi
-
-  # ============================================================================
   # APPLY - Manual deployment
   # ============================================================================
   deploy:
     name: Apply (${{ github.event.inputs.environment }})
-    needs: [validate, grant-acr-pull-prod]
+    needs: validate
     if: |
-      always() &&
-      needs.validate.result == 'success' &&
       github.event_name == 'workflow_dispatch' && 
       github.event.inputs.action == 'apply' &&
-      (github.event.inputs.environment == 'sandbox' || github.event.inputs.environment == 'n2a') &&
-      (needs.grant-acr-pull-prod.result == 'success' || needs.grant-acr-pull-prod.result == 'skipped')
+      (github.event.inputs.environment == 'sandbox' || github.event.inputs.environment == 'n2a')
     runs-on: ${{ github.event.inputs.environment == 'sandbox' && 'paychex-ai-platform-arc-sandbox' || 'paychex-ai-platform-arc-nonprod' }}
     environment:
       name: ${{ github.event.inputs.environment }}
@@ -473,7 +369,7 @@ jobs:
       # This avoids first-pass failures when Container App revisions are created
       # before ACR permissions are in place.
       - name: Bootstrap UAMI
-        if: env.TF_VAR_first_deploy == 'true' && github.event.inputs.environment == 'sandbox'
+        if: env.TF_VAR_first_deploy == 'true'
         run: |
           terraform apply -auto-approve \
             -var-file=environments/${{ github.event.inputs.environment }}.tfvars \
@@ -482,7 +378,7 @@ jobs:
 
       # Ensure AcrPull exists before full apply for Terraform-managed environments.
       - name: Grant ACR Pull (pre-apply)
-        if: env.TF_VAR_first_deploy == 'true' && github.event.inputs.environment == 'sandbox'
+        if: env.TF_VAR_first_deploy == 'true'
         run: |
           set -e
 
@@ -494,7 +390,35 @@ jobs:
           fi
           echo "Principal ID: $PRINCIPAL_ID"
 
-          ACR_SCOPE="/subscriptions/${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}/resourceGroups/rg-paychexai-aks-eastus-sandbox-001/providers/Microsoft.ContainerRegistry/registries/acrpaychexaisandbox001"
+          case "${{ github.event.inputs.environment }}" in
+            sandbox)
+              az login --service-principal \
+                -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX }} \
+                -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX }} \
+                --tenant ${{ secrets.AZURE_TENANT_ID }} \
+                --output none
+              az account set --subscription ${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}
+              ACR_SCOPE="/subscriptions/${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}/resourceGroups/rg-paychexai-aks-eastus-sandbox-001/providers/Microsoft.ContainerRegistry/registries/acrpaychexaisandbox001"
+              ;;
+            n2a)
+              # n2a pulls from shared prod ACR
+              az login --service-principal \
+                -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_PROD }} \
+                -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_PROD }} \
+                --tenant ${{ secrets.AZURE_TENANT_ID }} \
+                --output none
+              az account set --subscription ${{ secrets.AZURE_CLOUDPAYX_PROD_SUBSCRIPTION_ID }}
+              ACR_SCOPE=$(az acr show --name conpaychexaiprod001 --query id -o tsv)
+              if [ -z "$ACR_SCOPE" ]; then
+                echo "::error::Unable to resolve prod ACR scope for conpaychexaiprod001"
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::Unsupported environment '${{ github.event.inputs.environment }}'"
+              exit 1
+              ;;
+          esac
 
           EXISTING=$(az role assignment list --assignee "$PRINCIPAL_ID" --scope "$ACR_SCOPE" --role "AcrPull" --query "[0].id" -o tsv 2>/dev/null || echo "")
           if [ -n "$EXISTING" ]; then
@@ -509,6 +433,23 @@ jobs:
             echo "✅ AcrPull role assignment created"
             # Allow Azure RBAC propagation before full apply.
             sleep 30
+          fi
+
+          # Restore original auth context for any later Azure CLI use in this job.
+          if [ "${{ github.event.inputs.environment }}" == "sandbox" ]; then
+            az login --service-principal \
+              -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX }} \
+              -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX }} \
+              --tenant ${{ secrets.AZURE_TENANT_ID }} \
+              --output none
+            az account set --subscription "${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}"
+          else
+            az login --service-principal \
+              -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }} \
+              -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }} \
+              --tenant ${{ secrets.AZURE_TENANT_ID }} \
+              --output none
+            az account set --subscription "${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}"
           fi
 
       - name: Plan
