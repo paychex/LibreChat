@@ -8,29 +8,31 @@ resource_suffix = "002"
 # Create new subnet in existing VNet (managed by network team)
 internal_load_balancer_enabled = true
 create_subnet                  = true
-existing_vnet_name             = "vnet-paychexai-eastus-nonprod-001"
+existing_vnet_name             = "vnet-paychexai-eastus-nonprod-002"
 existing_vnet_resource_group   = "rg-paychexai-shared-eastus-nonprod-001"
 new_subnet_name                = "snet-paychexai-conapps-n2a-003"
-new_subnet_address_prefix      = "10.72.58.0/27"
+new_subnet_address_prefix      = "10.76.3.0/27"
 infrastructure_subnet_id       = null
 
 # Application Gateway: stable internal endpoint for N2A
 enable_app_gateway                = true
 app_gateway_subnet_name           = "snet-paychexai-appgw-n2a-001"
+app_gateway_resource_group_name   = "rg-playai-shared-eastus-nonprod-001"
 app_gateway_create_subnet         = true
-app_gateway_subnet_address_prefix = "10.72.82.0/24"
+app_gateway_subnet_address_prefix = "10.76.5.0/24"
 app_gateway_host_name             = "play.ain2a.paychex.com"
 app_gateway_enable_ssl            = false # Disabled until SSL cert uploaded to Key Vault
 
 # Private Endpoints - enterprise network security
 # Subnet ID constructed from subscription_id + VNet details (no hardcoded subscription IDs)
 enable_private_endpoints     = true
-private_endpoint_subnet_name = "snet-paychexai-privateendpoints-n2a-001"
+private_endpoint_subnet_name = "snet-paychexai-privateendpoints-nonprod-001"
 
 # Key Vault Network Security - Deny by default, first_deploy=true temporarily allows
 # key_vault_subnet_ids auto-derived from private_endpoint_subnet when enable_private_endpoints=true
 key_vault_network_default_action = "Deny"
 key_vault_ip_rules               = ["141.123.123.100/32", "141.123.223.100/32"] # Paychex IPs
+key_vault_resource_group_name    = "rg-playai-shared-eastus-nonprod-001"
 
 # Storage Network Security - private access only
 storage_public_network_access  = false

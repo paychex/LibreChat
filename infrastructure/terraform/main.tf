@@ -61,7 +61,7 @@ resource "azurerm_application_insights" "main" {
 resource "azurerm_key_vault" "main" {
   name                = local.key_vault_name
   location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
+  resource_group_name = coalesce(var.key_vault_resource_group_name, azurerm_resource_group.main.name)
   tenant_id           = data.azurerm_client_config.current.tenant_id
   sku_name            = var.key_vault_sku
   tags                = local.common_tags
@@ -798,7 +798,7 @@ module "application_gateway" {
 
   name                = "appgw-${local.name_prefix}-${local.location_short}-${var.environment}-${var.resource_suffix}"
   location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
+  resource_group_name = coalesce(var.app_gateway_resource_group_name, azurerm_resource_group.main.name)
   tags                = local.common_tags
 
   # Network - use dedicated App Gateway subnet (created or existing)

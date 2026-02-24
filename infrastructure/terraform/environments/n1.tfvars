@@ -6,20 +6,23 @@ resource_suffix = "002"
 
 # Network Configuration - VNet Integration (matches existing N1)
 internal_load_balancer_enabled = true
-create_subnet                  = false
-existing_vnet_name             = "vnet-paychexai-eastus-nonprod-001"
+create_subnet                  = true
+existing_vnet_name             = "vnet-paychexai-eastus-nonprod-002"
 existing_vnet_resource_group   = "rg-paychexai-shared-eastus-nonprod-001"
-infrastructure_subnet_name     = "snet-paychexai-conapps-n1-002"
+new_subnet_name                = "snet-paychexai-conapps-n1-005"
+new_subnet_address_prefix      = "10.76.2.192/27"
+infrastructure_subnet_id       = null
 
 # Private Endpoints - enterprise network security
 # Subnet ID constructed from subscription_id + VNet details (no hardcoded subscription IDs)
 enable_private_endpoints     = true
-private_endpoint_subnet_name = "snet-paychexai-privateendpoints-n1-001"
+private_endpoint_subnet_name = "snet-paychexai-privateendpoints-nonprod-001"
 
 # Key Vault Network Security
 # key_vault_subnet_ids auto-derived from private_endpoint_subnet when enable_private_endpoints=true
 key_vault_network_default_action = "Deny"
 key_vault_ip_rules               = ["141.123.123.100/32", "141.123.223.100/32"]
+key_vault_resource_group_name    = "rg-playai-shared-eastus-nonprod-001"
 
 # Storage Network Security
 storage_public_network_access  = false
@@ -36,6 +39,9 @@ enable_meilisearch_container = true
 # Existing ACR (shared across environments)
 existing_acr_name           = "conpaychexaiprod001"
 existing_acr_resource_group = "rg-paychexai-shared-eastus-prod-001"
+
+# Shared App Gateway resource group (used when enable_app_gateway=true)
+app_gateway_resource_group_name = "rg-playai-shared-eastus-nonprod-001"
 
 # Domain Configuration
 domain = "play.ain1.paychex.com"

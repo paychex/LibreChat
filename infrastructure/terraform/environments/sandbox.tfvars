@@ -23,6 +23,7 @@ internal_load_balancer_enabled = true
 # If Container Apps is recreated, only App Gateway backend needs updating - DNS stays stable.
 enable_app_gateway               = true
 app_gateway_subnet_name          = "snet-paychexai-appgw-sandbox-001"
+app_gateway_resource_group_name  = "rg-playai-shared-eastus-sandbox-001"
 app_gateway_private_ip_offset    = 50
 app_gateway_host_name            = "play.aisb.paychex.com"
 app_gateway_enable_ssl           = false # Disabled until SSL cert uploaded to Key Vault
@@ -38,7 +39,8 @@ rag_api_image   = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
 existing_acr_name           = "acrpaychexaisandbox001"
 existing_acr_resource_group = "rg-paychexai-aks-eastus-sandbox-001"
 
-key_vault_name_override = "kv-pyxplayai-sandbox-001"
+key_vault_name_override       = "kv-pyxplayai-sandbox-001"
+key_vault_resource_group_name = "rg-playai-shared-eastus-sandbox-001"
 # Use the actual Container App FQDN (custom domain not configured yet)
 domain = "conpaichateastussandbox001.agreeablemeadow-1fccb990.eastus.azurecontainerapps.io"
 
