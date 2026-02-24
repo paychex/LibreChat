@@ -783,6 +783,15 @@ resource "azurerm_subnet" "app_gateway" {
   resource_group_name  = var.existing_vnet_resource_group
   virtual_network_name = var.existing_vnet_name
   address_prefixes     = [var.app_gateway_subnet_address_prefix]
+
+  delegation {
+    name = "Microsoft.Network.applicationGateways"
+
+    service_delegation {
+      name    = "Microsoft.Network/applicationGateways"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+    }
+  }
 }
 
 data "azurerm_subnet" "app_gateway" {
