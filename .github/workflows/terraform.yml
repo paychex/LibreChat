@@ -407,7 +407,7 @@ jobs:
                 -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_PROD }} \
                 --tenant ${{ secrets.AZURE_TENANT_ID }} \
                 --output none
-              az account set --subscription ${{ secrets.AZURE_CLOUDPAYX_PROD_SUBSCRIPTION_ID }}
+              az account set --subscription ${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}
               ACR_SCOPE=$(az acr show --name conpaychexaiprod001 --query id -o tsv)
               if [ -z "$ACR_SCOPE" ]; then
                 echo "::error::Unable to resolve prod ACR scope for conpaychexaiprod001"
