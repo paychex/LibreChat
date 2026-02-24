@@ -477,6 +477,16 @@ jobs:
               --secret-permissions get list set delete purge recover \
               --certificate-permissions get list import \
               --output none
+            DEPLOYER_OBJECT_ID=$(az keyvault show --name "$KV_NAME" --query "properties.accessPolicies[?applicationId=='$ARM_CLIENT_ID'].objectId | [0]" -o tsv)
+            if [ -z "$DEPLOYER_OBJECT_ID" ]; then
+              DEPLOYER_OBJECT_ID=$(az ad sp show --id "$ARM_CLIENT_ID" --query id -o tsv)
+            fi
+
+            if ! terraform state show 'azurerm_key_vault_access_policy.deployer[0]' >/dev/null 2>&1; then
+              KV_ID=$(az keyvault show --name "$KV_NAME" --query id -o tsv)
+              terraform import -var-file="$TFVARS" 'azurerm_key_vault_access_policy.deployer[0]' "${KV_ID}/objectId/${DEPLOYER_OBJECT_ID}" >/dev/null
+            fi
+
             echo "✅ Key Vault access policy ensured for runner SP on $KV_NAME"
           else
             echo "ℹ️ Key Vault RBAC mode enabled in tfvars; skipping access policy bootstrap"
