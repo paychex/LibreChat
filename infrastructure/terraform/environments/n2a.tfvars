@@ -34,8 +34,9 @@ key_vault_ip_rules               = ["141.123.123.100/32", "141.123.223.100/32"] 
 storage_public_network_access  = false
 storage_network_default_action = "Deny"
 
-# RAG API - standalone container app (not sidecar)
-enable_rag_sidecar = false
+# Sidecars in LibreChat container app
+enable_rag_sidecar           = true
+enable_meilisearch_container = true
 
 # Container Images (placeholder - CI/CD deploys actual images)
 librechat_image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
@@ -76,7 +77,7 @@ librechat_min_replicas        = 3
 librechat_max_replicas        = 6
 librechat_concurrent_requests = 25
 
-# RAG API scaling (standalone mode)
+# RAG API scaling (ignored in sidecar mode)
 rag_api_min_replicas = 2
 rag_api_max_replicas = 4
 

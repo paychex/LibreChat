@@ -33,8 +33,9 @@ storage_network_default_action = "Deny"
 librechat_image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
 rag_api_image   = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
 
-# RAG API - standalone container app (not sidecar)
-enable_rag_sidecar = false
+# Sidecars in LibreChat container app
+enable_rag_sidecar           = true
+enable_meilisearch_container = true
 
 # Existing ACR
 existing_acr_name           = "conpaychexaiprod001"
@@ -69,7 +70,7 @@ librechat_min_replicas        = 3
 librechat_max_replicas        = 6
 librechat_concurrent_requests = 25
 
-# RAG API scaling (standalone mode)
+# RAG API scaling (ignored in sidecar mode)
 rag_api_min_replicas = 3
 rag_api_max_replicas = 6
 
