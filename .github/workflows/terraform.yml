@@ -451,6 +451,30 @@ jobs:
       - name: Plan
         id: plan
         run: |
+          set -e
+          TFVARS="environments/${{ github.event.inputs.environment }}.tfvars"
+          KV_RBAC=$(awk -F'=' '/^key_vault_enable_rbac_authorization[[:space:]]*=/{gsub(/[[:space:]]/,"",$2); print tolower($2); exit}' "$TFVARS")
+          if [ "$KV_RBAC" != "true" ]; then
+            KV_NAME=$(awk -F'"' '/^key_vault_name_override[[:space:]]*=/{print $2; exit}' "$TFVARS")
+            if [ -z "$KV_NAME" ]; then
+              RESOURCE_SUFFIX=$(awk -F'"' '/^resource_suffix[[:space:]]*=/{print $2; exit}' "$TFVARS")
+              if [ -z "$RESOURCE_SUFFIX" ]; then
+                RESOURCE_SUFFIX="001"
+              fi
+              KV_NAME="kv-pyxplayai-${{ github.event.inputs.environment }}-${RESOURCE_SUFFIX}"
+            fi
+
+            az keyvault set-policy \
+              --name "$KV_NAME" \
+              --spn "$ARM_CLIENT_ID" \
+              --secret-permissions get list set delete purge recover \
+              --certificate-permissions get list import \
+              --output none
+            echo "✅ Key Vault access policy ensured for runner SP on $KV_NAME"
+          else
+            echo "ℹ️ Key Vault RBAC mode enabled in tfvars; skipping access policy bootstrap"
+          fi
+
           set +e
           terraform plan \
             -var-file=environments/${{ github.event.inputs.environment }}.tfvars \
