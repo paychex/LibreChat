@@ -405,6 +405,15 @@ variable "key_vault_enable_rbac_authorization" {
   default     = false
 }
 
+variable "key_vault_additional_role_assignments" {
+  description = "Additional Key Vault RBAC assignments when RBAC authorization is enabled"
+  type = map(object({
+    principal_id         = string
+    role_definition_name = string
+  }))
+  default = {}
+}
+
 variable "key_vault_rbac_propagation_wait_seconds" {
   description = "Wait time in seconds for Key Vault RBAC role assignment propagation before creating/updating dependent resources"
   type        = number

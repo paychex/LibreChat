@@ -165,6 +165,16 @@ jobs:
               ;;
           esac
 
+      - name: Set KV RBAC additional assignments
+        run: |
+          if [ "${{ matrix.environment }}" = "n2a" ] && [ -n "${{ secrets.N2A_KV_ADDITIONAL_ROLE_ASSIGNMENTS }}" ]; then
+            {
+              echo "TF_VAR_key_vault_additional_role_assignments<<EOF"
+              echo '${{ secrets.N2A_KV_ADDITIONAL_ROLE_ASSIGNMENTS }}'
+              echo "EOF"
+            } >> "$GITHUB_ENV"
+          fi
+
       - name: Init
         run: |
           terraform init \
@@ -357,6 +367,16 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: Set KV RBAC additional assignments
+        run: |
+          if [ "${{ github.event.inputs.environment }}" = "n2a" ] && [ -n "${{ secrets.N2A_KV_ADDITIONAL_ROLE_ASSIGNMENTS }}" ]; then
+            {
+              echo "TF_VAR_key_vault_additional_role_assignments<<EOF"
+              echo '${{ secrets.N2A_KV_ADDITIONAL_ROLE_ASSIGNMENTS }}'
+              echo "EOF"
+            } >> "$GITHUB_ENV"
+          fi
 
       - name: Init
         run: |

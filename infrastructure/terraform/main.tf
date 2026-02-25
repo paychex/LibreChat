@@ -141,6 +141,14 @@ resource "azurerm_role_assignment" "kv_certificates_officer_deployer" {
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
+resource "azurerm_role_assignment" "kv_additional" {
+  for_each = var.key_vault_enable_rbac_authorization ? var.key_vault_additional_role_assignments : {}
+
+  scope                = azurerm_key_vault.main.id
+  role_definition_name = each.value.role_definition_name
+  principal_id         = each.value.principal_id
+}
+
 # --- ACR Pull (always uses RBAC, independent of KV auth mode) ---
 resource "azurerm_role_assignment" "container_app_acr_pull" {
   count                = local.acr_id != null && !var.skip_acr_role_assignment ? 1 : 0
