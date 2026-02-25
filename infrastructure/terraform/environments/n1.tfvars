@@ -39,6 +39,7 @@ enable_meilisearch_container = true
 # Existing ACR (shared across environments)
 existing_acr_name           = "conpaychexaiprod001"
 existing_acr_resource_group = "rg-paychexai-shared-eastus-prod-001"
+skip_acr_role_assignment    = true
 
 # Shared App Gateway resource group (used when enable_app_gateway=true)
 app_gateway_resource_group_name = "rg-playai-shared-eastus-nonprod-001"

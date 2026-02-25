@@ -308,6 +308,8 @@ jobs:
       TF_VAR_private_dns_zone_subscription_id: ${{ secrets.AZURE_CLOUDPAYX_PROD_SUBSCRIPTION_ID }}
       # First deploy flag for authorized environments only (sandbox/n2a)
       TF_VAR_first_deploy: ${{ (github.event.inputs.environment == 'sandbox' && (vars.SANDBOX_FIRST_DEPLOY == 'true' || secrets.SANDBOX_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'n2a' && (vars.N2A_FIRST_DEPLOY == 'true' || secrets.N2A_FIRST_DEPLOY == 'true')) }}
+      # Optional override to re-run AcrPull idempotency without first_deploy
+      ACR_IDEMPOTENCY: ${{ (github.event.inputs.environment == 'sandbox' && vars.SANDBOX_ACR_IDEMPOTENCY == 'true') || (github.event.inputs.environment == 'n2a' && vars.N2A_ACR_IDEMPOTENCY == 'true') }}
       # Paychex tags - from GitHub repository variables
       TF_VAR_payx_owner: ${{ vars.PAYX_OWNER }}
       TF_VAR_payx_servicenow_group: ${{ vars.PAYX_SERVICENOW_GROUP }}
@@ -378,7 +380,7 @@ jobs:
 
       # Ensure AcrPull exists before full apply for Terraform-managed environments.
       - name: Grant ACR Pull (pre-apply)
-        if: env.TF_VAR_first_deploy == 'true'
+        if: env.TF_VAR_first_deploy == 'true' || env.ACR_IDEMPOTENCY == 'true'
         run: |
           set -e
 
