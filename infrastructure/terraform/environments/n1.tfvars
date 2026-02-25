@@ -91,7 +91,7 @@ liveness_probe_initial_delay  = 45
 liveness_probe_period         = 15
 
 # Storage
-storage_share_quota = 50
+storage_share_quota = 100
 
 # Tags (environment-specific overrides)
 tags = {
