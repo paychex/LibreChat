@@ -346,7 +346,7 @@ module "container_app" {
   # Ingress configuration
   ingress = {
     external_enabled = true
-    target_port      = var.first_deploy ? 80 : 3080
+    target_port      = (var.first_deploy || strcontains(var.librechat_image, "containerapps-helloworld")) ? 80 : 3080
     transport        = "auto"
     traffic_weight = [{
       latest_revision = true
@@ -507,9 +507,9 @@ module "container_app" {
   }
 
   # Health probes
-  # first_deploy=true: disables health probes (placeholder images don't have /health endpoint)
-  enable_health_probes = !var.first_deploy && var.enable_health_probes
-  readiness_probe = (!var.first_deploy && var.enable_health_probes) ? {
+  # Disable probes while bootstrapping with placeholder images (or first_deploy=true).
+  enable_health_probes = !(var.first_deploy || strcontains(var.librechat_image, "containerapps-helloworld")) && var.enable_health_probes
+  readiness_probe = (!(var.first_deploy || strcontains(var.librechat_image, "containerapps-helloworld")) && var.enable_health_probes) ? {
     path              = "/health"
     port              = 3080
     initial_delay     = var.readiness_probe_initial_delay
@@ -519,7 +519,7 @@ module "container_app" {
     failure_threshold = 3
   } : null
 
-  liveness_probe = (!var.first_deploy && var.enable_health_probes) ? {
+  liveness_probe = (!(var.first_deploy || strcontains(var.librechat_image, "containerapps-helloworld")) && var.enable_health_probes) ? {
     path              = "/health"
     port              = 3080
     initial_delay     = var.liveness_probe_initial_delay
