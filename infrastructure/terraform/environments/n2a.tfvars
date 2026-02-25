@@ -22,7 +22,8 @@ app_gateway_resource_group_name   = "rg-playai-shared-eastus-nonprod-001"
 app_gateway_create_subnet         = true
 app_gateway_subnet_address_prefix = "10.76.5.0/24"
 app_gateway_host_name             = "play.ain2a.paychex.com"
-app_gateway_enable_ssl            = false # Disabled until SSL cert uploaded to Key Vault
+app_gateway_enable_ssl            = true
+app_gateway_ssl_certificate_name  = "play-ain2a-paychex-com"
 app_gateway_probe_timeout_seconds = 60
 
 # Private Endpoints - enterprise network security
