@@ -86,19 +86,8 @@ variable "key_vault_id" {
   type        = string
 }
 
-variable "tenant_id" {
-  description = "Azure AD tenant ID"
-  type        = string
-}
-
-variable "key_vault_enable_rbac" {
-  description = "Whether Key Vault uses RBAC authorization"
-  type        = bool
-  default     = false
-}
-
 variable "rbac_propagation_wait_seconds" {
-  description = "Wait time in seconds for RBAC role assignment propagation (only used when key_vault_enable_rbac=true)"
+  description = "Wait time in seconds for Key Vault RBAC role assignment propagation"
   type        = number
   default     = 180
 }

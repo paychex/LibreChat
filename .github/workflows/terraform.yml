@@ -479,7 +479,6 @@ jobs:
         run: |
           set -e
           TFVARS="environments/${{ github.event.inputs.environment }}.tfvars"
-          KV_RBAC=$(awk -F'=' '/^key_vault_enable_rbac_authorization[[:space:]]*=/{gsub(/[[:space:]]/,"",$2); print tolower($2); exit}' "$TFVARS")
           KV_NAME=$(awk -F'"' '/^key_vault_name_override[[:space:]]*=/{print $2; exit}' "$TFVARS")
           if [ -z "$KV_NAME" ]; then
             RESOURCE_SUFFIX=$(awk -F'"' '/^resource_suffix[[:space:]]*=/{print $2; exit}' "$TFVARS")
@@ -501,28 +500,7 @@ jobs:
             if ! terraform state show 'azurerm_key_vault.main' >/dev/null 2>&1; then
               terraform import -var-file="$TFVARS" 'azurerm_key_vault.main' "$KV_ID" >/dev/null
             fi
-
-            if [ "$KV_RBAC" != "true" ]; then
-              az keyvault set-policy \
-                --name "$KV_NAME" \
-                --spn "$ARM_CLIENT_ID" \
-                --secret-permissions get list set delete purge recover \
-                --certificate-permissions get list import \
-                --output none
-
-              DEPLOYER_OBJECT_ID=$(az keyvault show --name "$KV_NAME" --query "properties.accessPolicies[?applicationId=='$ARM_CLIENT_ID'].objectId | [0]" -o tsv)
-              if [ -z "$DEPLOYER_OBJECT_ID" ]; then
-                DEPLOYER_OBJECT_ID=$(az ad sp show --id "$ARM_CLIENT_ID" --query id -o tsv)
-              fi
-
-              if ! terraform state show 'azurerm_key_vault_access_policy.deployer[0]' >/dev/null 2>&1; then
-                terraform import -var-file="$TFVARS" 'azurerm_key_vault_access_policy.deployer[0]' "${KV_ID}/objectId/${DEPLOYER_OBJECT_ID}" >/dev/null
-              fi
-
-              echo "✅ Key Vault access policy ensured for runner SP on $KV_NAME"
-            else
-              echo "ℹ️ Key Vault RBAC mode enabled in tfvars; skipped access policy bootstrap"
-            fi
+            echo "ℹ️ Reusing existing Key Vault $KV_NAME"
           else
             echo "ℹ️ Key Vault $KV_NAME not found; Terraform will create it"
           fi

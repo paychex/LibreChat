@@ -399,14 +399,8 @@ variable "key_vault_soft_delete_retention_days" {
   }
 }
 
-variable "key_vault_enable_rbac_authorization" {
-  description = "Enable RBAC authorization for Key Vault (recommended over access policies)"
-  type        = bool
-  default     = false
-}
-
 variable "key_vault_additional_role_assignments" {
-  description = "Additional Key Vault RBAC assignments when RBAC authorization is enabled"
+  description = "Additional Key Vault RBAC assignments"
   type = map(object({
     principal_id         = string
     role_definition_name = string

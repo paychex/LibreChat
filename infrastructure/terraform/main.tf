@@ -51,7 +51,7 @@ resource "azurerm_key_vault" "main" {
   # Security settings
   soft_delete_retention_days      = var.key_vault_soft_delete_retention_days
   purge_protection_enabled        = local.is_production
-  rbac_authorization_enabled      = var.key_vault_enable_rbac_authorization
+  rbac_authorization_enabled      = true
   enabled_for_disk_encryption     = false
   enabled_for_deployment          = false
   enabled_for_template_deployment = false
@@ -77,50 +77,13 @@ resource "azurerm_user_assigned_identity" "container_app" {
   tags                = local.common_tags
 }
 
-# --- Access Policy mode (when RBAC is disabled) ---
-resource "azurerm_key_vault_access_policy" "container_app_uami" {
-  count = var.key_vault_enable_rbac_authorization ? 0 : 1
-
-  key_vault_id = azurerm_key_vault.main.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_user_assigned_identity.container_app.principal_id
-
-  secret_permissions = ["Get", "List"]
-}
-
-resource "azurerm_key_vault_access_policy" "container_app" {
-  count = var.key_vault_enable_rbac_authorization ? 0 : 1
-
-  key_vault_id = azurerm_key_vault.main.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = module.container_app.identity_principal_id
-
-  secret_permissions = ["Get", "List"]
-
-  depends_on = [module.container_app]
-}
-
-resource "azurerm_key_vault_access_policy" "deployer" {
-  count = var.key_vault_enable_rbac_authorization ? 0 : 1
-
-  key_vault_id = azurerm_key_vault.main.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = data.azurerm_client_config.current.object_id
-
-  secret_permissions      = ["Get", "List", "Set", "Delete", "Purge", "Recover"]
-  certificate_permissions = ["Get", "List", "Import"]
-}
-
-# --- RBAC mode (when RBAC is enabled) ---
 resource "azurerm_role_assignment" "kv_secrets_user_uami" {
-  count                = var.key_vault_enable_rbac_authorization ? 1 : 0
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = azurerm_user_assigned_identity.container_app.principal_id
 }
 
 resource "azurerm_role_assignment" "kv_secrets_user_container_app" {
-  count                = var.key_vault_enable_rbac_authorization ? 1 : 0
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = module.container_app.identity_principal_id
@@ -128,21 +91,19 @@ resource "azurerm_role_assignment" "kv_secrets_user_container_app" {
 }
 
 resource "azurerm_role_assignment" "kv_secrets_officer_deployer" {
-  count                = var.key_vault_enable_rbac_authorization ? 1 : 0
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets Officer"
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
 resource "azurerm_role_assignment" "kv_certificates_officer_deployer" {
-  count                = var.key_vault_enable_rbac_authorization ? 1 : 0
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Certificates Officer"
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
 resource "azurerm_role_assignment" "kv_additional" {
-  for_each = var.key_vault_enable_rbac_authorization ? var.key_vault_additional_role_assignments : {}
+  for_each = var.key_vault_additional_role_assignments
 
   scope                = azurerm_key_vault.main.id
   role_definition_name = each.value.role_definition_name
@@ -160,7 +121,6 @@ resource "azurerm_role_assignment" "container_app_acr_pull" {
 # RBAC role assignments can take up to 10 minutes to propagate in Azure AD.
 # This sleep ensures the deployer's Secrets Officer role is active before creating secrets.
 resource "time_sleep" "wait_for_rbac_propagation" {
-  count           = var.key_vault_enable_rbac_authorization ? 1 : 0
   create_duration = "${var.key_vault_rbac_propagation_wait_seconds}s"
 
   depends_on = [
@@ -218,9 +178,8 @@ resource "azurerm_key_vault_secret" "secrets" {
   value        = each.value
   key_vault_id = azurerm_key_vault.main.id
 
-  # Ensure deployer has access before creating secrets (access policy OR RBAC with propagation wait)
+  # Ensure deployer RBAC has propagated before creating secrets
   depends_on = [
-    azurerm_key_vault_access_policy.deployer,
     time_sleep.wait_for_rbac_propagation
   ]
 
@@ -581,10 +540,9 @@ module "container_app" {
     ] : []
   )
 
-  # Ensure Key Vault secrets and access policy exist before Container App
+  # Ensure Key Vault secrets and RBAC are in place before Container App
   depends_on = [
     module.container_apps_environment,
-    azurerm_key_vault_access_policy.container_app_uami,
     azurerm_role_assignment.kv_secrets_user_uami,
     time_sleep.wait_for_rbac_propagation,
     azurerm_key_vault_secret.secrets,
@@ -757,7 +715,6 @@ resource "azurerm_container_app" "rag_api" {
 
   depends_on = [
     module.container_apps_environment,
-    azurerm_key_vault_access_policy.container_app_uami,
     azurerm_role_assignment.kv_secrets_user_uami,
     time_sleep.wait_for_rbac_propagation,
     azurerm_key_vault_secret.secrets,
@@ -818,9 +775,7 @@ module "application_gateway" {
   ssl_certificate_name                = var.app_gateway_ssl_certificate_name
   ssl_certificate_key_vault_secret_id = var.app_gateway_ssl_certificate_name != null ? "${azurerm_key_vault.main.vault_uri}secrets/${var.app_gateway_ssl_certificate_name}" : null
   key_vault_id                        = azurerm_key_vault.main.id
-  key_vault_enable_rbac               = var.key_vault_enable_rbac_authorization
   rbac_propagation_wait_seconds       = var.key_vault_rbac_propagation_wait_seconds
-  tenant_id                           = data.azurerm_client_config.current.tenant_id
 
   # Backend - points to Container Apps Environment static IP
   backend_ip_address           = module.container_apps_environment.static_ip_address

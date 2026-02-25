@@ -8,34 +8,22 @@ resource "azurerm_user_assigned_identity" "appgw" {
   tags                = var.tags
 }
 
-resource "azurerm_key_vault_access_policy" "appgw" {
-  count = var.enable_ssl && !var.key_vault_enable_rbac ? 1 : 0
-
-  key_vault_id = var.key_vault_id
-  tenant_id    = var.tenant_id
-  object_id    = azurerm_user_assigned_identity.appgw[0].principal_id
-
-  secret_permissions      = ["Get", "List"]
-  certificate_permissions = ["Get", "List"]
-}
-
-# RBAC mode: grant App Gateway identity access to KV secrets and certificates
 resource "azurerm_role_assignment" "appgw_kv_secrets_user" {
-  count                = var.enable_ssl && var.key_vault_enable_rbac ? 1 : 0
+  count                = var.enable_ssl ? 1 : 0
   scope                = var.key_vault_id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = azurerm_user_assigned_identity.appgw[0].principal_id
 }
 
 resource "azurerm_role_assignment" "appgw_kv_certificate_user" {
-  count                = var.enable_ssl && var.key_vault_enable_rbac ? 1 : 0
+  count                = var.enable_ssl ? 1 : 0
   scope                = var.key_vault_id
   role_definition_name = "Key Vault Certificate User"
   principal_id         = azurerm_user_assigned_identity.appgw[0].principal_id
 }
 
 resource "time_sleep" "wait_for_kv_rbac_propagation" {
-  count           = var.enable_ssl && var.key_vault_enable_rbac ? 1 : 0
+  count           = var.enable_ssl ? 1 : 0
   create_duration = "${var.rbac_propagation_wait_seconds}s"
 
   depends_on = [
@@ -154,9 +142,8 @@ resource "azurerm_application_gateway" "this" {
     backend_http_settings_name = "https-backend-settings"
   }
 
-  # Ensure KV access is granted before creating App Gateway (supports access policy and RBAC modes)
+  # Ensure KV RBAC access is granted before creating App Gateway
   depends_on = [
-    azurerm_key_vault_access_policy.appgw,
     time_sleep.wait_for_kv_rbac_propagation
   ]
 
