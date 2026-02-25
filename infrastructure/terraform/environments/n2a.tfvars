@@ -74,11 +74,11 @@ workload_profile_min_count = 3
 workload_profile_max_count = 6
 
 # Container Resources (N2A - moderate resources for UAT)
-librechat_cpu    = 2
-librechat_memory = "4Gi"
-rag_api_cpu      = 1
-rag_api_memory   = "4Gi"
-meilisearch_cpu  = 1
+librechat_cpu      = 2
+librechat_memory   = "4Gi"
+rag_api_cpu        = 1
+rag_api_memory     = "4Gi"
+meilisearch_cpu    = 1
 meilisearch_memory = "2Gi"
 
 # Scaling Configuration
