@@ -22,6 +22,7 @@ private_endpoint_subnet_name = "snet-paychexai-privateendpoints-nonprod-001"
 # key_vault_subnet_ids auto-derived from private_endpoint_subnet when enable_private_endpoints=true
 key_vault_network_default_action = "Deny"
 key_vault_ip_rules               = ["141.123.123.100/32", "141.123.223.100/32"]
+key_vault_name_override          = "kv-pyxplayai-nonprod-001"
 key_vault_resource_group_name    = "rg-playai-shared-eastus-nonprod-001"
 
 # Storage Network Security
