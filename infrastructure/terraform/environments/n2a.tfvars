@@ -78,6 +78,8 @@ librechat_cpu    = 2
 librechat_memory = "4Gi"
 rag_api_cpu      = 1
 rag_api_memory   = "4Gi"
+meilisearch_cpu  = 1
+meilisearch_memory = "2Gi"
 
 # Scaling Configuration
 librechat_min_replicas        = 3
