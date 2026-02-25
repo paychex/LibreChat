@@ -16,7 +16,7 @@
 #
 # Environments:
 #   sandbox  →  conpaichateastussandbox001  (RAG as sidecar)
-#   n2a      →  conpaichateastusn2a002      (RAG standalone: conpairageastusn2a002)
+#   n2a      →  conpaichateastusn2a002      (RAG sidecar: conpairag)
 # =============================================================================
 
 name: Deploy Application
@@ -119,8 +119,8 @@ jobs:
               echo "acr_host=conpaychexaiprod001.azurecr.io"             >> $GITHUB_OUTPUT
               echo "app_name=conpaichateastusn2a002"                     >> $GITHUB_OUTPUT
               echo "rg=rg-playai-eastus-n2a-002"                         >> $GITHUB_OUTPUT
-              echo "rag_mode=standalone"                                 >> $GITHUB_OUTPUT
-              echo "rag_app=conpairageastusn2a002"                       >> $GITHUB_OUTPUT
+              echo "rag_mode=sidecar"                                    >> $GITHUB_OUTPUT
+              echo "rag_app=conpairag"                                   >> $GITHUB_OUTPUT
               echo "tag_prefix=n2a"                                      >> $GITHUB_OUTPUT
               echo "config_file=librechat.n2a.yml"                       >> $GITHUB_OUTPUT
               echo "acr_tier=prod"                                       >> $GITHUB_OUTPUT
@@ -393,6 +393,17 @@ jobs:
               --resource-group "${{ needs.config.outputs.rg }}" \
               --container-name conpaichat \
               --image "${{ steps.image.outputs.full_image }}"
+
+            if [ "${{ needs.config.outputs.rag_mode }}" = "sidecar" ]; then
+              RAG_IMAGE="${{ needs.config.outputs.acr_host }}/paychex/rag_api:${{ needs.config.outputs.tag_prefix }}.latest"
+              echo "Updating RAG sidecar container to ${RAG_IMAGE}..."
+              az containerapp update \
+                --name "${{ needs.config.outputs.app_name }}" \
+                --resource-group "${{ needs.config.outputs.rg }}" \
+                --container-name "${{ needs.config.outputs.rag_app }}" \
+                --image "${RAG_IMAGE}" \
+                --output none
+            fi
 
       - name: Verify deployment
         if: always()
