@@ -195,7 +195,6 @@ After deployment, the following outputs are available:
 ```bash
 terraform output container_app_url
 terraform output key_vault_uri
-terraform output application_insights_instrumentation_key
 ```
 
 ## Updating Deployments

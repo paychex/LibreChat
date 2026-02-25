@@ -24,9 +24,7 @@ locals {
   container_app_name      = "con${var.app_name}${local.location_short}${var.environment}${var.resource_suffix}"
   key_vault_name          = coalesce(var.key_vault_name_override, "kv-pyx${local.name_prefix}-${var.environment}-${var.resource_suffix}")
   # Storage account name max 24 chars - use shortened env names
-  storage_account_name         = "st${var.app_name}${local.env_short}${var.resource_suffix}"
-  log_analytics_workspace_name = "log-${local.name_prefix}-${local.location_short}-${var.environment}-${var.resource_suffix}"
-  application_insights_name    = "appi-${local.name_prefix}-${local.location_short}-${var.environment}-${var.resource_suffix}"
+  storage_account_name = "st${var.app_name}${local.env_short}${var.resource_suffix}"
 
   # Short environment names for storage accounts (24 char limit)
   env_short_map = {

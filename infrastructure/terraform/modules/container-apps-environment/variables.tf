@@ -13,11 +13,6 @@ variable "location" {
   type        = string
 }
 
-variable "log_analytics_workspace_id" {
-  description = "ID of the Log Analytics workspace"
-  type        = string
-}
-
 variable "tags" {
   description = "Tags to apply to resources"
   type        = map(string)

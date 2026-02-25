@@ -79,17 +79,6 @@ variable "payx_servicenow_group" {
   # No default - must be provided via GitHub Actions variable
 }
 
-variable "log_analytics_retention_days" {
-  description = "Log Analytics workspace retention in days (30-730)"
-  type        = number
-  default     = 30
-
-  validation {
-    condition     = var.log_analytics_retention_days >= 30 && var.log_analytics_retention_days <= 730
-    error_message = "Log Analytics retention must be between 30 and 730 days."
-  }
-}
-
 variable "vnet_address_space" {
   description = "Address space for the virtual network"
   type        = list(string)
