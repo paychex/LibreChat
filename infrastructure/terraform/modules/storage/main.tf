@@ -56,6 +56,6 @@ resource "azurerm_storage_share" "shares" {
   name               = each.value.name
   storage_account_id = azurerm_storage_account.this.id
   quota              = each.value.quota
-  access_tier        = each.value.access_tier
+  access_tier        = var.account_kind == "FileStorage" ? null : each.value.access_tier
   enabled_protocol   = each.value.enabled_protocol
 }
