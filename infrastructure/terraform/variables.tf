@@ -445,6 +445,17 @@ variable "workload_profile_max_count" {
   default     = 3
 }
 
+variable "storage_account_kind" {
+  description = "Storage account kind"
+  type        = string
+  default     = "StorageV2"
+
+  validation {
+    condition     = contains(["StorageV2", "FileStorage"], var.storage_account_kind)
+    error_message = "Storage account kind must be one of: StorageV2, FileStorage."
+  }
+}
+
 variable "storage_account_tier" {
   description = "Storage account tier (Standard or Premium)"
   type        = string
@@ -453,6 +464,11 @@ variable "storage_account_tier" {
   validation {
     condition     = contains(["Standard", "Premium"], var.storage_account_tier)
     error_message = "Storage account tier must be 'Standard' or 'Premium'."
+  }
+
+  validation {
+    condition     = var.storage_account_kind != "FileStorage" || var.storage_account_tier == "Premium"
+    error_message = "FileStorage account kind requires storage_account_tier = Premium."
   }
 }
 
@@ -464,6 +480,11 @@ variable "storage_account_replication" {
   validation {
     condition     = contains(["LRS", "GRS", "ZRS", "RAGRS", "GZRS", "RAGZRS"], var.storage_account_replication)
     error_message = "Storage replication must be one of: LRS, GRS, ZRS, RAGRS, GZRS, RAGZRS."
+  }
+
+  validation {
+    condition     = var.storage_account_kind != "FileStorage" || contains(["LRS", "ZRS"], var.storage_account_replication)
+    error_message = "FileStorage account kind supports only LRS or ZRS replication."
   }
 }
 

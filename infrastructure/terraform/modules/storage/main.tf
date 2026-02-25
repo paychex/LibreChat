@@ -6,7 +6,7 @@ resource "azurerm_storage_account" "this" {
   account_tier             = var.account_tier
   account_replication_type = var.account_replication_type
   account_kind             = var.account_kind
-  access_tier              = var.access_tier
+  access_tier              = var.account_kind == "FileStorage" ? null : var.access_tier
 
   min_tls_version                 = var.min_tls_version
   https_traffic_only_enabled      = var.enable_https_traffic_only

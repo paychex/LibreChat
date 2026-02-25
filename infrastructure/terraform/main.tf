@@ -230,6 +230,7 @@ module "storage" {
   location            = azurerm_resource_group.main.location
   tags                = local.common_tags
 
+  account_kind             = var.storage_account_kind
   account_tier             = var.storage_account_tier
   account_replication_type = var.storage_account_replication
 
