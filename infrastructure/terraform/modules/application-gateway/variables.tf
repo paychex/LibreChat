@@ -117,6 +117,12 @@ variable "backend_host_name" {
   type        = string
 }
 
+variable "health_probe_timeout_seconds" {
+  description = "Health probe timeout in seconds"
+  type        = number
+  default     = 30
+}
+
 # =============================================================================
 # Listener Configuration
 # =============================================================================

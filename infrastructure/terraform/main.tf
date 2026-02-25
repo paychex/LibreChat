@@ -815,8 +815,9 @@ module "application_gateway" {
   tenant_id                           = data.azurerm_client_config.current.tenant_id
 
   # Backend - points to Container Apps Environment static IP
-  backend_ip_address = module.container_apps_environment.static_ip_address
-  backend_host_name  = module.container_app.fqdn
+  backend_ip_address           = module.container_apps_environment.static_ip_address
+  backend_host_name            = module.container_app.fqdn
+  health_probe_timeout_seconds = var.app_gateway_probe_timeout_seconds
 
   # Listener - custom domain for incoming requests
   listener_host_name = var.app_gateway_host_name

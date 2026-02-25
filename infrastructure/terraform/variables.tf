@@ -753,6 +753,12 @@ variable "app_gateway_host_name" {
   default     = null
 }
 
+variable "app_gateway_probe_timeout_seconds" {
+  description = "Application Gateway health probe timeout in seconds"
+  type        = number
+  default     = 30
+}
+
 variable "app_gateway_enable_ssl" {
   description = "Enable SSL/HTTPS on Application Gateway (requires certificate in Key Vault). If false, uses HTTP."
   type        = bool

@@ -125,7 +125,7 @@ resource "azurerm_application_gateway" "this" {
     protocol                                  = "Https"
     path                                      = "/health"
     interval                                  = 30
-    timeout                                   = 30
+    timeout                                   = var.health_probe_timeout_seconds
     unhealthy_threshold                       = 3
     pick_host_name_from_backend_http_settings = true
     match {
