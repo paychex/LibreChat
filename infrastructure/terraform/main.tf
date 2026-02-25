@@ -132,22 +132,29 @@ resource "time_sleep" "wait_for_rbac_propagation" {
 
 # Key Vault Secrets
 locals {
+  openid_client_secret_name = "${upper(var.environment)}-OPENID-CLIENT-SECRET"
+  jwt_refresh_secret_name   = "${upper(var.environment)}-JWT-REFRESH-SECRET"
+  creds_key_secret_name     = "${upper(var.environment)}-CREDS-KEY"
+  creds_iv_secret_name      = "${upper(var.environment)}-CREDS-IV"
+  maas_api_key_secret_name  = "${upper(var.environment)}-MAAS-API-KEY"
+  mongo_uri_secret_name     = "${upper(var.environment)}-MONGO-CONNECTION-STRING"
+
   # Placeholder values - update after first deploy
   base_kv_secrets = {
     "${upper(var.environment)}-OPENID-SESSION-SECRET" = "PLACEHOLDER-UPDATE-ME-${random_id.secret_suffix.hex}"
-    "${upper(var.environment)}-OPENID-CLIENT-SECRET"  = "PLACEHOLDER-UPDATE-ME-${random_id.secret_suffix.hex}"
+    (local.openid_client_secret_name)                 = "PLACEHOLDER-UPDATE-ME-${random_id.secret_suffix.hex}"
     "${upper(var.environment)}-JWT-SECRET"            = "PLACEHOLDER-UPDATE-ME-${random_id.secret_suffix.hex}"
-    "${upper(var.environment)}-JWT-REFRESH-SECRET"    = "PLACEHOLDER-UPDATE-ME-${random_id.secret_suffix.hex}"
-    "${upper(var.environment)}-CREDS-KEY"             = "PLACEHOLDER-UPDATE-ME-${random_id.secret_suffix.hex}"
-    "${upper(var.environment)}-CREDS-IV"              = "PLACEHOLDER-UPDATE-ME-${random_id.secret_suffix.hex}"
-    "${upper(var.environment)}-MAAS-API-KEY"          = "PLACEHOLDER-UPDATE-ME-${random_id.secret_suffix.hex}"
+    (local.jwt_refresh_secret_name)                   = "PLACEHOLDER-UPDATE-ME-${random_id.secret_suffix.hex}"
+    (local.creds_key_secret_name)                     = "PLACEHOLDER-UPDATE-ME-${random_id.secret_suffix.hex}"
+    (local.creds_iv_secret_name)                      = "PLACEHOLDER-UPDATE-ME-${random_id.secret_suffix.hex}"
+    (local.maas_api_key_secret_name)                  = "PLACEHOLDER-UPDATE-ME-${random_id.secret_suffix.hex}"
     "${upper(var.environment)}-TAVILY-API-KEY"        = "PLACEHOLDER-UPDATE-ME-${random_id.secret_suffix.hex}"
   }
 
   # MongoDB secrets - placeholder values for initial deployment (update manually for Atlas)
   # For sandbox with MongoDB container: set to mongodb://localhost:27017/librechat
   mongodb_placeholder_secrets = {
-    "${upper(var.environment)}-MONGO-CONNECTION-STRING"         = var.enable_mongodb_container ? "mongodb://localhost:27017/librechat" : "mongodb://placeholder:27017"
+    (local.mongo_uri_secret_name)                               = var.enable_mongodb_container ? "mongodb://localhost:27017/librechat" : "mongodb://placeholder:27017"
     "${upper(var.environment)}-RAG-API-MONGO-CONNECTION-STRING" = var.enable_mongodb_container ? "mongodb://localhost:27017/librechat" : "mongodb://placeholder:27017"
   }
 
@@ -525,14 +532,14 @@ module "container_app" {
   secrets = concat(
     [
       { name = "openid-session-secret", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${upper(var.environment)}-OPENID-SESSION-SECRET", identity = azurerm_user_assigned_identity.container_app.id },
-      { name = "creds-iv", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${upper(var.environment)}-CREDS-IV", identity = azurerm_user_assigned_identity.container_app.id },
-      { name = "creds-key", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${upper(var.environment)}-CREDS-KEY", identity = azurerm_user_assigned_identity.container_app.id },
+      { name = "creds-iv", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${local.creds_iv_secret_name}", identity = azurerm_user_assigned_identity.container_app.id },
+      { name = "creds-key", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${local.creds_key_secret_name}", identity = azurerm_user_assigned_identity.container_app.id },
       { name = "jwt-secret", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${upper(var.environment)}-JWT-SECRET", identity = azurerm_user_assigned_identity.container_app.id },
-      { name = "jwt-refresh-secret", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${upper(var.environment)}-JWT-REFRESH-SECRET", identity = azurerm_user_assigned_identity.container_app.id },
-      { name = "mongo-connection-string", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${upper(var.environment)}-MONGO-CONNECTION-STRING", identity = azurerm_user_assigned_identity.container_app.id },
+      { name = "jwt-refresh-secret", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${local.jwt_refresh_secret_name}", identity = azurerm_user_assigned_identity.container_app.id },
+      { name = "mongo-connection-string", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${local.mongo_uri_secret_name}", identity = azurerm_user_assigned_identity.container_app.id },
       { name = "rag-mongo-connection-string", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${upper(var.environment)}-RAG-API-MONGO-CONNECTION-STRING", identity = azurerm_user_assigned_identity.container_app.id },
-      { name = "client-secret", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${upper(var.environment)}-OPENID-CLIENT-SECRET", identity = azurerm_user_assigned_identity.container_app.id },
-      { name = "maas-api-key", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${upper(var.environment)}-MAAS-API-KEY", identity = azurerm_user_assigned_identity.container_app.id },
+      { name = "client-secret", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${local.openid_client_secret_name}", identity = azurerm_user_assigned_identity.container_app.id },
+      { name = "maas-api-key", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${local.maas_api_key_secret_name}", identity = azurerm_user_assigned_identity.container_app.id },
       { name = "tavily-api-key", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${upper(var.environment)}-TAVILY-API-KEY", identity = azurerm_user_assigned_identity.container_app.id },
     ],
     var.enable_meilisearch_container ? [
@@ -609,7 +616,7 @@ resource "azurerm_container_app" "rag_api" {
 
   secret {
     name                = "maas-api-key"
-    key_vault_secret_id = "${azurerm_key_vault.main.vault_uri}secrets/${upper(var.environment)}-MAAS-API-KEY"
+    key_vault_secret_id = "${azurerm_key_vault.main.vault_uri}secrets/${local.maas_api_key_secret_name}"
     identity            = azurerm_user_assigned_identity.container_app.id
   }
 
