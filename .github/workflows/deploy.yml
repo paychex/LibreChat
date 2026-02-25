@@ -17,6 +17,7 @@
 # Environments:
 #   sandbox  →  conpaichateastussandbox001  (RAG as sidecar)
 #   n2a      →  conpaichateastusn2a002      (RAG sidecar: conpairag)
+#   n1       →  conpaichateastusn1002       (RAG sidecar: conpairag)
 # =============================================================================
 
 name: Deploy Application
@@ -41,6 +42,7 @@ on:
         options:
           - sandbox
           - n2a
+          - n1
       action:
         description: 'Action to perform'
         required: true
@@ -125,18 +127,18 @@ jobs:
               echo "config_file=librechat.n2a.yml"                       >> $GITHUB_OUTPUT
               echo "acr_tier=prod"                                       >> $GITHUB_OUTPUT
               ;;
+            n1)
+              echo "runner=paychex-ai-platform-arc-nonprod"              >> $GITHUB_OUTPUT
+              echo "acr_host=conpaychexaiprod001.azurecr.io"             >> $GITHUB_OUTPUT
+              echo "app_name=conpaichateastusn1002"                      >> $GITHUB_OUTPUT
+              echo "rg=rg-playai-eastus-n1-002"                          >> $GITHUB_OUTPUT
+              echo "rag_mode=sidecar"                                    >> $GITHUB_OUTPUT
+              echo "rag_app=conpairag"                                   >> $GITHUB_OUTPUT
+              echo "tag_prefix=n1"                                       >> $GITHUB_OUTPUT
+              echo "config_file=librechat.n1.yml"                        >> $GITHUB_OUTPUT
+              echo "acr_tier=prod"                                       >> $GITHUB_OUTPUT
+              ;;
             # ── Future environments ──────────────────────────────
-            # n1)
-            #   echo "runner=paychex-ai-platform-arc-nonprod"            >> $GITHUB_OUTPUT
-            #   echo "acr_host=conpaychexaiprod001.azurecr.io"           >> $GITHUB_OUTPUT
-            #   echo "app_name=conpaichateastusn1002"                    >> $GITHUB_OUTPUT
-            #   echo "rg=rg-playai-eastus-n1-002"                       >> $GITHUB_OUTPUT
-            #   echo "rag_mode=standalone"                               >> $GITHUB_OUTPUT
-            #   echo "rag_app=conpairageastusn1002"                      >> $GITHUB_OUTPUT
-            #   echo "tag_prefix=n1"                                     >> $GITHUB_OUTPUT
-            #   echo "config_file=librechat.n1.yml"                      >> $GITHUB_OUTPUT
-            #   echo "acr_tier=prod"                                     >> $GITHUB_OUTPUT
-            #   ;;
             # prod)
             #   echo "runner=paychex-ai-platform-arc-prod"               >> $GITHUB_OUTPUT
             #   echo "acr_host=conpaychexaiprod001.azurecr.io"           >> $GITHUB_OUTPUT
@@ -310,16 +312,16 @@ jobs:
               --container-name conpaichat \
               --image "${{ steps.image.outputs.full_image }}"
 
-      # Ensure n2a workload identity can pull from shared prod ACR.
+      # Ensure nonprod workload identity can pull from shared prod ACR.
       # This keeps deploy workflow resilient when identity/revisions are recreated.
-      - name: Ensure n2a AcrPull on shared ACR
-        if: needs.config.outputs.environment == 'n2a'
+      - name: Ensure nonprod AcrPull on shared ACR
+        if: needs.config.outputs.environment == 'n2a' || needs.config.outputs.environment == 'n1'
         uses: azure/cli@v2
         with:
           inlineScript: |
             set -e
 
-            # Get n2a managed identity principal from nonprod subscription
+            # Get nonprod managed identity principal from nonprod subscription
             az login --service-principal \
               -u "${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }}" \
               -p "${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}" \
@@ -354,9 +356,9 @@ jobs:
                 --role "AcrPull" \
                 --scope "${ACR_SCOPE}" \
                 --output none
-              echo "Created AcrPull assignment for n2a identity."
+              echo "Created AcrPull assignment for ${IDENTITY_NAME}."
             else
-              echo "AcrPull assignment already present for n2a identity."
+              echo "AcrPull assignment already present for ${IDENTITY_NAME}."
             fi
 
       - name: Deploy to Container App (nonprod)
