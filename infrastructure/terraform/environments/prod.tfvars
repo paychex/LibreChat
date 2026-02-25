@@ -64,10 +64,12 @@ workload_profile_min_count = 3
 workload_profile_max_count = 6
 
 # Container Resources (Production - high resources)
-librechat_cpu    = 1
-librechat_memory = "8Gi"
-rag_api_cpu      = 1
-rag_api_memory   = "8Gi"
+librechat_cpu      = 1
+librechat_memory   = "8Gi"
+rag_api_cpu        = 1
+rag_api_memory     = "8Gi"
+meilisearch_cpu    = 1
+meilisearch_memory = "2Gi"
 
 # Scaling Configuration (Production - higher availability)
 librechat_min_replicas        = 3

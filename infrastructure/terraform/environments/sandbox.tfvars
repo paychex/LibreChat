@@ -60,10 +60,12 @@ workload_profile_min_count = 1
 workload_profile_max_count = 2
 
 # Container Resources (minimal for sandbox)
-librechat_cpu    = 0.5
-librechat_memory = "1Gi"
-rag_api_cpu      = 0.25
-rag_api_memory   = "0.5Gi"
+librechat_cpu      = 0.5
+librechat_memory   = "1Gi"
+rag_api_cpu        = 0.25
+rag_api_memory     = "0.5Gi"
+meilisearch_cpu    = 1
+meilisearch_memory = "2Gi"
 
 # Scaling (minimal)
 librechat_min_replicas        = 0
