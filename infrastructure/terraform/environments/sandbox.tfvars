@@ -57,7 +57,7 @@ rag_azure_openai_endpoint = "https://service-internal-n2a.paychex.com/is/librech
 workload_profile_name      = "paychexai"
 workload_profile_type      = "D4"
 workload_profile_min_count = 1
-workload_profile_max_count = 2
+workload_profile_max_count = 3
 
 # Container Resources (minimal for sandbox)
 librechat_cpu      = 0.5
