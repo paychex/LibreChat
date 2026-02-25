@@ -16,7 +16,7 @@ infrastructure_subnet_id       = null
 
 # Application Gateway: stable internal endpoint for N2A
 enable_app_gateway                = true
-app_gateway_subnet_name           = "snet-paychexai-appgw-n2a-001"
+app_gateway_subnet_name           = "snet-paychexai-playai-nonprod-001"
 app_gateway_name_override         = "appgw-playai-eastus-nonprod-001"
 app_gateway_resource_group_name   = "rg-playai-shared-eastus-nonprod-001"
 app_gateway_create_subnet         = true
