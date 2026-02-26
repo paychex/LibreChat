@@ -1003,6 +1003,16 @@ module "application_gateway" {
 
   # Listener - custom domain for incoming requests
   listener_host_name = var.app_gateway_host_name
+  additional_sites = [
+    for site in var.app_gateway_additional_sites : {
+      name                                = site.name
+      listener_host_name                  = site.listener_host_name
+      backend_ip_address                  = site.backend_ip_address
+      backend_host_name                   = site.backend_host_name
+      ssl_certificate_name                = site.ssl_certificate_name
+      ssl_certificate_key_vault_secret_id = "${azurerm_key_vault.main.vault_uri}secrets/${site.ssl_certificate_name}"
+    }
+  ]
 
   depends_on = [
     module.container_apps_environment,

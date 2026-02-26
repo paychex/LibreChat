@@ -120,3 +120,16 @@ variable "listener_host_name" {
   description = "Host name for the HTTPS listener (custom domain for incoming requests)"
   type        = string
 }
+
+variable "additional_sites" {
+  description = "Additional host-based listener and backend mappings for a shared Application Gateway"
+  type = list(object({
+    name                                = string
+    listener_host_name                  = string
+    backend_ip_address                  = string
+    backend_host_name                   = string
+    ssl_certificate_name                = string
+    ssl_certificate_key_vault_secret_id = string
+  }))
+  default = []
+}

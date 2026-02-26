@@ -44,8 +44,24 @@ existing_acr_name           = "conpaychexaiprod001"
 existing_acr_resource_group = "rg-paychexai-shared-eastus-prod-001"
 skip_acr_role_assignment    = true
 
-# Shared App Gateway resource group (used when enable_app_gateway=true)
-app_gateway_resource_group_name = "rg-playai-shared-eastus-nonprod-001"
+# Shared App Gateway (serves both N1 and N2A)
+enable_app_gateway                = true
+app_gateway_subnet_name           = "snet-paychexai-playai-nonprod-001"
+app_gateway_name_override         = "appgw-playai-eastus-nonprod-001"
+app_gateway_resource_group_name   = "rg-playai-shared-eastus-nonprod-001"
+app_gateway_host_name             = "play.ain1.paychex.com"
+app_gateway_enable_ssl            = true
+app_gateway_ssl_certificate_name  = "play-ain1-paychex-com"
+app_gateway_probe_timeout_seconds = 60
+app_gateway_additional_sites = [
+  {
+    name                 = "n2a"
+    listener_host_name   = "play.ain2a.paychex.com"
+    backend_ip_address   = "10.76.3.16"
+    backend_host_name    = "conpaichateastusn2a002.agreeablegrass-367bee9c.eastus.azurecontainerapps.io"
+    ssl_certificate_name = "play-ain2a-paychex-com"
+  }
+]
 
 # Domain Configuration
 domain = "play.ain1.paychex.com"

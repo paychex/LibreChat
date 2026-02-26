@@ -890,6 +890,18 @@ variable "app_gateway_ssl_certificate_name" {
   default     = null
 }
 
+variable "app_gateway_additional_sites" {
+  description = "Additional host-to-backend mappings for a shared Application Gateway (managed by one environment)"
+  type = list(object({
+    name                 = string
+    listener_host_name   = string
+    backend_ip_address   = string
+    backend_host_name    = string
+    ssl_certificate_name = string
+  }))
+  default = []
+}
+
 variable "app_gateway_min_capacity" {
   description = "Minimum autoscale capacity for Application Gateway"
   type        = number
