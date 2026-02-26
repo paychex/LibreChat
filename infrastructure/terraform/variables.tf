@@ -218,6 +218,12 @@ variable "private_dns_zone_name_storage" {
   default     = "privatelink.file.core.windows.net"
 }
 
+variable "private_dns_zone_name_redis_enterprise" {
+  description = "Private DNS zone name for Redis Enterprise private endpoints"
+  type        = string
+  default     = "privatelink.redisenterprise.cache.azure.net"
+}
+
 variable "key_vault_network_default_action" {
   description = "Default action for Key Vault network ACLs (Deny recommended for production)"
   type        = string
@@ -565,6 +571,111 @@ variable "rag_api_max_replicas" {
   description = "Maximum replicas for standalone RAG API container app (only used when enable_rag_sidecar=false)"
   type        = number
   default     = 3
+}
+
+variable "enable_langgraph_proxy" {
+  description = "Deploy LangGraph proxy as a standalone Container App"
+  type        = bool
+  default     = false
+}
+
+variable "langgraph_proxy_image" {
+  description = "Container image for LangGraph proxy"
+  type        = string
+  default     = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+}
+
+variable "langgraph_proxy_cpu" {
+  description = "CPU cores for LangGraph proxy container"
+  type        = number
+  default     = 0.5
+}
+
+variable "langgraph_proxy_memory" {
+  description = "Memory for LangGraph proxy container (e.g., '1Gi', '2Gi')"
+  type        = string
+  default     = "1Gi"
+}
+
+variable "langgraph_proxy_port" {
+  description = "Container port for LangGraph proxy"
+  type        = number
+  default     = 8001
+}
+
+variable "langgraph_proxy_min_replicas" {
+  description = "Minimum replicas for LangGraph proxy"
+  type        = number
+  default     = 1
+}
+
+variable "langgraph_proxy_max_replicas" {
+  description = "Maximum replicas for LangGraph proxy"
+  type        = number
+  default     = 3
+}
+
+variable "langgraph_proxy_concurrent_requests" {
+  description = "Concurrent requests for LangGraph proxy HTTP scaling"
+  type        = number
+  default     = 25
+}
+
+variable "redis_enterprise_sku_name" {
+  description = "SKU name for Azure Managed Redis Enterprise cluster"
+  type        = string
+  default     = "Enterprise_E10-2"
+}
+
+variable "redis_enterprise_minimum_tls_version" {
+  description = "Minimum TLS version for Azure Managed Redis Enterprise cluster"
+  type        = string
+  default     = "1.2"
+
+  validation {
+    condition     = contains(["1.0", "1.1", "1.2"], var.redis_enterprise_minimum_tls_version)
+    error_message = "redis_enterprise_minimum_tls_version must be one of: 1.0, 1.1, 1.2."
+  }
+}
+
+variable "redis_enterprise_zones" {
+  description = "Availability zones for Azure Managed Redis Enterprise cluster"
+  type        = list(string)
+  default     = []
+}
+
+variable "redis_enterprise_database_name" {
+  description = "Database name for Azure Managed Redis Enterprise"
+  type        = string
+  default     = "default"
+}
+
+variable "redis_enterprise_client_protocol" {
+  description = "Client protocol for Azure Managed Redis Enterprise database"
+  type        = string
+  default     = "Encrypted"
+
+  validation {
+    condition     = contains(["Encrypted", "Plaintext"], var.redis_enterprise_client_protocol)
+    error_message = "redis_enterprise_client_protocol must be Encrypted or Plaintext."
+  }
+}
+
+variable "redis_enterprise_clustering_policy" {
+  description = "Clustering policy for Azure Managed Redis Enterprise database"
+  type        = string
+  default     = "OSSCluster"
+
+  validation {
+    condition     = contains(["OSSCluster", "EnterpriseCluster"], var.redis_enterprise_clustering_policy)
+    error_message = "redis_enterprise_clustering_policy must be OSSCluster or EnterpriseCluster."
+  }
+}
+
+variable "redis_enterprise_eviction_policy" {
+  description = "Eviction policy for Azure Managed Redis Enterprise database"
+  type        = string
+  default     = "NoEviction"
 }
 
 variable "openid_issuer" {

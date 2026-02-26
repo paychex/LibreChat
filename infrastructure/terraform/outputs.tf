@@ -126,6 +126,38 @@ output "rag_api_container_app_fqdn" {
   value       = var.enable_rag_sidecar ? null : try(azurerm_container_app.rag_api[0].ingress[0].fqdn, null)
 }
 
+# LangGraph Proxy Container App (standalone)
+
+output "langgraph_proxy_enabled" {
+  description = "Whether LangGraph proxy is enabled"
+  value       = var.enable_langgraph_proxy
+}
+
+output "langgraph_proxy_container_app_name" {
+  description = "Name of the standalone LangGraph proxy Container App (null if disabled)"
+  value       = var.enable_langgraph_proxy ? azurerm_container_app.langgraph_proxy[0].name : null
+}
+
+output "langgraph_proxy_container_app_fqdn" {
+  description = "FQDN of the standalone LangGraph proxy Container App (null if disabled)"
+  value       = var.enable_langgraph_proxy ? try(azurerm_container_app.langgraph_proxy[0].ingress[0].fqdn, null) : null
+}
+
+output "langgraph_proxy_internal_url" {
+  description = "Internal URL used by LibreChat to reach LangGraph proxy (null if disabled)"
+  value       = var.enable_langgraph_proxy ? local.langgraph_proxy_internal_url : null
+}
+
+output "redis_enterprise_hostname" {
+  description = "Azure Managed Redis Enterprise hostname (null if LangGraph proxy disabled)"
+  value       = var.enable_langgraph_proxy ? azurerm_redis_enterprise_cluster.langgraph[0].hostname : null
+}
+
+output "redis_enterprise_port" {
+  description = "Azure Managed Redis Enterprise database port (null if LangGraph proxy disabled)"
+  value       = var.enable_langgraph_proxy ? azurerm_redis_enterprise_database.langgraph[0].port : null
+}
+
 output "environment" {
   description = "Environment name"
   value       = var.environment
@@ -181,4 +213,14 @@ output "private_endpoint_storage_id" {
 output "private_endpoint_storage_ip" {
   description = "Private IP address of the Storage private endpoint"
   value       = length(module.private_endpoint_storage) > 0 ? module.private_endpoint_storage[0].private_ip_address : null
+}
+
+output "private_endpoint_redis_enterprise_id" {
+  description = "ID of the Redis Enterprise private endpoint"
+  value       = length(module.private_endpoint_redis_enterprise) > 0 ? module.private_endpoint_redis_enterprise[0].id : null
+}
+
+output "private_endpoint_redis_enterprise_ip" {
+  description = "Private IP address of the Redis Enterprise private endpoint"
+  value       = length(module.private_endpoint_redis_enterprise) > 0 ? module.private_endpoint_redis_enterprise[0].private_ip_address : null
 }

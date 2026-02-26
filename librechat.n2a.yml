@@ -13,6 +13,7 @@ modelSpecs:
     - "Gemini 2.5 Pro"
     - "Gemini 2.5 Flash"
     - "Claude Sonnet 4.5"
+    - "LangGraph Agents"
   list:
     - name: azure-gpt-4o
       label: GPT-4o
@@ -135,4 +136,14 @@ endpoints:
       titleConvo: true
       modelDisplayLabel: "Claude Sonnet 4.5"
       # Streaming enabled - Kong translates to OpenAI SSE format
+      streamRate: 25
+    - name: "LangGraph Agents"
+      apiKey: "${LANGGRAPH_PROXY_API_KEY}"
+      baseURL: "${LANGGRAPH_PROXY_BASE_URL}"
+      directEndpoint: true
+      models:
+        default:
+          - langgraph-agent
+        fetch: true
+      modelDisplayLabel: "LangGraph Agents"
       streamRate: 25

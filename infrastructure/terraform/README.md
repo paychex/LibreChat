@@ -126,8 +126,11 @@ Before deploying, ensure the following secrets exist in your Key Vault:
 | `{ENV}-RAG-API-MONGO-CONNECTION-STRING` | RAG API MongoDB connection string |
 | `{ENV}-MAAS-API-KEY` | MaaS API key (Azure OpenAI) |
 | `{ENV}-TAVILY-API-KEY` | Tavily API key (optional) |
+| `{ENV}-LANGGRAPH-PROXY-API-KEY` | LangGraph proxy API key (OpenAI-compatible endpoint auth) |
+| `{ENV}-LANGGRAPH-REDIS-URI` | Redis URI used by LangGraph proxy |
+| `{ENV}-LANGGRAPH-REDIS-PASSWORD` | Redis password used by LangGraph proxy |
 
-Where `{ENV}` is one of: `N1`, `N2A`, `PROD`
+Where `{ENV}` is one of: `SANDBOX`, `N1`, `N2A`, `PROD`
 
 ## Configuration Reference
 
@@ -155,6 +158,15 @@ Where `{ENV}` is one of: `N1`, `N2A`, `PROD`
 | `allow_registration` | `false` | Allow user registration |
 | `allow_email_login` | `false` | Allow email login |
 | `allow_social_login` | `true` | Allow social login |
+| `enable_langgraph_proxy` | `false` | Deploy standalone LangGraph proxy Container App + Redis resources |
+| `langgraph_proxy_image` | `"mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"` | LangGraph proxy container image |
+| `langgraph_proxy_cpu` | `0.5` | CPU cores for LangGraph proxy |
+| `langgraph_proxy_memory` | `"1Gi"` | Memory for LangGraph proxy |
+| `langgraph_proxy_min_replicas` | `1` | Minimum LangGraph proxy replicas |
+| `langgraph_proxy_max_replicas` | `3` | Maximum LangGraph proxy replicas |
+| `redis_enterprise_sku_name` | `"Enterprise_E10-2"` | Redis Enterprise SKU for LangGraph caching/state |
+| `redis_enterprise_database_name` | `"default"` | Redis Enterprise database name |
+| `private_dns_zone_name_redis_enterprise` | `"privatelink.redisenterprise.cache.azure.net"` | Private DNS zone for Redis Enterprise private endpoint |
 
 ## Remote State (Recommended for Team Use)
 
@@ -195,7 +207,11 @@ After deployment, the following outputs are available:
 ```bash
 terraform output container_app_url
 terraform output key_vault_uri
+terraform output langgraph_proxy_internal_url
+terraform output redis_enterprise_hostname
 ```
+
+> Note: The current provider marks `azurerm_redis_enterprise_cluster` as deprecated in favor of `azurerm_managed_redis_cluster`. This implementation keeps Redis Enterprise for current compatibility and can be migrated later.
 
 ## Updating Deployments
 

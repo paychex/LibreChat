@@ -8,6 +8,7 @@ location    = "East US"
 enable_mongodb_container     = true
 enable_meilisearch_container = true
 enable_rag_sidecar           = true
+enable_langgraph_proxy       = true
 
 # Network: Internal mode using sandbox VNet
 create_subnet                  = true
@@ -32,8 +33,9 @@ app_gateway_min_capacity         = 0
 app_gateway_max_capacity         = 2
 
 # Container Images (CI/CD deploys actual images)
-librechat_image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
-rag_api_image   = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+librechat_image       = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+rag_api_image         = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+langgraph_proxy_image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
 
 # Existing ACR
 existing_acr_name           = "acrpaychexaisandbox001"

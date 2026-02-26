@@ -132,12 +132,15 @@ resource "time_sleep" "wait_for_rbac_propagation" {
 
 # Key Vault Secrets
 locals {
-  openid_client_secret_name = "${upper(var.environment)}-OPENID-CLIENT-SECRET"
-  jwt_refresh_secret_name   = "${upper(var.environment)}-JWT-REFRESH-SECRET"
-  creds_key_secret_name     = "${upper(var.environment)}-CREDS-KEY"
-  creds_iv_secret_name      = "${upper(var.environment)}-CREDS-IV"
-  maas_api_key_secret_name  = "${upper(var.environment)}-MAAS-API-KEY"
-  mongo_uri_secret_name     = "${upper(var.environment)}-MONGO-CONNECTION-STRING"
+  openid_client_secret_name            = "${upper(var.environment)}-OPENID-CLIENT-SECRET"
+  jwt_refresh_secret_name              = "${upper(var.environment)}-JWT-REFRESH-SECRET"
+  creds_key_secret_name                = "${upper(var.environment)}-CREDS-KEY"
+  creds_iv_secret_name                 = "${upper(var.environment)}-CREDS-IV"
+  maas_api_key_secret_name             = "${upper(var.environment)}-MAAS-API-KEY"
+  mongo_uri_secret_name                = "${upper(var.environment)}-MONGO-CONNECTION-STRING"
+  langgraph_proxy_api_key_secret_name  = "${upper(var.environment)}-LANGGRAPH-PROXY-API-KEY"
+  langgraph_redis_uri_secret_name      = "${upper(var.environment)}-LANGGRAPH-REDIS-URI"
+  langgraph_redis_password_secret_name = "${upper(var.environment)}-LANGGRAPH-REDIS-PASSWORD"
 
   # Placeholder values - update after first deploy
   base_kv_secrets = {
@@ -163,8 +166,20 @@ locals {
     "${upper(var.environment)}-MEILISEARCH-MASTER-KEY" = random_password.meilisearch_master_key[0].result
   } : {}
 
+  # LangGraph proxy + Redis secrets
+  langgraph_proxy_secrets = var.enable_langgraph_proxy ? {
+    (local.langgraph_proxy_api_key_secret_name)  = "PLACEHOLDER-UPDATE-ME-${random_id.secret_suffix.hex}"
+    (local.langgraph_redis_password_secret_name) = azurerm_redis_enterprise_database.langgraph[0].primary_access_key
+    (local.langgraph_redis_uri_secret_name)      = "rediss://:${azurerm_redis_enterprise_database.langgraph[0].primary_access_key}@${azurerm_redis_enterprise_cluster.langgraph[0].hostname}:${azurerm_redis_enterprise_database.langgraph[0].port}"
+  } : {}
+
   # Combine the secrets
-  kv_secrets = merge(local.base_kv_secrets, local.mongodb_placeholder_secrets, local.meilisearch_secrets)
+  kv_secrets = merge(
+    local.base_kv_secrets,
+    local.mongodb_placeholder_secrets,
+    local.meilisearch_secrets,
+    local.langgraph_proxy_secrets
+  )
 }
 
 resource "random_id" "secret_suffix" {
@@ -239,6 +254,30 @@ module "storage" {
   )
 }
 
+# =============================================================================
+# Azure Managed Redis (Redis Enterprise) for LangGraph proxy
+# =============================================================================
+
+resource "azurerm_redis_enterprise_cluster" "langgraph" {
+  count               = var.enable_langgraph_proxy ? 1 : 0
+  name                = local.redis_enterprise_cluster_name
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  sku_name            = var.redis_enterprise_sku_name
+  minimum_tls_version = var.redis_enterprise_minimum_tls_version
+  zones               = length(var.redis_enterprise_zones) > 0 ? var.redis_enterprise_zones : null
+  tags                = local.common_tags
+}
+
+resource "azurerm_redis_enterprise_database" "langgraph" {
+  count             = var.enable_langgraph_proxy ? 1 : 0
+  name              = var.redis_enterprise_database_name
+  cluster_id        = azurerm_redis_enterprise_cluster.langgraph[0].id
+  client_protocol   = var.redis_enterprise_client_protocol
+  clustering_policy = var.redis_enterprise_clustering_policy
+  eviction_policy   = var.redis_enterprise_eviction_policy
+}
+
 # Private Endpoints for Key Vault and Storage
 # Required for enterprise-grade network security (N2A/N1/Prod)
 # Skipped during first_deploy to allow GitHub runner access for initial provisioning
@@ -273,6 +312,21 @@ module "private_endpoint_storage" {
 
   # Attach to shared private DNS zones so records are created on private endpoint provisioning
   private_dns_zone_ids = local.private_dns_zone_ids_storage
+}
+
+module "private_endpoint_redis_enterprise" {
+  count  = var.enable_langgraph_proxy && var.enable_private_endpoints && !var.first_deploy ? 1 : 0
+  source = "./modules/private-endpoint"
+
+  name                           = "pept-${local.name_prefix}-redis-${var.environment}-${var.resource_suffix}"
+  location                       = azurerm_resource_group.main.location
+  resource_group_name            = azurerm_resource_group.main.name
+  subnet_id                      = local.resolved_private_endpoint_subnet_id
+  private_connection_resource_id = azurerm_redis_enterprise_cluster.langgraph[0].id
+  subresource_names              = ["redisEnterprise"]
+  tags                           = local.common_tags
+
+  private_dns_zone_ids = local.private_dns_zone_ids_redis_enterprise
 }
 
 module "container_apps_environment" {
@@ -402,6 +456,7 @@ module "container_app" {
         { name = "HOST", value = "0.0.0.0" },
         { name = "NODE_EXTRA_CA_CERTS", value = "/app/paychex-root.pem" },
         { name = "RAG_API_URL", value = local.rag_api_internal_url },
+        { name = "LANGGRAPH_PROXY_BASE_URL", value = var.enable_langgraph_proxy ? local.langgraph_proxy_internal_url : "" },
         { name = "RAG_USE_FULL_CONTEXT", value = "TRUE" },
         { name = "CONSOLE_JSON", value = var.console_json ? "TRUE" : "FALSE" },
         { name = "DEBUG_LOGGING", value = var.debug_logging ? "TRUE" : "FALSE" },
@@ -425,6 +480,9 @@ module "container_app" {
         { name = "GCP_VERTEXAI_API_KEY", secret_name = "maas-api-key" },
         { name = "TAVILY_API_KEY", secret_name = "tavily-api-key" },
       ],
+      var.enable_langgraph_proxy ? [
+        { name = "LANGGRAPH_PROXY_API_KEY", secret_name = "langgraph-proxy-api-key" },
+      ] : [],
       var.enable_meilisearch_container ? [
         { name = "MEILI_MASTER_KEY", secret_name = "meilisearch-master-key" },
       ] : []
@@ -553,6 +611,9 @@ module "container_app" {
       { name = "maas-api-key", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${local.maas_api_key_secret_name}", identity = azurerm_user_assigned_identity.container_app.id },
       { name = "tavily-api-key", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${upper(var.environment)}-TAVILY-API-KEY", identity = azurerm_user_assigned_identity.container_app.id },
     ],
+    var.enable_langgraph_proxy ? [
+      { name = "langgraph-proxy-api-key", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${local.langgraph_proxy_api_key_secret_name}", identity = azurerm_user_assigned_identity.container_app.id },
+    ] : [],
     var.enable_meilisearch_container ? [
       { name = "meilisearch-master-key", key_vault_secret_url = "${azurerm_key_vault.main.vault_uri}secrets/${upper(var.environment)}-MEILISEARCH-MASTER-KEY", identity = azurerm_user_assigned_identity.container_app.id },
     ] : []
@@ -740,6 +801,144 @@ resource "azurerm_container_app" "rag_api" {
     module.container_apps_environment,
     azurerm_role_assignment.kv_secrets_user_uami,
     time_sleep.wait_for_rbac_propagation,
+    azurerm_key_vault_secret.secrets,
+  ]
+}
+
+# =============================================================================
+# LangGraph Proxy Container App (standalone)
+# Deployed as independent app in same Container Apps Environment
+# =============================================================================
+
+resource "azurerm_container_app" "langgraph_proxy" {
+  count                        = var.enable_langgraph_proxy ? 1 : 0
+  name                         = local.langgraph_container_app_name
+  resource_group_name          = azurerm_resource_group.main.name
+  container_app_environment_id = module.container_apps_environment.id
+  revision_mode                = "Single"
+  workload_profile_name        = var.workload_profile_name
+  tags                         = local.common_tags
+
+  identity {
+    type         = "SystemAssigned, UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.container_app.id]
+  }
+
+  dynamic "registry" {
+    for_each = local.langgraph_proxy_image_uses_acr ? [1] : []
+    content {
+      server   = local.acr_login_server
+      identity = azurerm_user_assigned_identity.container_app.id
+    }
+  }
+
+  ingress {
+    external_enabled = false
+    target_port      = var.first_deploy ? 80 : var.langgraph_proxy_port
+    transport        = "auto"
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+
+  secret {
+    name                = "langgraph-proxy-api-key"
+    key_vault_secret_id = "${azurerm_key_vault.main.vault_uri}secrets/${local.langgraph_proxy_api_key_secret_name}"
+    identity            = azurerm_user_assigned_identity.container_app.id
+  }
+
+  secret {
+    name                = "langgraph-redis-uri"
+    key_vault_secret_id = "${azurerm_key_vault.main.vault_uri}secrets/${local.langgraph_redis_uri_secret_name}"
+    identity            = azurerm_user_assigned_identity.container_app.id
+  }
+
+  secret {
+    name                = "langgraph-redis-password"
+    key_vault_secret_id = "${azurerm_key_vault.main.vault_uri}secrets/${local.langgraph_redis_password_secret_name}"
+    identity            = azurerm_user_assigned_identity.container_app.id
+  }
+
+  template {
+    min_replicas = var.langgraph_proxy_min_replicas
+    max_replicas = var.langgraph_proxy_max_replicas
+
+    container {
+      name   = "conpalanggraph"
+      image  = var.langgraph_proxy_image
+      cpu    = var.langgraph_proxy_cpu
+      memory = var.langgraph_proxy_memory
+
+      env {
+        name  = "HOST"
+        value = "0.0.0.0"
+      }
+      env {
+        name  = "PORT"
+        value = tostring(var.langgraph_proxy_port)
+      }
+      env {
+        name  = "USE_REDIS"
+        value = "true"
+      }
+      env {
+        name  = "REDIS_HOST"
+        value = azurerm_redis_enterprise_cluster.langgraph[0].hostname
+      }
+      env {
+        name  = "REDIS_PORT"
+        value = tostring(azurerm_redis_enterprise_database.langgraph[0].port)
+      }
+      env {
+        name  = "REDIS_TLS"
+        value = "true"
+      }
+      env {
+        name  = "DEBUG_LOGGING"
+        value = var.debug_logging ? "TRUE" : "FALSE"
+      }
+
+      env {
+        name        = "LANGGRAPH_PROXY_API_KEY"
+        secret_name = "langgraph-proxy-api-key"
+      }
+      env {
+        name        = "API_KEY"
+        secret_name = "langgraph-proxy-api-key"
+      }
+      env {
+        name        = "REDIS_URI"
+        secret_name = "langgraph-redis-uri"
+      }
+      env {
+        name        = "REDIS_URL"
+        secret_name = "langgraph-redis-uri"
+      }
+      env {
+        name        = "REDIS_PASSWORD"
+        secret_name = "langgraph-redis-password"
+      }
+    }
+
+    http_scale_rule {
+      name                = "httpscalingrule"
+      concurrent_requests = tostring(var.langgraph_proxy_concurrent_requests)
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      template[0].container[0].image,
+      template[0].revision_suffix,
+    ]
+  }
+
+  depends_on = [
+    module.container_apps_environment,
+    azurerm_role_assignment.kv_secrets_user_uami,
+    time_sleep.wait_for_rbac_propagation,
+    azurerm_redis_enterprise_database.langgraph,
     azurerm_key_vault_secret.secrets,
   ]
 }

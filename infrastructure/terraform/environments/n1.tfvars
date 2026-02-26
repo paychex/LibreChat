@@ -30,12 +30,14 @@ storage_public_network_access  = false
 storage_network_default_action = "Deny"
 
 # Container Images (placeholder - CI/CD deploys actual images)
-librechat_image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
-rag_api_image   = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+librechat_image       = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+rag_api_image         = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+langgraph_proxy_image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
 
 # Sidecars in LibreChat container app
 enable_rag_sidecar           = true
 enable_meilisearch_container = true
+enable_langgraph_proxy       = true
 
 # Existing ACR (shared across environments)
 existing_acr_name           = "conpaychexaiprod001"

@@ -79,6 +79,9 @@ locals {
   private_dns_zone_ids_storage = var.enable_private_endpoints ? [
     "/subscriptions/${var.private_dns_zone_subscription_id}/resourceGroups/${var.private_dns_zone_resource_group}/providers/Microsoft.Network/privateDnsZones/${var.private_dns_zone_name_storage}"
   ] : []
+  private_dns_zone_ids_redis_enterprise = var.enable_private_endpoints ? [
+    "/subscriptions/${var.private_dns_zone_subscription_id}/resourceGroups/${var.private_dns_zone_resource_group}/providers/Microsoft.Network/privateDnsZones/${var.private_dns_zone_name_redis_enterprise}"
+  ] : []
 
   # Key Vault subnet IDs: only needed when NOT using private endpoints
   # When private endpoints are enabled, the PE handles VNet-level access (no service endpoint needed)
@@ -86,11 +89,14 @@ locals {
   resolved_key_vault_subnet_ids = var.enable_private_endpoints ? [] : var.key_vault_subnet_ids
 
   # RAG API naming and URL
-  rag_container_app_name = "conpairag${local.location_short}${var.environment}${var.resource_suffix}"
+  rag_container_app_name        = "conpairag${local.location_short}${var.environment}${var.resource_suffix}"
+  langgraph_container_app_name  = "conpalanggraph${local.location_short}${var.environment}${var.resource_suffix}"
+  redis_enterprise_cluster_name = "redis-${local.name_prefix}-${local.location_short}-${var.environment}-${var.resource_suffix}"
 
   # Sidecar: localhost. Standalone: internal FQDN within Container Apps Environment
-  rag_api_internal_url     = var.enable_rag_sidecar ? "http://localhost:8000" : "https://${azurerm_container_app.rag_api[0].ingress[0].fqdn}"
-  meilisearch_internal_url = "http://localhost:7700"
+  rag_api_internal_url         = var.enable_rag_sidecar ? "http://localhost:8000" : "https://${azurerm_container_app.rag_api[0].ingress[0].fqdn}"
+  langgraph_proxy_internal_url = var.enable_langgraph_proxy ? "https://${azurerm_container_app.langgraph_proxy[0].ingress[0].fqdn}" : null
+  meilisearch_internal_url     = "http://localhost:7700"
 
   # Key Vault secret prefix (uppercase environment)
   secret_prefix = upper(var.environment)
@@ -99,8 +105,9 @@ locals {
   acr_id = var.existing_acr_name != null ? "/subscriptions/${var.subscription_id}/resourceGroups/${var.existing_acr_resource_group}/providers/Microsoft.ContainerRegistry/registries/${var.existing_acr_name}" : var.existing_acr_id
 
   # ACR login server and image source detection
-  acr_login_server         = local.acr_id != null ? "${split("/", local.acr_id)[8]}.azurecr.io" : null
-  librechat_image_uses_acr = local.acr_login_server != null && startswith(var.librechat_image, "${local.acr_login_server}/")
-  rag_api_image_uses_acr   = local.acr_login_server != null && startswith(var.rag_api_image, "${local.acr_login_server}/")
+  acr_login_server               = local.acr_id != null ? "${split("/", local.acr_id)[8]}.azurecr.io" : null
+  librechat_image_uses_acr       = local.acr_login_server != null && startswith(var.librechat_image, "${local.acr_login_server}/")
+  rag_api_image_uses_acr         = local.acr_login_server != null && startswith(var.rag_api_image, "${local.acr_login_server}/")
+  langgraph_proxy_image_uses_acr = local.acr_login_server != null && startswith(var.langgraph_proxy_image, "${local.acr_login_server}/")
 
 }

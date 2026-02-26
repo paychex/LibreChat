@@ -8,6 +8,7 @@ location    = "East US"
 # Container Images
 librechat_image = "your-registry.azurecr.io/librechat:latest"
 rag_api_image   = "your-registry.azurecr.io/rag_api:latest"
+langgraph_proxy_image = "your-registry.azurecr.io/langgraph_proxy:latest"
 
 # Existing ACR (if using shared registry)
 # existing_acr_id = "/subscriptions/xxx/resourceGroups/xxx/providers/Microsoft.ContainerRegistry/registries/xxx"
@@ -34,6 +35,9 @@ librechat_cpu     = 1    # CPU cores
 librechat_memory  = "2Gi" # Memory allocation
 rag_api_cpu       = 1
 rag_api_memory    = "2Gi"
+
+# LangGraph Proxy
+enable_langgraph_proxy = true
 
 # Scaling Configuration
 librechat_min_replicas        = 1

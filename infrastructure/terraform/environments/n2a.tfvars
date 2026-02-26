@@ -45,10 +45,12 @@ storage_network_default_action = "Deny"
 # Sidecars in LibreChat container app
 enable_rag_sidecar           = true
 enable_meilisearch_container = true
+enable_langgraph_proxy       = true
 
 # Container Images (placeholder - CI/CD deploys actual images)
-librechat_image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
-rag_api_image   = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+librechat_image       = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+rag_api_image         = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+langgraph_proxy_image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
 
 # Existing ACR (shared across environments - in prod subscription)
 # Role assignment handled by workflow step using prod credentials
