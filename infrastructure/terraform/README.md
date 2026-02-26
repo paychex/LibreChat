@@ -167,6 +167,8 @@ Where `{ENV}` is one of: `SANDBOX`, `N1`, `N2A`, `PROD`
 | `redis_enterprise_sku_name` | `"Balanced_B3"` | Azure Managed Redis SKU for LangGraph caching/state |
 | `redis_enterprise_database_name` | `"default"` | Managed Redis default database name (legacy compatibility variable) |
 | `private_dns_zone_name_redis_enterprise` | `"privatelink.redis.azure.net"` | Private DNS zone for Managed Redis private endpoint |
+| `private_endpoint_create_subnet` | `false` | Create a dedicated private endpoint subnet in the existing VNet |
+| `private_endpoint_subnet_address_prefix` | `null` | CIDR prefix used when `private_endpoint_create_subnet=true` |
 | `app_gateway_additional_sites` | `[]` | Additional host/backends for shared App Gateway (for multi-environment listeners) |
 
 ## Remote State (Recommended for Team Use)

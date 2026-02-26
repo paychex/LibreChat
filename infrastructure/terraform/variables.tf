@@ -162,13 +162,13 @@ variable "internal_load_balancer_enabled" {
 # Enable private endpoints for enterprise-grade network security
 
 variable "enable_private_endpoints" {
-  description = "Enable private endpoints for Key Vault and Storage (requires private_endpoint_subnet_id)"
+  description = "Enable private endpoints for Key Vault and Storage"
   type        = bool
   default     = false
 
   validation {
-    condition     = !var.enable_private_endpoints || var.private_endpoint_subnet_id != null || var.private_endpoint_subnet_name != null
-    error_message = "When enable_private_endpoints=true, provide private_endpoint_subnet_id or private_endpoint_subnet_name."
+    condition     = !var.enable_private_endpoints || var.private_endpoint_create_subnet || var.private_endpoint_subnet_id != null || var.private_endpoint_subnet_name != null
+    error_message = "When enable_private_endpoints=true, provide private_endpoint_subnet_id/private_endpoint_subnet_name or set private_endpoint_create_subnet=true."
   }
 }
 
@@ -179,7 +179,7 @@ variable "private_endpoint_subnet_id" {
 }
 
 variable "private_endpoint_subnet_name" {
-  description = "Name of existing subnet for private endpoints (alternative to private_endpoint_subnet_id - constructs ID from subscription_id + VNet details)"
+  description = "Name of private endpoint subnet (existing subnet, or subnet name to create when private_endpoint_create_subnet=true)"
   type        = string
   default     = null
 
@@ -187,6 +187,28 @@ variable "private_endpoint_subnet_name" {
     condition     = var.private_endpoint_subnet_name == null || (var.existing_vnet_name != null && var.existing_vnet_resource_group != null)
     error_message = "When private_endpoint_subnet_name is set, existing_vnet_name and existing_vnet_resource_group must also be set."
   }
+}
+
+variable "private_endpoint_create_subnet" {
+  description = "Create a dedicated subnet for private endpoints in the existing VNet"
+  type        = bool
+  default     = false
+
+  validation {
+    condition = !var.private_endpoint_create_subnet || (
+      var.private_endpoint_subnet_name != null &&
+      var.private_endpoint_subnet_address_prefix != null &&
+      var.existing_vnet_name != null &&
+      var.existing_vnet_resource_group != null
+    )
+    error_message = "When private_endpoint_create_subnet=true, provide private_endpoint_subnet_name, private_endpoint_subnet_address_prefix, existing_vnet_name, and existing_vnet_resource_group."
+  }
+}
+
+variable "private_endpoint_subnet_address_prefix" {
+  description = "CIDR prefix for private endpoint subnet when private_endpoint_create_subnet=true"
+  type        = string
+  default     = null
 }
 
 variable "private_dns_zone_subscription_id" {

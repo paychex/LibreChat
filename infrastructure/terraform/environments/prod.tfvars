@@ -5,20 +5,28 @@ location        = "East US"
 resource_suffix = "002"
 
 # Network Configuration - VNet Integration
-# TODO: Update subnet names before enabling Terraform management
 internal_load_balancer_enabled = true
-create_subnet                  = false
+create_subnet                  = true
 existing_vnet_name             = "vnet-paychexai-eastus-prod-001"
 existing_vnet_resource_group   = "rg-paychexai-shared-eastus-prod-001"
-# infrastructure_subnet_name   = "<PROD_CONTAINER_APPS_SUBNET_NAME>"
+new_subnet_name                = "snet-paychexai-playai-conapps-prod-001"
+new_subnet_address_prefix      = "10.72.175.0/27"
+infrastructure_subnet_id       = null
 
 # Private Endpoints - enterprise network security
-# TODO: Enable after subnet names are configured
-enable_private_endpoints = false
-# private_endpoint_subnet_name = "<PROD_PRIVATE_ENDPOINT_SUBNET_NAME>"
+enable_private_endpoints               = true
+private_endpoint_create_subnet         = true
+private_endpoint_subnet_name           = "snet-paychexai-playai-privateendpoints-prod-001"
+private_endpoint_subnet_address_prefix = "10.72.175.64/26"
 
 # Shared App Gateway resource group (used when enable_app_gateway=true)
-app_gateway_resource_group_name = "rg-playai-shared-eastus-prod-001"
+app_gateway_resource_group_name   = "rg-playai-shared-eastus-prod-001"
+enable_app_gateway                = true
+app_gateway_create_subnet         = true
+app_gateway_subnet_name           = "snet-paychexai-playai-appgw-prod-001"
+app_gateway_subnet_address_prefix = "10.72.174.0/24"
+app_gateway_host_name             = "play.ai.paychex.com"
+app_gateway_enable_ssl            = false
 
 # Key Vault Network Security
 key_vault_network_default_action = "Deny"
@@ -34,12 +42,14 @@ storage_public_network_access  = false
 storage_network_default_action = "Deny"
 
 # Container Images (placeholder - CI/CD deploys actual images)
-librechat_image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
-rag_api_image   = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+librechat_image       = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+rag_api_image         = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+langgraph_proxy_image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
 
 # Sidecars in LibreChat container app
 enable_rag_sidecar           = true
 enable_meilisearch_container = true
+enable_langgraph_proxy       = true
 
 # Existing ACR
 existing_acr_name           = "conpaychexaiprod001"

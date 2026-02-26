@@ -69,8 +69,10 @@ locals {
   # Infrastructure subnet: prefer name-based construction, fall back to explicit ID
   resolved_infrastructure_subnet_id = var.infrastructure_subnet_name != null ? "${local._vnet_base}/subnets/${var.infrastructure_subnet_name}" : var.infrastructure_subnet_id
 
-  # Private endpoint subnet: prefer name-based construction, fall back to explicit ID
-  resolved_private_endpoint_subnet_id = var.private_endpoint_subnet_name != null ? "${local._vnet_base}/subnets/${var.private_endpoint_subnet_name}" : var.private_endpoint_subnet_id
+  # Private endpoint subnet: prefer created subnet, then name-based construction, then explicit ID
+  resolved_private_endpoint_subnet_id = var.private_endpoint_create_subnet ? azurerm_subnet.private_endpoints[0].id : (
+    var.private_endpoint_subnet_name != null ? "${local._vnet_base}/subnets/${var.private_endpoint_subnet_name}" : var.private_endpoint_subnet_id
+  )
 
   # Shared private DNS zone IDs used by private endpoints
   private_dns_zone_ids_key_vault = var.enable_private_endpoints ? [

@@ -5,9 +5,9 @@ name: Terraform Infrastructure
 #   ✅ sandbox  - Ready for Terraform management
 #   ✅ n2a      - Ready for Terraform management (parallel deployment)
 #   ✅ n1       - Ready for Terraform management
-#   ⛔ prod     - Explicitly out of scope for Terraform changes in this workflow
+#   ⏳ prod     - Plan-only validation enabled (apply/destroy remain blocked)
 #
-# This workflow is intentionally restricted to sandbox + n1 + n2a only.
+# This workflow allows plan for sandbox/n1/n2a/prod, but apply/destroy only for sandbox/n1/n2a.
 # =============================================================================
 
 on:
@@ -34,6 +34,7 @@ on:
           - sandbox
           - n1
           - n2a
+          - prod
 
 concurrency:
   group: terraform-${{ github.event.inputs.environment || 'ci' }}-${{ github.ref }}
@@ -101,7 +102,7 @@ jobs:
     if: |
       github.event_name == 'pull_request' || 
       (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
-    runs-on: ${{ matrix.environment == 'sandbox' && 'paychex-ai-platform-arc-sandbox' || 'paychex-ai-platform-arc-nonprod' }}
+    runs-on: ${{ matrix.environment == 'sandbox' && 'paychex-ai-platform-arc-sandbox' || matrix.environment == 'prod' && 'paychex-ai-platform-arc-prod' || 'paychex-ai-platform-arc-nonprod' }}
     strategy:
       fail-fast: false
       matrix:
@@ -112,11 +113,11 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
     env:
       # Map environment to subscription credentials
-      ARM_SUBSCRIPTION_ID: ${{ matrix.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
-      ARM_CLIENT_ID: ${{ matrix.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX || secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }}
-      ARM_CLIENT_SECRET: ${{ matrix.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX || secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}
+      ARM_SUBSCRIPTION_ID: ${{ matrix.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || matrix.environment == 'prod' && secrets.AZURE_PROD_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
+      ARM_CLIENT_ID: ${{ matrix.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX || matrix.environment == 'prod' && secrets.ARC_RUNNER_SP_CLIENT_ID_PROD || secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }}
+      ARM_CLIENT_SECRET: ${{ matrix.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX || matrix.environment == 'prod' && secrets.ARC_RUNNER_SP_CLIENT_SECRET_PROD || secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      TF_VAR_subscription_id: ${{ matrix.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
+      TF_VAR_subscription_id: ${{ matrix.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || matrix.environment == 'prod' && secrets.AZURE_PROD_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
       TF_VAR_private_dns_zone_subscription_id: ${{ secrets.AZURE_CLOUDPAYX_PROD_SUBSCRIPTION_ID }}
       # First deploy flag for authorized environments only (sandbox/n1/n2a)
       TF_VAR_first_deploy: ${{ (matrix.environment == 'sandbox' && (vars.SANDBOX_FIRST_DEPLOY == 'true' || secrets.SANDBOX_FIRST_DEPLOY == 'true')) || (matrix.environment == 'n1' && (vars.N1_FIRST_DEPLOY == 'true' || secrets.N1_FIRST_DEPLOY == 'true')) || (matrix.environment == 'n2a' && (vars.N2A_FIRST_DEPLOY == 'true' || secrets.N2A_FIRST_DEPLOY == 'true')) }}
@@ -135,6 +136,9 @@ jobs:
             if [ "${{ matrix.environment }}" == "sandbox" ]; then
               az login --service-principal -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX }} -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX }} --tenant ${{ secrets.AZURE_TENANT_ID }}
               az account set --subscription "${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}"
+            elif [ "${{ matrix.environment }}" == "prod" ]; then
+              az login --service-principal -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_PROD }} -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_PROD }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+              az account set --subscription "${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}"
             else
               az login --service-principal -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }} -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }} --tenant ${{ secrets.AZURE_TENANT_ID }}
               az account set --subscription "${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}"
@@ -149,6 +153,7 @@ jobs:
         env:
           SANDBOX_SUB: ${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}
           NONPROD_SUB: ${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
+          PROD_SUB: ${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}
         run: |
           case "${{ matrix.environment }}" in
             sandbox)
@@ -166,8 +171,13 @@ jobs:
               echo "TF_BACKEND_SA=sapaychexaitfnonprod001" >> $GITHUB_ENV
               echo "TF_BACKEND_SUB=$NONPROD_SUB" >> $GITHUB_ENV
               ;;
+            prod)
+              echo "TF_BACKEND_RG=rg-paychexai-tf-eastus-prod-001" >> $GITHUB_ENV
+              echo "TF_BACKEND_SA=sapaychexaitfprod001" >> $GITHUB_ENV
+              echo "TF_BACKEND_SUB=$PROD_SUB" >> $GITHUB_ENV
+              ;;
             *)
-              echo "::error::Unsupported environment '${{ matrix.environment }}'. Only sandbox, n1, and n2a are authorized."
+              echo "::error::Unsupported environment '${{ matrix.environment }}'. Only sandbox, n1, n2a, and prod are authorized for plan."
               exit 1
               ;;
           esac

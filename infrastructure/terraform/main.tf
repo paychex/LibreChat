@@ -33,6 +33,16 @@ resource "azurerm_subnet" "container_apps" {
   }
 }
 
+resource "azurerm_subnet" "private_endpoints" {
+  count                = var.enable_private_endpoints && var.private_endpoint_create_subnet ? 1 : 0
+  name                 = var.private_endpoint_subnet_name
+  resource_group_name  = var.existing_vnet_resource_group
+  virtual_network_name = var.existing_vnet_name
+  address_prefixes     = [var.private_endpoint_subnet_address_prefix]
+
+  private_endpoint_network_policies = "Disabled"
+}
+
 # Determine which subnet ID to use: new subnet or existing
 locals {
   container_apps_subnet_id = var.create_subnet ? azurerm_subnet.container_apps[0].id : local.resolved_infrastructure_subnet_id
