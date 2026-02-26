@@ -224,6 +224,10 @@ module "storage" {
       {
         name  = "uploads-${var.environment}"
         quota = var.storage_share_quota
+      },
+      {
+        name  = "images-${var.environment}"
+        quota = var.storage_share_quota
       }
     ],
     var.enable_meilisearch_container ? [
@@ -306,6 +310,13 @@ module "container_apps_environment" {
       {
         name         = "uploads-${var.environment}"
         share_name   = "uploads-${var.environment}"
+        account_name = module.storage.storage_account_name
+        account_key  = module.storage.storage_account_primary_access_key
+        access_mode  = "ReadWrite"
+      },
+      {
+        name         = "images-${var.environment}"
+        share_name   = "images-${var.environment}"
         account_name = module.storage.storage_account_name
         account_key  = module.storage.storage_account_primary_access_key
         access_mode  = "ReadWrite"
@@ -421,7 +432,7 @@ module "container_app" {
 
     volume_mounts = [
       { name = "uploads", path = "/app/uploads" },
-      { name = "uploads", path = "/app/client/public/images" },
+      { name = "images", path = "/app/client/public/images" },
     ]
   }
 
@@ -561,6 +572,11 @@ module "container_app" {
       {
         name         = "uploads"
         storage_name = "uploads-${var.environment}"
+        storage_type = "AzureFile"
+      },
+      {
+        name         = "images"
+        storage_name = "images-${var.environment}"
         storage_type = "AzureFile"
       }
     ],
