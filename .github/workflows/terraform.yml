@@ -119,8 +119,8 @@ jobs:
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_subscription_id: ${{ matrix.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || matrix.environment == 'prod' && secrets.AZURE_PROD_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
       TF_VAR_private_dns_zone_subscription_id: ${{ secrets.AZURE_CLOUDPAYX_PROD_SUBSCRIPTION_ID }}
-      # First deploy flag for authorized environments only (sandbox/n1/n2a)
-      TF_VAR_first_deploy: ${{ (matrix.environment == 'sandbox' && (vars.SANDBOX_FIRST_DEPLOY == 'true' || secrets.SANDBOX_FIRST_DEPLOY == 'true')) || (matrix.environment == 'n1' && (vars.N1_FIRST_DEPLOY == 'true' || secrets.N1_FIRST_DEPLOY == 'true')) || (matrix.environment == 'n2a' && (vars.N2A_FIRST_DEPLOY == 'true' || secrets.N2A_FIRST_DEPLOY == 'true')) }}
+      # First deploy flag per environment
+      TF_VAR_first_deploy: ${{ (matrix.environment == 'sandbox' && (vars.SANDBOX_FIRST_DEPLOY == 'true' || secrets.SANDBOX_FIRST_DEPLOY == 'true')) || (matrix.environment == 'n1' && (vars.N1_FIRST_DEPLOY == 'true' || secrets.N1_FIRST_DEPLOY == 'true')) || (matrix.environment == 'n2a' && (vars.N2A_FIRST_DEPLOY == 'true' || secrets.N2A_FIRST_DEPLOY == 'true')) || (matrix.environment == 'prod' && (vars.PROD_FIRST_DEPLOY == 'true' || secrets.PROD_FIRST_DEPLOY == 'true')) }}
       # Paychex tags - from GitHub repository variables
       TF_VAR_payx_owner: ${{ vars.PAYX_OWNER }}
       TF_VAR_payx_servicenow_group: ${{ vars.PAYX_SERVICENOW_GROUP }}
@@ -335,8 +335,8 @@ jobs:
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_subscription_id: ${{ github.event.inputs.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || github.event.inputs.environment == 'prod' && secrets.AZURE_PROD_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
       TF_VAR_private_dns_zone_subscription_id: ${{ secrets.AZURE_CLOUDPAYX_PROD_SUBSCRIPTION_ID }}
-      # First deploy flag for authorized environments only (sandbox/n1/n2a; prod defaults to false)
-      TF_VAR_first_deploy: ${{ (github.event.inputs.environment == 'sandbox' && (vars.SANDBOX_FIRST_DEPLOY == 'true' || secrets.SANDBOX_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'n1' && (vars.N1_FIRST_DEPLOY == 'true' || secrets.N1_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'n2a' && (vars.N2A_FIRST_DEPLOY == 'true' || secrets.N2A_FIRST_DEPLOY == 'true')) }}
+      # First deploy flag per environment
+      TF_VAR_first_deploy: ${{ (github.event.inputs.environment == 'sandbox' && (vars.SANDBOX_FIRST_DEPLOY == 'true' || secrets.SANDBOX_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'n1' && (vars.N1_FIRST_DEPLOY == 'true' || secrets.N1_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'n2a' && (vars.N2A_FIRST_DEPLOY == 'true' || secrets.N2A_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'prod' && (vars.PROD_FIRST_DEPLOY == 'true' || secrets.PROD_FIRST_DEPLOY == 'true')) }}
       # Optional override to re-run AcrPull idempotency without first_deploy (sandbox/n1/n2a only)
       ACR_IDEMPOTENCY: ${{ (github.event.inputs.environment == 'sandbox' && vars.SANDBOX_ACR_IDEMPOTENCY == 'true') || (github.event.inputs.environment == 'n1' && vars.N1_ACR_IDEMPOTENCY == 'true') || (github.event.inputs.environment == 'n2a' && vars.N2A_ACR_IDEMPOTENCY == 'true') }}
       # Paychex tags - from GitHub repository variables
@@ -667,8 +667,8 @@ jobs:
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_subscription_id: ${{ github.event.inputs.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
       TF_VAR_private_dns_zone_subscription_id: ${{ secrets.AZURE_CLOUDPAYX_PROD_SUBSCRIPTION_ID }}
-      # First deploy flag for authorized environments only (sandbox/n1/n2a)
-      TF_VAR_first_deploy: ${{ (github.event.inputs.environment == 'sandbox' && (vars.SANDBOX_FIRST_DEPLOY == 'true' || secrets.SANDBOX_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'n1' && (vars.N1_FIRST_DEPLOY == 'true' || secrets.N1_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'n2a' && (vars.N2A_FIRST_DEPLOY == 'true' || secrets.N2A_FIRST_DEPLOY == 'true')) }}
+      # First deploy flag per environment
+      TF_VAR_first_deploy: ${{ (github.event.inputs.environment == 'sandbox' && (vars.SANDBOX_FIRST_DEPLOY == 'true' || secrets.SANDBOX_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'n1' && (vars.N1_FIRST_DEPLOY == 'true' || secrets.N1_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'n2a' && (vars.N2A_FIRST_DEPLOY == 'true' || secrets.N2A_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'prod' && (vars.PROD_FIRST_DEPLOY == 'true' || secrets.PROD_FIRST_DEPLOY == 'true')) }}
       # Paychex tags - from GitHub repository variables
       TF_VAR_payx_owner: ${{ vars.PAYX_OWNER }}
       TF_VAR_payx_servicenow_group: ${{ vars.PAYX_SERVICENOW_GROUP }}
