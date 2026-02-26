@@ -5,9 +5,9 @@ name: Terraform Infrastructure
 #   ✅ sandbox  - Ready for Terraform management
 #   ✅ n2a      - Ready for Terraform management (parallel deployment)
 #   ✅ n1       - Ready for Terraform management
-#   ⏳ prod     - Plan-only validation enabled (apply/destroy remain blocked)
+#   ✅ prod     - Plan and apply enabled (destroy remains blocked)
 #
-# This workflow allows plan for sandbox/n1/n2a/prod, but apply/destroy only for sandbox/n1/n2a.
+# This workflow allows plan/apply for sandbox/n1/n2a/prod, while destroy is limited to sandbox/n1/n2a.
 # =============================================================================
 
 on:
@@ -296,7 +296,8 @@ jobs:
       github.event.inputs.action == 'apply' &&
       github.event.inputs.environment != 'sandbox' &&
       github.event.inputs.environment != 'n1' &&
-      github.event.inputs.environment != 'n2a'
+      github.event.inputs.environment != 'n2a' &&
+      github.event.inputs.environment != 'prod'
     runs-on: paychex-ai-platform-arc-sandbox
     steps:
       - name: Block Apply
@@ -318,8 +319,8 @@ jobs:
     if: |
       github.event_name == 'workflow_dispatch' && 
       github.event.inputs.action == 'apply' &&
-      (github.event.inputs.environment == 'sandbox' || github.event.inputs.environment == 'n1' || github.event.inputs.environment == 'n2a')
-    runs-on: ${{ github.event.inputs.environment == 'sandbox' && 'paychex-ai-platform-arc-sandbox' || 'paychex-ai-platform-arc-nonprod' }}
+      (github.event.inputs.environment == 'sandbox' || github.event.inputs.environment == 'n1' || github.event.inputs.environment == 'n2a' || github.event.inputs.environment == 'prod')
+    runs-on: ${{ github.event.inputs.environment == 'sandbox' && 'paychex-ai-platform-arc-sandbox' || github.event.inputs.environment == 'prod' && 'paychex-ai-platform-arc-prod' || 'paychex-ai-platform-arc-nonprod' }}
     environment:
       name: ${{ github.event.inputs.environment }}
       url: ${{ steps.get_url.outputs.url }}
@@ -328,15 +329,15 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
     env:
       # Credentials mapped per environment
-      ARM_SUBSCRIPTION_ID: ${{ github.event.inputs.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
-      ARM_CLIENT_ID: ${{ github.event.inputs.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX || secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }}
-      ARM_CLIENT_SECRET: ${{ github.event.inputs.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX || secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}
+      ARM_SUBSCRIPTION_ID: ${{ github.event.inputs.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || github.event.inputs.environment == 'prod' && secrets.AZURE_PROD_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
+      ARM_CLIENT_ID: ${{ github.event.inputs.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX || github.event.inputs.environment == 'prod' && secrets.ARC_RUNNER_SP_CLIENT_ID_PROD || secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }}
+      ARM_CLIENT_SECRET: ${{ github.event.inputs.environment == 'sandbox' && secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX || github.event.inputs.environment == 'prod' && secrets.ARC_RUNNER_SP_CLIENT_SECRET_PROD || secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      TF_VAR_subscription_id: ${{ github.event.inputs.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
+      TF_VAR_subscription_id: ${{ github.event.inputs.environment == 'sandbox' && secrets.AZURE_SANDBOX_SUBSCRIPTION_ID || github.event.inputs.environment == 'prod' && secrets.AZURE_PROD_SUBSCRIPTION_ID || secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
       TF_VAR_private_dns_zone_subscription_id: ${{ secrets.AZURE_CLOUDPAYX_PROD_SUBSCRIPTION_ID }}
-      # First deploy flag for authorized environments only (sandbox/n1/n2a)
+      # First deploy flag for authorized environments only (sandbox/n1/n2a; prod defaults to false)
       TF_VAR_first_deploy: ${{ (github.event.inputs.environment == 'sandbox' && (vars.SANDBOX_FIRST_DEPLOY == 'true' || secrets.SANDBOX_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'n1' && (vars.N1_FIRST_DEPLOY == 'true' || secrets.N1_FIRST_DEPLOY == 'true')) || (github.event.inputs.environment == 'n2a' && (vars.N2A_FIRST_DEPLOY == 'true' || secrets.N2A_FIRST_DEPLOY == 'true')) }}
-      # Optional override to re-run AcrPull idempotency without first_deploy
+      # Optional override to re-run AcrPull idempotency without first_deploy (sandbox/n1/n2a only)
       ACR_IDEMPOTENCY: ${{ (github.event.inputs.environment == 'sandbox' && vars.SANDBOX_ACR_IDEMPOTENCY == 'true') || (github.event.inputs.environment == 'n1' && vars.N1_ACR_IDEMPOTENCY == 'true') || (github.event.inputs.environment == 'n2a' && vars.N2A_ACR_IDEMPOTENCY == 'true') }}
       # Paychex tags - from GitHub repository variables
       TF_VAR_payx_owner: ${{ vars.PAYX_OWNER }}
@@ -353,6 +354,9 @@ jobs:
             if [ "${{ github.event.inputs.environment }}" == "sandbox" ]; then
               az login --service-principal -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_SANDBOX }} -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX }} --tenant ${{ secrets.AZURE_TENANT_ID }}
               az account set --subscription "${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}"
+            elif [ "${{ github.event.inputs.environment }}" == "prod" ]; then
+              az login --service-principal -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_PROD }} -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_PROD }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+              az account set --subscription "${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}"
             else
               az login --service-principal -u ${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }} -p ${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }} --tenant ${{ secrets.AZURE_TENANT_ID }}
               az account set --subscription "${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}"
@@ -368,6 +372,7 @@ jobs:
         env:
           SANDBOX_SUB: ${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}
           NONPROD_SUB: ${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}
+          PROD_SUB: ${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}
         run: |
           case "${{ github.event.inputs.environment }}" in
             sandbox)
@@ -385,8 +390,13 @@ jobs:
               echo "TF_BACKEND_SA=sapaychexaitfnonprod001" >> $GITHUB_ENV
               echo "TF_BACKEND_SUB=$NONPROD_SUB" >> $GITHUB_ENV
               ;;
+            prod)
+              echo "TF_BACKEND_RG=rg-paychexai-tf-eastus-prod-001" >> $GITHUB_ENV
+              echo "TF_BACKEND_SA=sapaychexaitfprod001" >> $GITHUB_ENV
+              echo "TF_BACKEND_SUB=$PROD_SUB" >> $GITHUB_ENV
+              ;;
             *)
-              echo "::error::Unsupported environment '${{ github.event.inputs.environment }}'. Only sandbox, n1, and n2a are authorized."
+              echo "::error::Unsupported environment '${{ github.event.inputs.environment }}'. Only sandbox, n1, n2a, and prod are authorized."
               exit 1
               ;;
           esac
