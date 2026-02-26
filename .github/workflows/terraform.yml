@@ -35,6 +35,10 @@ on:
           - n1
           - n2a
           - prod
+      force_unlock_id:
+        description: 'Optional Terraform state lock ID to force-unlock before apply'
+        required: false
+        type: string
 
 concurrency:
   group: terraform-${{ github.event.inputs.environment || 'ci' }}-${{ github.ref }}
@@ -419,6 +423,10 @@ jobs:
             -backend-config="container_name=tfstate" \
             -backend-config="key=librechat/${{ github.event.inputs.environment }}.tfstate" \
             -backend-config="subscription_id=$TF_BACKEND_SUB"
+
+      - name: Force unlock state (optional)
+        if: github.event.inputs.force_unlock_id != ''
+        run: terraform force-unlock -force "${{ github.event.inputs.force_unlock_id }}"
 
       # Bootstrap identity before planning so AcrPull can be granted pre-apply.
       # This avoids first-pass failures when Container App revisions are created
