@@ -95,7 +95,11 @@ liveness_probe_initial_delay  = 45
 liveness_probe_period         = 15
 
 # Storage
-storage_share_quota = 100
+storage_account_kind        = "FileStorage"
+storage_account_tier        = "Premium"
+storage_account_replication = "LRS"
+storage_share_quota         = 100
+meilisearch_storage_quota   = 100
 
 # Tags (environment-specific overrides)
 tags = {
