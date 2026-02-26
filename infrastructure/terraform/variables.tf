@@ -219,9 +219,9 @@ variable "private_dns_zone_name_storage" {
 }
 
 variable "private_dns_zone_name_redis_enterprise" {
-  description = "Private DNS zone name for Redis Enterprise private endpoints"
+  description = "Private DNS zone name for Managed Redis private endpoints"
   type        = string
-  default     = "privatelink.redisenterprise.cache.azure.net"
+  default     = "privatelink.redis.azure.net"
 }
 
 variable "key_vault_network_default_action" {
@@ -622,13 +622,13 @@ variable "langgraph_proxy_concurrent_requests" {
 }
 
 variable "redis_enterprise_sku_name" {
-  description = "SKU name for Azure Managed Redis Enterprise cluster"
+  description = "SKU name for Azure Managed Redis"
   type        = string
-  default     = "Enterprise_E10-2"
+  default     = "Balanced_B3"
 }
 
 variable "redis_enterprise_minimum_tls_version" {
-  description = "Minimum TLS version for Azure Managed Redis Enterprise cluster"
+  description = "Minimum TLS version for Azure Managed Redis Enterprise cluster (legacy compatibility)"
   type        = string
   default     = "1.2"
 
@@ -639,19 +639,19 @@ variable "redis_enterprise_minimum_tls_version" {
 }
 
 variable "redis_enterprise_zones" {
-  description = "Availability zones for Azure Managed Redis Enterprise cluster"
+  description = "Availability zones for Azure Managed Redis Enterprise cluster (legacy compatibility)"
   type        = list(string)
   default     = []
 }
 
 variable "redis_enterprise_database_name" {
-  description = "Database name for Azure Managed Redis Enterprise"
+  description = "Database name for Azure Managed Redis Enterprise (legacy compatibility)"
   type        = string
   default     = "default"
 }
 
 variable "redis_enterprise_client_protocol" {
-  description = "Client protocol for Azure Managed Redis Enterprise database"
+  description = "Client protocol for Azure Managed Redis default database"
   type        = string
   default     = "Encrypted"
 
@@ -662,18 +662,18 @@ variable "redis_enterprise_client_protocol" {
 }
 
 variable "redis_enterprise_clustering_policy" {
-  description = "Clustering policy for Azure Managed Redis Enterprise database"
+  description = "Clustering policy for Azure Managed Redis default database"
   type        = string
   default     = "OSSCluster"
 
   validation {
-    condition     = contains(["OSSCluster", "EnterpriseCluster"], var.redis_enterprise_clustering_policy)
-    error_message = "redis_enterprise_clustering_policy must be OSSCluster or EnterpriseCluster."
+    condition     = contains(["OSSCluster", "EnterpriseCluster", "NoCluster"], var.redis_enterprise_clustering_policy)
+    error_message = "redis_enterprise_clustering_policy must be OSSCluster, EnterpriseCluster, or NoCluster."
   }
 }
 
 variable "redis_enterprise_eviction_policy" {
-  description = "Eviction policy for Azure Managed Redis Enterprise database"
+  description = "Eviction policy for Azure Managed Redis default database"
   type        = string
   default     = "NoEviction"
 }

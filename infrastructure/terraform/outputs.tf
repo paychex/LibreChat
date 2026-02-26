@@ -149,13 +149,13 @@ output "langgraph_proxy_internal_url" {
 }
 
 output "redis_enterprise_hostname" {
-  description = "Azure Managed Redis Enterprise hostname (null if LangGraph proxy disabled)"
-  value       = var.enable_langgraph_proxy ? azurerm_redis_enterprise_cluster.langgraph[0].hostname : null
+  description = "Azure Managed Redis hostname (null if LangGraph proxy disabled)"
+  value       = var.enable_langgraph_proxy ? azurerm_managed_redis.langgraph[0].hostname : null
 }
 
 output "redis_enterprise_port" {
-  description = "Azure Managed Redis Enterprise database port (null if LangGraph proxy disabled)"
-  value       = var.enable_langgraph_proxy ? azurerm_redis_enterprise_database.langgraph[0].port : null
+  description = "Azure Managed Redis database port (null if LangGraph proxy disabled)"
+  value       = var.enable_langgraph_proxy ? azurerm_managed_redis.langgraph[0].default_database[0].port : null
 }
 
 output "environment" {

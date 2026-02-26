@@ -164,9 +164,9 @@ Where `{ENV}` is one of: `SANDBOX`, `N1`, `N2A`, `PROD`
 | `langgraph_proxy_memory` | `"1Gi"` | Memory for LangGraph proxy |
 | `langgraph_proxy_min_replicas` | `1` | Minimum LangGraph proxy replicas |
 | `langgraph_proxy_max_replicas` | `3` | Maximum LangGraph proxy replicas |
-| `redis_enterprise_sku_name` | `"Enterprise_E10-2"` | Redis Enterprise SKU for LangGraph caching/state |
-| `redis_enterprise_database_name` | `"default"` | Redis Enterprise database name |
-| `private_dns_zone_name_redis_enterprise` | `"privatelink.redisenterprise.cache.azure.net"` | Private DNS zone for Redis Enterprise private endpoint |
+| `redis_enterprise_sku_name` | `"Balanced_B3"` | Azure Managed Redis SKU for LangGraph caching/state |
+| `redis_enterprise_database_name` | `"default"` | Managed Redis default database name (legacy compatibility variable) |
+| `private_dns_zone_name_redis_enterprise` | `"privatelink.redis.azure.net"` | Private DNS zone for Managed Redis private endpoint |
 
 ## Remote State (Recommended for Team Use)
 
@@ -211,7 +211,7 @@ terraform output langgraph_proxy_internal_url
 terraform output redis_enterprise_hostname
 ```
 
-> Note: The current provider marks `azurerm_redis_enterprise_cluster` as deprecated in favor of `azurerm_managed_redis_cluster`. This implementation keeps Redis Enterprise for current compatibility and can be migrated later.
+> Note: LangGraph Redis is provisioned with `azurerm_managed_redis` (the non-deprecated resource family).
 
 ## Updating Deployments
 

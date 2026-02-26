@@ -169,8 +169,8 @@ locals {
   # LangGraph proxy + Redis secrets
   langgraph_proxy_secrets = var.enable_langgraph_proxy ? {
     (local.langgraph_proxy_api_key_secret_name)  = "PLACEHOLDER-UPDATE-ME-${random_id.secret_suffix.hex}"
-    (local.langgraph_redis_password_secret_name) = azurerm_redis_enterprise_database.langgraph[0].primary_access_key
-    (local.langgraph_redis_uri_secret_name)      = "rediss://:${azurerm_redis_enterprise_database.langgraph[0].primary_access_key}@${azurerm_redis_enterprise_cluster.langgraph[0].hostname}:${azurerm_redis_enterprise_database.langgraph[0].port}"
+    (local.langgraph_redis_password_secret_name) = azurerm_managed_redis.langgraph[0].default_database[0].primary_access_key
+    (local.langgraph_redis_uri_secret_name)      = "rediss://:${azurerm_managed_redis.langgraph[0].default_database[0].primary_access_key}@${azurerm_managed_redis.langgraph[0].hostname}:${azurerm_managed_redis.langgraph[0].default_database[0].port}"
   } : {}
 
   # Combine the secrets
@@ -255,27 +255,24 @@ module "storage" {
 }
 
 # =============================================================================
-# Azure Managed Redis (Redis Enterprise) for LangGraph proxy
+# Azure Managed Redis for LangGraph proxy
 # =============================================================================
 
-resource "azurerm_redis_enterprise_cluster" "langgraph" {
-  count               = var.enable_langgraph_proxy ? 1 : 0
-  name                = local.redis_enterprise_cluster_name
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  sku_name            = var.redis_enterprise_sku_name
-  minimum_tls_version = var.redis_enterprise_minimum_tls_version
-  zones               = length(var.redis_enterprise_zones) > 0 ? var.redis_enterprise_zones : null
-  tags                = local.common_tags
-}
+resource "azurerm_managed_redis" "langgraph" {
+  count                 = var.enable_langgraph_proxy ? 1 : 0
+  name                  = local.redis_enterprise_cluster_name
+  resource_group_name   = azurerm_resource_group.main.name
+  location              = azurerm_resource_group.main.location
+  sku_name              = var.redis_enterprise_sku_name
+  public_network_access = "Disabled"
+  tags                  = local.common_tags
 
-resource "azurerm_redis_enterprise_database" "langgraph" {
-  count             = var.enable_langgraph_proxy ? 1 : 0
-  name              = var.redis_enterprise_database_name
-  cluster_id        = azurerm_redis_enterprise_cluster.langgraph[0].id
-  client_protocol   = var.redis_enterprise_client_protocol
-  clustering_policy = var.redis_enterprise_clustering_policy
-  eviction_policy   = var.redis_enterprise_eviction_policy
+  default_database {
+    access_keys_authentication_enabled = true
+    client_protocol                    = var.redis_enterprise_client_protocol
+    clustering_policy                  = var.redis_enterprise_clustering_policy
+    eviction_policy                    = var.redis_enterprise_eviction_policy
+  }
 }
 
 # Private Endpoints for Key Vault and Storage
@@ -322,7 +319,7 @@ module "private_endpoint_redis_enterprise" {
   location                       = azurerm_resource_group.main.location
   resource_group_name            = azurerm_resource_group.main.name
   subnet_id                      = local.resolved_private_endpoint_subnet_id
-  private_connection_resource_id = azurerm_redis_enterprise_cluster.langgraph[0].id
+  private_connection_resource_id = azurerm_managed_redis.langgraph[0].id
   subresource_names              = ["redisEnterprise"]
   tags                           = local.common_tags
 
@@ -884,11 +881,11 @@ resource "azurerm_container_app" "langgraph_proxy" {
       }
       env {
         name  = "REDIS_HOST"
-        value = azurerm_redis_enterprise_cluster.langgraph[0].hostname
+        value = azurerm_managed_redis.langgraph[0].hostname
       }
       env {
         name  = "REDIS_PORT"
-        value = tostring(azurerm_redis_enterprise_database.langgraph[0].port)
+        value = tostring(azurerm_managed_redis.langgraph[0].default_database[0].port)
       }
       env {
         name  = "REDIS_TLS"
@@ -938,7 +935,7 @@ resource "azurerm_container_app" "langgraph_proxy" {
     module.container_apps_environment,
     azurerm_role_assignment.kv_secrets_user_uami,
     time_sleep.wait_for_rbac_propagation,
-    azurerm_redis_enterprise_database.langgraph,
+    azurerm_managed_redis.langgraph,
     azurerm_key_vault_secret.secrets,
   ]
 }
