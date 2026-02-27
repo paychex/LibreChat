@@ -23,6 +23,7 @@ private_endpoint_subnet_address_prefix = "10.72.175.64/26"
 create_shared_resource_group      = true
 app_gateway_resource_group_name   = "rg-playai-shared-eastus-prod-001"
 enable_app_gateway                = true
+app_gateway_name_override         = "appgw-playai-eastus-prod-001"
 app_gateway_create_subnet         = true
 app_gateway_subnet_name           = "snet-paychexai-playai-appgw-prod-001"
 app_gateway_subnet_address_prefix = "10.72.174.0/24"
