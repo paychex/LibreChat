@@ -351,6 +351,26 @@ variable "key_vault_resource_group_name" {
   default     = null
 }
 
+variable "create_shared_resource_group" {
+  description = "Create the shared resource group used by Key Vault/Application Gateway resource group override names"
+  type        = bool
+  default     = false
+
+  validation {
+    condition = !var.create_shared_resource_group || (
+      var.key_vault_resource_group_name != null || var.app_gateway_resource_group_name != null
+    )
+    error_message = "When create_shared_resource_group=true, set key_vault_resource_group_name or app_gateway_resource_group_name."
+  }
+
+  validation {
+    condition = !var.create_shared_resource_group || (
+      var.key_vault_resource_group_name == null || var.app_gateway_resource_group_name == null || var.key_vault_resource_group_name == var.app_gateway_resource_group_name
+    )
+    error_message = "When create_shared_resource_group=true and both key_vault_resource_group_name and app_gateway_resource_group_name are set, they must match."
+  }
+}
+
 variable "enable_mongodb_container" {
   description = "Enable MongoDB sidecar container for sandbox/dev environments"
   type        = bool

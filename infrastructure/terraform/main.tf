@@ -7,6 +7,14 @@ resource "azurerm_resource_group" "main" {
   tags     = local.common_tags
 }
 
+resource "azurerm_resource_group" "shared" {
+  count = var.create_shared_resource_group && local.shared_resource_group_name != null ? 1 : 0
+
+  name     = local.shared_resource_group_name
+  location = var.location
+  tags     = local.common_tags
+}
+
 # Creates a new subnet in an existing VNet for internal Container Apps.
 # The VNet must already exist (managed by network team).
 
@@ -53,7 +61,7 @@ locals {
 resource "azurerm_key_vault" "main" {
   name                = local.key_vault_name
   location            = azurerm_resource_group.main.location
-  resource_group_name = coalesce(var.key_vault_resource_group_name, azurerm_resource_group.main.name)
+  resource_group_name = local.resolved_key_vault_resource_group_name
   tenant_id           = data.azurerm_client_config.current.tenant_id
   sku_name            = var.key_vault_sku
   tags                = local.common_tags
@@ -983,7 +991,7 @@ module "application_gateway" {
 
   name                = coalesce(var.app_gateway_name_override, "appgw-${local.name_prefix}-${local.location_short}-${var.environment}-${var.resource_suffix}")
   location            = azurerm_resource_group.main.location
-  resource_group_name = coalesce(var.app_gateway_resource_group_name, azurerm_resource_group.main.name)
+  resource_group_name = local.resolved_app_gateway_resource_group_name
   tags                = local.common_tags
 
   # Network - use dedicated App Gateway subnet (created or existing)

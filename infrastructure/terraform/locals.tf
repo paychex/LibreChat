@@ -63,6 +63,11 @@ locals {
   is_staging     = var.environment == "n2a"
   is_development = var.environment == "n1"
 
+  # Shared resource-group overrides (Key Vault + App Gateway)
+  shared_resource_group_name               = coalesce(var.key_vault_resource_group_name, var.app_gateway_resource_group_name)
+  resolved_key_vault_resource_group_name   = var.create_shared_resource_group && local.shared_resource_group_name != null ? azurerm_resource_group.shared[0].name : coalesce(var.key_vault_resource_group_name, azurerm_resource_group.main.name)
+  resolved_app_gateway_resource_group_name = var.create_shared_resource_group && local.shared_resource_group_name != null ? azurerm_resource_group.shared[0].name : coalesce(var.app_gateway_resource_group_name, azurerm_resource_group.main.name)
+
   # Construct subnet IDs from subscription_id + VNet details (avoids hardcoding subscription IDs in tfvars)
   _vnet_base = var.existing_vnet_name != null ? "/subscriptions/${var.subscription_id}/resourceGroups/${var.existing_vnet_resource_group}/providers/Microsoft.Network/virtualNetworks/${var.existing_vnet_name}" : null
 

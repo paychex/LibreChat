@@ -20,6 +20,7 @@ private_endpoint_subnet_name           = "snet-paychexai-playai-privateendpoints
 private_endpoint_subnet_address_prefix = "10.72.175.64/26"
 
 # Shared App Gateway resource group (used when enable_app_gateway=true)
+create_shared_resource_group      = true
 app_gateway_resource_group_name   = "rg-playai-shared-eastus-prod-001"
 enable_app_gateway                = true
 app_gateway_create_subnet         = true
@@ -54,6 +55,7 @@ enable_langgraph_proxy       = true
 # Existing ACR
 existing_acr_name           = "conpaychexaiprod001"
 existing_acr_resource_group = "rg-paychexai-shared-eastus-prod-001"
+skip_acr_role_assignment    = true
 
 # Domain Configuration
 domain = "play.ai.paychex.com"
