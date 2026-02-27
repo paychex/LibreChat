@@ -1,7 +1,7 @@
 version: 1.0.0
 cache: true
 interface:
-  agents: false
+  agents: true
   runCode: false
   modelSelect: true
   parameters: true
@@ -9,11 +9,11 @@ interface:
   prompts: true
 modelSpecs:
   addedEndpoints:
+    - agents
     - azureOpenAI
     - "Gemini 2.5 Pro"
     - "Gemini 2.5 Flash"
     - "Claude Sonnet 4.5"
-    - "LangGraph Agents"
   list:
     - name: azure-gpt-4o
       label: GPT-4o
@@ -140,10 +140,18 @@ endpoints:
     - name: "LangGraph Agents"
       apiKey: "${LANGGRAPH_PROXY_API_KEY}"
       baseURL: "${LANGGRAPH_PROXY_BASE_URL}"
-      directEndpoint: true
       models:
         default:
           - langgraph-agent
         fetch: true
+      titleConvo: true
       modelDisplayLabel: "LangGraph Agents"
       streamRate: 25
+      dropParams:
+        - 'stop'
+        - 'frequency_penalty'
+        - 'presence_penalty'
+        - 'top_p'
+      headers:
+        x-librechat-conversation-id: "{{LIBRECHAT_BODY_CONVERSATIONID}}"
+

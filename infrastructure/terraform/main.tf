@@ -563,6 +563,16 @@ module "container_app" {
         { name = "CONSOLE_JSON", value = var.console_json ? "TRUE" : "FALSE" },
         { name = "DEBUG_LOGGING", value = var.debug_logging ? "TRUE" : "FALSE" },
       ],
+      var.enable_entra_id_features ? [
+        { name = "OPENID_REUSE_TOKENS", value = var.openid_reuse_tokens ? "true" : "false" },
+        { name = "USE_ENTRA_ID_FOR_PEOPLE_SEARCH", value = var.use_entra_id_for_people_search ? "true" : "false" },
+        { name = "OPENID_GRAPH_SCOPES", value = var.openid_graph_scopes },
+        { name = "OPENID_JWKS_URL_CACHE_ENABLED", value = var.openid_jwks_url_cache_enabled ? "true" : "false" },
+        { name = "OPENID_JWKS_URL_CACHE_TIME", value = tostring(var.openid_jwks_url_cache_time) },
+        { name = "OPENID_ON_BEHALF_FLOW_FOR_USERINFO_REQUIRED", value = var.openid_on_behalf_flow_for_userinfo_required ? "true" : "false" },
+        { name = "OPENID_ON_BEHALF_FLOW_USERINFO_SCOPE", value = var.openid_on_behalf_flow_userinfo_scope },
+        { name = "OPENID_USE_END_SESSION_ENDPOINT", value = var.openid_use_end_session_endpoint ? "true" : "false" },
+      ] : [],
       var.enable_meilisearch_container ? [
         { name = "MEILI_HOST", value = local.meilisearch_internal_url },
         { name = "SEARCH", value = "true" },

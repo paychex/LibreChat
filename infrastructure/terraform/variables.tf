@@ -771,6 +771,64 @@ variable "openid_callback_url" {
   default     = "/oauth/openid/callback"
 }
 
+# =============================================================================
+# Entra ID (Azure AD) Advanced Features
+# =============================================================================
+
+variable "enable_entra_id_features" {
+  description = "Enable Entra ID features (token reuse, group search, etc.)"
+  type        = bool
+  default     = false
+}
+
+variable "openid_reuse_tokens" {
+  description = "Reuse OpenID tokens"
+  type        = bool
+  default     = true
+}
+
+variable "use_entra_id_for_people_search" {
+  description = "Use Entra ID for people search"
+  type        = bool
+  default     = true
+}
+
+variable "openid_graph_scopes" {
+  description = "OpenID Graph API scopes for Entra ID"
+  type        = string
+  default     = "User.Read,People.Read,GroupMember.Read.All"
+}
+
+variable "openid_jwks_url_cache_enabled" {
+  description = "Enable JWKS URL caching"
+  type        = bool
+  default     = true
+}
+
+variable "openid_jwks_url_cache_time" {
+  description = "JWKS URL cache time in milliseconds"
+  type        = number
+  default     = 600000
+}
+
+variable "openid_on_behalf_flow_for_userinfo_required" {
+  description = "Require on-behalf flow for user info"
+  type        = bool
+  default     = true
+}
+
+variable "openid_on_behalf_flow_userinfo_scope" {
+  description = "Scope for on-behalf flow user info"
+  type        = string
+  default     = "user.read"
+}
+
+variable "openid_use_end_session_endpoint" {
+  description = "Use end session endpoint for logout"
+  type        = bool
+  default     = true
+}
+
 variable "domain" {
   description = "Custom domain for the application"
   type        = string
