@@ -18,6 +18,7 @@
 #   sandbox  →  conpaichateastussandbox001  (RAG as sidecar)
 #   n2a      →  conpaichateastusn2a002      (RAG sidecar: conpairag)
 #   n1       →  conpaichateastusn1002       (RAG sidecar: conpairag)
+#   prod     →  conpaichateastusprod002     (RAG sidecar: conpairag)
 # =============================================================================
 
 name: Deploy Application
@@ -43,6 +44,7 @@ on:
           - sandbox
           - n2a
           - n1
+          - prod
       action:
         description: 'Action to perform'
         required: true
@@ -138,18 +140,17 @@ jobs:
               echo "config_file=librechat.n1.yml"                        >> $GITHUB_OUTPUT
               echo "acr_tier=prod"                                       >> $GITHUB_OUTPUT
               ;;
-            # ── Future environments ──────────────────────────────
-            # prod)
-            #   echo "runner=paychex-ai-platform-arc-prod"               >> $GITHUB_OUTPUT
-            #   echo "acr_host=conpaychexaiprod001.azurecr.io"           >> $GITHUB_OUTPUT
-            #   echo "app_name=conpaichateastusprod002"                   >> $GITHUB_OUTPUT
-            #   echo "rg=rg-playai-eastus-prod-002"                      >> $GITHUB_OUTPUT
-            #   echo "rag_mode=standalone"                                >> $GITHUB_OUTPUT
-            #   echo "rag_app=conpairageastusprod002"                     >> $GITHUB_OUTPUT
-            #   echo "tag_prefix=prod"                                    >> $GITHUB_OUTPUT
-            #   echo "config_file=librechat.prod.yml"                     >> $GITHUB_OUTPUT
-            #   echo "acr_tier=prod"                                      >> $GITHUB_OUTPUT
-            #   ;;
+            prod)
+              echo "runner=paychex-ai-platform-arc-prod"                 >> $GITHUB_OUTPUT
+              echo "acr_host=conpaychexaiprod001.azurecr.io"             >> $GITHUB_OUTPUT
+              echo "app_name=conpaichateastusprod002"                    >> $GITHUB_OUTPUT
+              echo "rg=rg-playai-eastus-prod-002"                        >> $GITHUB_OUTPUT
+              echo "rag_mode=sidecar"                                    >> $GITHUB_OUTPUT
+              echo "rag_app=conpairag"                                   >> $GITHUB_OUTPUT
+              echo "tag_prefix=prod"                                     >> $GITHUB_OUTPUT
+              echo "config_file=librechat.prod.yml"                      >> $GITHUB_OUTPUT
+              echo "acr_tier=prod"                                       >> $GITHUB_OUTPUT
+              ;;
             *)
               echo "::error::Unknown environment: $ENV"
               exit 1
@@ -362,7 +363,7 @@ jobs:
             fi
 
       - name: Deploy to Container App (nonprod)
-        if: needs.config.outputs.environment != 'sandbox'
+        if: needs.config.outputs.environment == 'n2a' || needs.config.outputs.environment == 'n1'
         uses: azure/cli@v2
         with:
           inlineScript: |
@@ -371,6 +372,52 @@ jobs:
               -p "${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_NONPROD }}" \
               --tenant "${{ secrets.AZURE_TENANT_ID }}" --output none
             az account set --subscription "${{ secrets.AZURE_NONPROD_SUBSCRIPTION_ID }}"
+
+            IDENTITY_NAME="id-${{ needs.config.outputs.app_name }}"
+            IDENTITY_ID=$(az identity show \
+              --name "${IDENTITY_NAME}" \
+              --resource-group "${{ needs.config.outputs.rg }}" \
+              --query id -o tsv)
+            if [ -z "${IDENTITY_ID}" ]; then
+              echo "::error::Unable to resolve identity ID for ${IDENTITY_NAME}"
+              exit 1
+            fi
+
+            az containerapp registry set \
+              --name "${{ needs.config.outputs.app_name }}" \
+              --resource-group "${{ needs.config.outputs.rg }}" \
+              --server "${{ needs.config.outputs.acr_host }}" \
+              --identity "${IDENTITY_ID}" \
+              --output none
+
+            echo "Updating LibreChat container..."
+            az containerapp update \
+              --name "${{ needs.config.outputs.app_name }}" \
+              --resource-group "${{ needs.config.outputs.rg }}" \
+              --container-name conpaichat \
+              --image "${{ steps.image.outputs.full_image }}"
+
+            if [ "${{ needs.config.outputs.rag_mode }}" = "sidecar" ]; then
+              RAG_IMAGE="${{ needs.config.outputs.acr_host }}/paychex/rag_api:${{ needs.config.outputs.tag_prefix }}.latest"
+              echo "Updating RAG sidecar container to ${RAG_IMAGE}..."
+              az containerapp update \
+                --name "${{ needs.config.outputs.app_name }}" \
+                --resource-group "${{ needs.config.outputs.rg }}" \
+                --container-name "${{ needs.config.outputs.rag_app }}" \
+                --image "${RAG_IMAGE}" \
+                --output none
+            fi
+
+      - name: Deploy to Container App (prod)
+        if: needs.config.outputs.environment == 'prod'
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az login --service-principal \
+              -u "${{ secrets.ARC_RUNNER_SP_CLIENT_ID_PROD }}" \
+              -p "${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_PROD }}" \
+              --tenant "${{ secrets.AZURE_TENANT_ID }}" --output none
+            az account set --subscription "${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}"
 
             IDENTITY_NAME="id-${{ needs.config.outputs.app_name }}"
             IDENTITY_ID=$(az identity show \
@@ -419,6 +466,12 @@ jobs:
                 -p "${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_SANDBOX }}" \
                 --tenant "${{ secrets.AZURE_TENANT_ID }}" --output none
               az account set --subscription "${{ secrets.AZURE_SANDBOX_SUBSCRIPTION_ID }}"
+            elif [ "${{ needs.config.outputs.environment }}" == "prod" ]; then
+              az login --service-principal \
+                -u "${{ secrets.ARC_RUNNER_SP_CLIENT_ID_PROD }}" \
+                -p "${{ secrets.ARC_RUNNER_SP_CLIENT_SECRET_PROD }}" \
+                --tenant "${{ secrets.AZURE_TENANT_ID }}" --output none
+              az account set --subscription "${{ secrets.AZURE_PROD_SUBSCRIPTION_ID }}"
             else
               az login --service-principal \
                 -u "${{ secrets.ARC_RUNNER_SP_CLIENT_ID_NONPROD }}" \
