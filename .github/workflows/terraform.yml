@@ -568,6 +568,7 @@ jobs:
             if [ -z "$app_id" ]; then
               return
             fi
+            app_id="${app_id//\/containerapps\//\/containerApps\/}"
 
             if terraform state show "$address" >/dev/null 2>&1; then
               local current_id
