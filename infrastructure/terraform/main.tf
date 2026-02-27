@@ -41,6 +41,58 @@ resource "azurerm_subnet" "container_apps" {
   }
 }
 
+resource "azurerm_network_security_group" "container_apps_prod" {
+  count = local.is_production && var.create_subnet ? 1 : 0
+
+  name                = var.new_subnet_name != null ? replace(var.new_subnet_name, "snet-", "nsg-") : "nsg-${local.name_prefix}-${var.app_name}-conapps-${var.environment}-${var.resource_suffix}"
+  location            = var.location
+  resource_group_name = var.existing_vnet_resource_group
+  tags                = local.common_tags
+
+  security_rule {
+    name                       = "AllowVnetInbound"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_ranges    = ["31443", "31080", "8080", "443"]
+    source_address_prefix      = "10.0.0.0/8"
+    destination_address_prefix = var.new_subnet_address_prefix
+  }
+
+  security_rule {
+    name                       = "AllowLBTrafficInbound"
+    priority                   = 110
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_ranges    = ["31443", "31080"]
+    source_address_prefix      = "AzureLoadBalancer"
+    destination_address_prefix = var.new_subnet_address_prefix
+  }
+
+  security_rule {
+    name                       = "DenyAllInbound"
+    priority                   = 200
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
+resource "azurerm_subnet_network_security_group_association" "container_apps_prod" {
+  count = local.is_production && var.create_subnet ? 1 : 0
+
+  subnet_id                 = azurerm_subnet.container_apps[0].id
+  network_security_group_id = azurerm_network_security_group.container_apps_prod[0].id
+}
+
 resource "azurerm_subnet" "private_endpoints" {
   count                = var.enable_private_endpoints && var.private_endpoint_create_subnet ? 1 : 0
   name                 = var.private_endpoint_subnet_name
@@ -1011,6 +1063,70 @@ resource "azurerm_subnet" "app_gateway" {
       actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
     }
   }
+}
+
+resource "azurerm_network_security_group" "app_gateway_prod" {
+  count = local.is_production && var.enable_app_gateway && var.app_gateway_create_subnet ? 1 : 0
+
+  name                = var.app_gateway_subnet_name != null ? replace(var.app_gateway_subnet_name, "snet-", "nsg-") : "nsg-${local.name_prefix}-${var.app_name}-appgw-${var.environment}-${var.resource_suffix}"
+  location            = var.location
+  resource_group_name = var.existing_vnet_resource_group
+  tags                = local.common_tags
+
+  security_rule {
+    name                       = "Allow-AzureLoadBalancer-Inbound"
+    priority                   = 201
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "AzureLoadBalancer"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "Allow-HTTPS-Inbound"
+    priority                   = 205
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "443"
+    source_address_prefix      = "10.0.0.0/8"
+    destination_address_prefix = var.app_gateway_subnet_address_prefix
+  }
+
+  security_rule {
+    name                       = "Deny-All-Inbound"
+    priority                   = 350
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "Allow-All-Inbound"
+    priority                   = 400
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "VirtualNetwork"
+    destination_address_prefix = "VirtualNetwork"
+  }
+}
+
+resource "azurerm_subnet_network_security_group_association" "app_gateway_prod" {
+  count = local.is_production && var.enable_app_gateway && var.app_gateway_create_subnet ? 1 : 0
+
+  subnet_id                 = azurerm_subnet.app_gateway[0].id
+  network_security_group_id = azurerm_network_security_group.app_gateway_prod[0].id
 }
 
 data "azurerm_subnet" "app_gateway" {

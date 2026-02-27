@@ -14,10 +14,9 @@ new_subnet_address_prefix      = "10.72.175.0/27"
 infrastructure_subnet_id       = null
 
 # Private Endpoints - enterprise network security
-enable_private_endpoints               = true
-private_endpoint_create_subnet         = true
-private_endpoint_subnet_name           = "snet-paychexai-playai-privateendpoints-prod-001"
-private_endpoint_subnet_address_prefix = "10.72.175.64/26"
+enable_private_endpoints       = true
+private_endpoint_create_subnet = false
+private_endpoint_subnet_name   = "snet-paychexai-privateendpoints-prod-001"
 
 # Shared App Gateway resource group (used when enable_app_gateway=true)
 create_shared_resource_group      = true
