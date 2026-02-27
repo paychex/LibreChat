@@ -58,7 +58,7 @@ app_gateway_additional_sites = [
     name                 = "n2a"
     listener_host_name   = "play.ain2a.paychex.com"
     backend_ip_address   = "10.76.3.16"
-    backend_host_name    = "conpaichateastusn2a002.agreeablegrass-367bee9c.eastus.azurecontainerapps.io"
+    backend_host_name    = "conplayaieastusn2a002.agreeablegrass-367bee9c.eastus.azurecontainerapps.io"
     ssl_certificate_name = "play-ain2a-paychex-com"
   }
 ]

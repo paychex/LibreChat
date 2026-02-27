@@ -24,7 +24,7 @@ locals {
   container_app_name      = "con${var.app_name}${local.location_short}${var.environment}${var.resource_suffix}"
   key_vault_name          = coalesce(var.key_vault_name_override, "kv-pyx${local.name_prefix}-${var.environment}-${var.resource_suffix}")
   # Storage account name max 24 chars - use shortened env names
-  storage_account_name = "st${var.app_name}${local.env_short}${var.resource_suffix}"
+  storage_account_name = "stplayai${local.env_short}${var.resource_suffix}"
 
   # Short environment names for storage accounts (24 char limit)
   env_short_map = {
@@ -96,8 +96,8 @@ locals {
   resolved_key_vault_subnet_ids = var.enable_private_endpoints ? [] : var.key_vault_subnet_ids
 
   # RAG API naming and URL
-  rag_container_app_name        = "conpairag${local.location_short}${var.environment}${var.resource_suffix}"
-  langgraph_container_app_name  = "conpalanggraph${local.location_short}${var.environment}${var.resource_suffix}"
+  rag_container_app_name        = "conplayairag${local.location_short}${var.environment}${var.resource_suffix}"
+  langgraph_container_app_name  = "conplayaiconduit${local.location_short}${var.environment}${var.resource_suffix}"
   redis_enterprise_cluster_name = "redis-${local.name_prefix}-${local.location_short}-${var.environment}-${var.resource_suffix}"
 
   # Sidecar: localhost. Standalone: internal FQDN within Container Apps Environment

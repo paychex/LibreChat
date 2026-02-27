@@ -46,7 +46,7 @@ variable "project_name" {
 variable "app_name" {
   description = "Application name used in resource naming"
   type        = string
-  default     = "paichat"
+  default     = "playai"
 }
 
 variable "tags" {
@@ -401,6 +401,12 @@ variable "enable_meilisearch_container" {
   default     = false
 }
 
+variable "preserve_meilisearch_infrastructure" {
+  description = "Keep MeiliSearch infrastructure resources (storage/share + KV secret) even when sidecar is disabled"
+  type        = bool
+  default     = false
+}
+
 variable "meilisearch_image" {
   description = "MeiliSearch container image"
   type        = string
@@ -543,6 +549,29 @@ variable "storage_share_quota" {
   description = "File share quota in GB"
   type        = number
   default     = 100
+}
+
+variable "enable_uploads_capacity_alert" {
+  description = "Enable Azure Monitor metric alert for uploads file share capacity"
+  type        = bool
+  default     = false
+}
+
+variable "uploads_capacity_alert_threshold_percent" {
+  description = "Percent of uploads share quota to trigger capacity alert"
+  type        = number
+  default     = 80
+
+  validation {
+    condition     = var.uploads_capacity_alert_threshold_percent > 0 && var.uploads_capacity_alert_threshold_percent <= 100
+    error_message = "uploads_capacity_alert_threshold_percent must be between 0 and 100."
+  }
+}
+
+variable "uploads_capacity_alert_action_group_ids" {
+  description = "Action group IDs for uploads capacity alert notifications"
+  type        = list(string)
+  default     = []
 }
 
 variable "librechat_image" {

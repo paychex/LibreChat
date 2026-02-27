@@ -44,7 +44,7 @@ existing_acr_resource_group = "rg-paychexai-aks-eastus-sandbox-001"
 key_vault_name_override       = "kv-pyxplayai-sandbox-001"
 key_vault_resource_group_name = "rg-playai-shared-eastus-sandbox-001"
 # Use the actual Container App FQDN (custom domain not configured yet)
-domain = "conpaichateastussandbox001.agreeablemeadow-1fccb990.eastus.azurecontainerapps.io"
+domain = "conplayaieastussandbox001.agreeablemeadow-1fccb990.eastus.azurecontainerapps.io"
 
 # OpenID (using n2a values for sandbox testing)
 openid_issuer    = "https://login.microsoftonline.com/bcc529c5-dfce-4f97-b44f-debd50891d83/v2.0/"

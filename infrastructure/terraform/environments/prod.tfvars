@@ -49,9 +49,10 @@ rag_api_image         = "mcr.microsoft.com/azuredocs/containerapps-helloworld:la
 langgraph_proxy_image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
 
 # Sidecars in LibreChat container app
-enable_rag_sidecar           = true
-enable_meilisearch_container = true
-enable_langgraph_proxy       = true
+enable_rag_sidecar                  = true
+enable_meilisearch_container        = false
+preserve_meilisearch_infrastructure = true
+enable_langgraph_proxy              = true
 
 # Existing ACR
 existing_acr_name           = "conpaychexaiprod001"
@@ -108,11 +109,13 @@ liveness_probe_initial_delay  = 45
 liveness_probe_period         = 15
 
 # Storage
-storage_account_kind        = "FileStorage"
-storage_account_tier        = "Premium"
-storage_account_replication = "LRS"
-storage_share_quota         = 1024
-meilisearch_storage_quota   = 1024
+storage_account_kind                     = "FileStorage"
+storage_account_tier                     = "Premium"
+storage_account_replication              = "LRS"
+storage_share_quota                      = 1024
+meilisearch_storage_quota                = 100
+enable_uploads_capacity_alert            = true
+uploads_capacity_alert_threshold_percent = 80
 
 # Tags (environment-specific overrides)
 tags = {

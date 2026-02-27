@@ -180,7 +180,7 @@ locals {
   }
 
   # MeiliSearch secrets - auto-generated secure key
-  meilisearch_secrets = var.enable_meilisearch_container ? {
+  meilisearch_secrets = (var.enable_meilisearch_container || var.preserve_meilisearch_infrastructure) ? {
     "${upper(var.environment)}-MEILISEARCH-MASTER-KEY" = random_password.meilisearch_master_key[0].result
   } : {}
 
@@ -206,7 +206,7 @@ resource "random_id" "secret_suffix" {
 
 # Generate secure MeiliSearch master key (only when enabled)
 resource "random_password" "meilisearch_master_key" {
-  count   = var.enable_meilisearch_container ? 1 : 0
+  count   = (var.enable_meilisearch_container || var.preserve_meilisearch_infrastructure) ? 1 : 0
   length  = 32
   special = false
 }
@@ -263,13 +263,48 @@ module "storage" {
         quota = var.storage_share_quota
       }
     ],
-    var.enable_meilisearch_container ? [
+    (var.enable_meilisearch_container || var.preserve_meilisearch_infrastructure) ? [
       {
         name  = "meilisearch-data-${var.environment}"
         quota = var.meilisearch_storage_quota
       }
     ] : []
   )
+}
+
+resource "azurerm_monitor_metric_alert" "uploads_capacity" {
+  count = var.enable_uploads_capacity_alert ? 1 : 0
+
+  name                = "malert-${local.name_prefix}-uploads-${var.environment}-${var.resource_suffix}"
+  resource_group_name = azurerm_resource_group.main.name
+  scopes              = ["${module.storage.storage_account_id}/fileServices/default"]
+  description         = "Uploads share capacity alert for uploads-${var.environment}"
+  severity            = 2
+  enabled             = true
+  auto_mitigate       = true
+  frequency           = "PT1H"
+  window_size         = "PT1H"
+
+  criteria {
+    metric_namespace = "Microsoft.Storage/storageAccounts/fileServices"
+    metric_name      = "FileCapacity"
+    aggregation      = "Average"
+    operator         = "GreaterThan"
+    threshold        = var.storage_share_quota * 1073741824 * (var.uploads_capacity_alert_threshold_percent / 100)
+
+    dimension {
+      name     = "FileShare"
+      operator = "Include"
+      values   = ["uploads-${var.environment}"]
+    }
+  }
+
+  dynamic "action" {
+    for_each = var.uploads_capacity_alert_action_group_ids
+    content {
+      action_group_id = action.value
+    }
+  }
 }
 
 # =============================================================================
@@ -451,7 +486,7 @@ module "container_app" {
   # LibreChat container configuration
   librechat_container = {
     image  = var.librechat_image
-    name   = "conpaichat"
+    name   = "conplayai"
     cpu    = var.librechat_cpu
     memory = var.librechat_memory
 
@@ -512,7 +547,7 @@ module "container_app" {
   # RAG API container configuration
   rag_api_container = {
     image  = var.rag_api_image
-    name   = "conpairag"
+    name   = "conplayairag"
     cpu    = var.rag_api_cpu
     memory = var.rag_api_memory
 
@@ -723,7 +758,7 @@ resource "azurerm_container_app" "rag_api" {
     max_replicas = var.rag_api_max_replicas
 
     container {
-      name   = "conpairag"
+      name   = "conplayairag"
       image  = var.rag_api_image
       cpu    = var.rag_api_cpu
       memory = var.rag_api_memory
@@ -880,7 +915,7 @@ resource "azurerm_container_app" "langgraph_proxy" {
     max_replicas = var.langgraph_proxy_max_replicas
 
     container {
-      name   = "conpalanggraph"
+      name   = "conplayaiconduit"
       image  = var.langgraph_proxy_image
       cpu    = var.langgraph_proxy_cpu
       memory = var.langgraph_proxy_memory

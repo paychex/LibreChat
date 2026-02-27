@@ -5,7 +5,7 @@
 # is managed by Terraform (terraform.yml).
 #
 # Existing (non-TF) environments use their own workflows:
-#   n2a-build-and-push.yml  →  N2A-001 (conpaichateastusn2a001)
+#   n2a-build-and-push.yml  →  N2A-001 (conplayaieastusn2a001)
 #   n1-build-and-push.yml   →  N1-001
 #   prod-build-and-push.yml →  Prod-001
 #
@@ -15,10 +15,10 @@
 #     az containerapp update --container-name <name> --image <image>
 #
 # Environments:
-#   sandbox  →  conpaichateastussandbox001  (RAG as sidecar)
-#   n2a      →  conpaichateastusn2a002      (RAG sidecar: conpairag)
-#   n1       →  conpaichateastusn1002       (RAG sidecar: conpairag)
-#   prod     →  conpaichateastusprod002     (RAG sidecar: conpairag)
+#   sandbox  →  conplayaieastussandbox001  (RAG as sidecar)
+#   n2a      →  conplayaieastusn2a002      (RAG sidecar: conplayairag)
+#   n1       →  conplayaieastusn1002       (RAG sidecar: conplayairag)
+#   prod     →  conplayaieastusprod002     (RAG sidecar: conplayairag)
 # =============================================================================
 
 name: Deploy Application
@@ -110,7 +110,7 @@ jobs:
             sandbox)
               echo "runner=paychex-ai-platform-arc-sandbox"              >> $GITHUB_OUTPUT
               echo "acr_host=acrpaychexaisandbox001.azurecr.io"          >> $GITHUB_OUTPUT
-              echo "app_name=conpaichateastussandbox001"                  >> $GITHUB_OUTPUT
+              echo "app_name=conplayaieastussandbox001"                  >> $GITHUB_OUTPUT
               echo "rg=rg-playai-eastus-sandbox-001"                     >> $GITHUB_OUTPUT
               echo "rag_mode=sidecar"                                    >> $GITHUB_OUTPUT
               echo "rag_app="                                            >> $GITHUB_OUTPUT
@@ -121,10 +121,10 @@ jobs:
             n2a)
               echo "runner=paychex-ai-platform-arc-nonprod"              >> $GITHUB_OUTPUT
               echo "acr_host=conpaychexaiprod001.azurecr.io"             >> $GITHUB_OUTPUT
-              echo "app_name=conpaichateastusn2a002"                     >> $GITHUB_OUTPUT
+              echo "app_name=conplayaieastusn2a002"                      >> $GITHUB_OUTPUT
               echo "rg=rg-playai-eastus-n2a-002"                         >> $GITHUB_OUTPUT
               echo "rag_mode=sidecar"                                    >> $GITHUB_OUTPUT
-              echo "rag_app=conpairag"                                   >> $GITHUB_OUTPUT
+              echo "rag_app=conplayairag"                                >> $GITHUB_OUTPUT
               echo "tag_prefix=n2a"                                      >> $GITHUB_OUTPUT
               echo "config_file=librechat.n2a.yml"                       >> $GITHUB_OUTPUT
               echo "acr_tier=prod"                                       >> $GITHUB_OUTPUT
@@ -132,10 +132,10 @@ jobs:
             n1)
               echo "runner=paychex-ai-platform-arc-nonprod"              >> $GITHUB_OUTPUT
               echo "acr_host=conpaychexaiprod001.azurecr.io"             >> $GITHUB_OUTPUT
-              echo "app_name=conpaichateastusn1002"                      >> $GITHUB_OUTPUT
+              echo "app_name=conplayaieastusn1002"                       >> $GITHUB_OUTPUT
               echo "rg=rg-playai-eastus-n1-002"                          >> $GITHUB_OUTPUT
               echo "rag_mode=sidecar"                                    >> $GITHUB_OUTPUT
-              echo "rag_app=conpairag"                                   >> $GITHUB_OUTPUT
+              echo "rag_app=conplayairag"                                >> $GITHUB_OUTPUT
               echo "tag_prefix=n1"                                       >> $GITHUB_OUTPUT
               echo "config_file=librechat.n1.yml"                        >> $GITHUB_OUTPUT
               echo "acr_tier=prod"                                       >> $GITHUB_OUTPUT
@@ -143,10 +143,10 @@ jobs:
             prod)
               echo "runner=paychex-ai-platform-arc-prod"                 >> $GITHUB_OUTPUT
               echo "acr_host=conpaychexaiprod001.azurecr.io"             >> $GITHUB_OUTPUT
-              echo "app_name=conpaichateastusprod002"                    >> $GITHUB_OUTPUT
+              echo "app_name=conplayaieastusprod002"                     >> $GITHUB_OUTPUT
               echo "rg=rg-playai-eastus-prod-002"                        >> $GITHUB_OUTPUT
               echo "rag_mode=sidecar"                                    >> $GITHUB_OUTPUT
-              echo "rag_app=conpairag"                                   >> $GITHUB_OUTPUT
+              echo "rag_app=conplayairag"                                >> $GITHUB_OUTPUT
               echo "tag_prefix=prod"                                     >> $GITHUB_OUTPUT
               echo "config_file=librechat.prod.yml"                      >> $GITHUB_OUTPUT
               echo "acr_tier=prod"                                       >> $GITHUB_OUTPUT
@@ -310,7 +310,7 @@ jobs:
             az containerapp update \
               --name "${{ needs.config.outputs.app_name }}" \
               --resource-group "${{ needs.config.outputs.rg }}" \
-              --container-name conpaichat \
+              --container-name conplayai \
               --image "${{ steps.image.outputs.full_image }}"
 
       # Ensure nonprod workload identity can pull from shared prod ACR.
@@ -394,7 +394,7 @@ jobs:
             az containerapp update \
               --name "${{ needs.config.outputs.app_name }}" \
               --resource-group "${{ needs.config.outputs.rg }}" \
-              --container-name conpaichat \
+              --container-name conplayai \
               --image "${{ steps.image.outputs.full_image }}"
 
             if [ "${{ needs.config.outputs.rag_mode }}" = "sidecar" ]; then
@@ -440,7 +440,7 @@ jobs:
             az containerapp update \
               --name "${{ needs.config.outputs.app_name }}" \
               --resource-group "${{ needs.config.outputs.rg }}" \
-              --container-name conpaichat \
+              --container-name conplayai \
               --image "${{ steps.image.outputs.full_image }}"
 
             if [ "${{ needs.config.outputs.rag_mode }}" = "sidecar" ]; then
