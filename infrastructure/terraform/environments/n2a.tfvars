@@ -64,18 +64,18 @@ domain = "play.ain2a.paychex.com"
 # OpenID Configuration
 openid_issuer    = "https://login.microsoftonline.com/bcc529c5-dfce-4f97-b44f-debd50891d83/v2.0/"
 openid_client_id = "1ebba027-b707-42b7-b509-44566c9ecff1"
-openid_scope = "api://1ebba027-b707-42b7-b509-44566c9ecff1/.default openid profile email offline_access"
+openid_scope     = "api://1ebba027-b707-42b7-b509-44566c9ecff1/.default openid profile email offline_access"
 
 # Entra ID Features - Enable group features for N2A
-enable_entra_id_features                         = true
-openid_reuse_tokens                              = true
-use_entra_id_for_people_search                   = true
-openid_graph_scopes                              = "User.Read,People.Read,GroupMember.Read.All"
-openid_jwks_url_cache_enabled                    = true
-openid_jwks_url_cache_time                       = 600000
-openid_on_behalf_flow_for_userinfo_required      = true
-openid_on_behalf_flow_userinfo_scope             = "user.read"
-openid_use_end_session_endpoint                  = true
+enable_entra_id_features                    = true
+openid_reuse_tokens                         = true
+use_entra_id_for_people_search              = true
+openid_graph_scopes                         = "User.Read,People.Read,GroupMember.Read.All"
+openid_jwks_url_cache_enabled               = true
+openid_jwks_url_cache_time                  = 600000
+openid_on_behalf_flow_for_userinfo_required = true
+openid_on_behalf_flow_userinfo_scope        = "user.read"
+openid_use_end_session_endpoint             = true
 
 # External Service URLs
 azure_openai_baseurl      = "https://service-internal-n2a.paychex.com/is/librechat/azure/openai/deployments/$${DEPLOYMENT_NAME}"
