@@ -545,6 +545,48 @@ jobs:
             echo "ℹ️ Key Vault $KV_NAME not found; Terraform will create it"
           fi
 
+          # If a prior rename apply created new Container Apps but failed before state write,
+          # import those existing apps so subsequent applies can converge.
+          LOCATION=$(awk -F'"' '/^location[[:space:]]*=/{print $2; exit}' "$TFVARS")
+          [ -z "$LOCATION" ] && LOCATION="East US"
+          LOCATION_SHORT=$(echo "$LOCATION" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+
+          RESOURCE_SUFFIX=$(awk -F'"' '/^resource_suffix[[:space:]]*=/{print $2; exit}' "$TFVARS")
+          [ -z "$RESOURCE_SUFFIX" ] && RESOURCE_SUFFIX="001"
+
+          TARGET_RG=$(terraform state show -no-color azurerm_resource_group.main 2>/dev/null | awk -F'=' '/^name[[:space:]]*=/{gsub(/[ "]/,"",$2); print $2; exit}')
+          if [ -z "$TARGET_RG" ]; then
+            TARGET_RG="rg-playai-${LOCATION_SHORT}-${{ github.event.inputs.environment }}-${RESOURCE_SUFFIX}"
+          fi
+
+          import_container_app() {
+            local address="$1"
+            local app_name="$2"
+
+            local app_id
+            app_id=$(az containerapp show --name "$app_name" --resource-group "$TARGET_RG" --query id -o tsv 2>/dev/null || true)
+            if [ -z "$app_id" ]; then
+              return
+            fi
+
+            if terraform state show "$address" >/dev/null 2>&1; then
+              local current_id
+              current_id=$(terraform state show -no-color "$address" | awk -F'= ' '/^id[[:space:]]*=/{gsub(/[ "]/,"",$2); print $2; exit}')
+              if [ "$current_id" != "$app_id" ]; then
+                terraform state rm "$address" >/dev/null
+              fi
+            fi
+
+            if ! terraform state show "$address" >/dev/null 2>&1; then
+              terraform import -var-file="$TFVARS" "$address" "$app_id" >/dev/null
+              echo "ℹ️ Imported existing Container App $app_name into $address"
+            fi
+          }
+
+          import_container_app 'module.container_app.azurerm_container_app.this' "conplayai${LOCATION_SHORT}${{ github.event.inputs.environment }}${RESOURCE_SUFFIX}"
+          import_container_app 'azurerm_container_app.rag_api[0]' "conplayairag${LOCATION_SHORT}${{ github.event.inputs.environment }}${RESOURCE_SUFFIX}"
+          import_container_app 'azurerm_container_app.langgraph_proxy[0]' "conplayaiconduit${LOCATION_SHORT}${{ github.event.inputs.environment }}${RESOURCE_SUFFIX}"
+
           set +e
           terraform plan \
             -var-file=environments/${{ github.event.inputs.environment }}.tfvars \
