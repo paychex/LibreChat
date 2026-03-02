@@ -60,7 +60,7 @@ export const useEndpoints = ({
     }
     const result: EModelEndpoint[] = [];
     for (let i = 0; i < endpoints.length; i++) {
-      if (endpoints[i] === EModelEndpoint.agents && (!hasAgentAccess || (agents?.length ?? 0) === 0)) {
+      if (endpoints[i] === EModelEndpoint.agents && (!hasAgentAccess || !agents?.length)) {
         continue;
       }
       if (includedEndpoints.size > 0 && !includedEndpoints.has(endpoints[i])) {
