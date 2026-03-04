@@ -74,6 +74,9 @@ mcpServers:
     chatMenu: false
     requiresOAuth: false
 endpoints:
+  agents:
+    allowedProviders:
+      - "LangGraph Agents"
   azureOpenAI:
     # Endpoint-level configuration
     titleModel: "gpt-4o"

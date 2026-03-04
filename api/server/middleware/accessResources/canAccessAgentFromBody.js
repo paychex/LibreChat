@@ -50,7 +50,20 @@ const canAccessAgentFromBody = (options) => {
       const { endpoint, agent_id } = req.body;
       let agentId = agent_id;
 
+      // Check if endpoint is in allowedProviders (provider-only endpoints)
+      // These endpoints can only be used through created agents, not via ephemeral access
+      const allowedProviders = req.config?.endpoints?.agents?.allowedProviders || [];
+      const isProviderOnly = allowedProviders.includes(endpoint);
+
       if (!isAgentsEndpoint(endpoint)) {
+        // If this is a provider-only endpoint, completely block direct access
+        // These must go through the agents endpoint, not as standalone requests
+        if (isProviderOnly) {
+          return res.status(403).json({
+            error: 'Forbidden',
+            message: 'This endpoint can only be accessed through created agents with proper permissions',
+          });
+        }
         agentId = Constants.EPHEMERAL_AGENT_ID;
       }
 
