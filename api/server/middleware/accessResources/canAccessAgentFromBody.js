@@ -61,7 +61,8 @@ const canAccessAgentFromBody = (options) => {
         if (isProviderOnly) {
           return res.status(403).json({
             error: 'Forbidden',
-            message: 'This endpoint can only be accessed through created agents with proper permissions',
+            message:
+              'This endpoint can only be accessed through created agents with proper permissions',
           });
         }
         agentId = Constants.EPHEMERAL_AGENT_ID;
