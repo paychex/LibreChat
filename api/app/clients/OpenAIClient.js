@@ -34,6 +34,9 @@ const { OllamaClient } = require('./OllamaClient');
 const { extractBaseURL } = require('~/utils');
 const BaseClient = require('./BaseClient');
 
+const hasUnresolvedTemplate = (value) =>
+  typeof value === 'string' && value.includes('{{') && value.includes('}}');
+
 class OpenAIClient extends BaseClient {
   constructor(apiKey, options = {}) {
     super(apiKey, options);
@@ -878,7 +881,21 @@ class OpenAIClient extends BaseClient {
       // Resolve dynamic headers (body-dependent placeholders) after conversationId is generated
       if (this.options.headerTemplates) {
         const dynamicHeaders = this.resolveDynamicHeaders(this.options.headerTemplates);
-        opts.defaultHeaders = { ...opts.defaultHeaders, ...dynamicHeaders };
+        const safeDynamicHeaders = Object.entries(dynamicHeaders).reduce((acc, [key, value]) => {
+          if (value == null || value === '') {
+            return acc;
+          }
+
+          if (hasUnresolvedTemplate(value)) {
+            logger.warn('[OpenAIClient] dropping unresolved dynamic header', { header: key });
+            return acc;
+          }
+
+          acc[key] = value;
+          return acc;
+        }, {});
+
+        opts.defaultHeaders = { ...opts.defaultHeaders, ...safeDynamicHeaders };
       }
 
       let chatCompletion;
