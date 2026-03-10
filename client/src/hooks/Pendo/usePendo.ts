@@ -69,6 +69,8 @@ interface UsePendoOptions {
   accountId?: string;
   /** Optional account name */
   accountName?: string;
+  /** Whether the user has any agents */
+  hasAgents?: boolean;
 }
 
 interface UsePendoReturn {
@@ -164,9 +166,11 @@ export function usePendo({
   user,
   accountId,
   accountName,
+  hasAgents,
 }: UsePendoOptions): UsePendoReturn {
   const isInitializedRef = useRef(false);
   const previousUserIdRef = useRef<string | undefined>(undefined);
+  const previousHasAgentsRef = useRef<boolean | undefined>(undefined);
 
   /**
    * Check if Pendo is ready for use.
@@ -230,8 +234,12 @@ export function usePendo({
       return;
     }
 
-    // Skip if already initialized for this user
-    if (isInitializedRef.current && previousUserIdRef.current === user.id) {
+    // Skip if already initialized for this user and hasAgents hasn't changed
+    if (
+      isInitializedRef.current &&
+      previousUserIdRef.current === user.id &&
+      previousHasAgentsRef.current === hasAgents
+    ) {
       return;
     }
 
@@ -253,6 +261,7 @@ export function usePendo({
           full_name: user.name || undefined,
           role: user.role || undefined,
           createdAt: user.createdAt ? new Date(user.createdAt).toISOString() : undefined,
+          hasAgents: hasAgents,
         };
 
         const accountData: PendoAccountMetadata | undefined = accountId
@@ -276,13 +285,14 @@ export function usePendo({
         }
 
         previousUserIdRef.current = user.id;
+        previousHasAgentsRef.current = hasAgents;
       } catch (error) {
         console.error('[Pendo] Error initializing:', error);
       }
     };
 
     initializePendo();
-  }, [isAuthenticated, user, accountId, accountName]);
+  }, [isAuthenticated, user, accountId, accountName, hasAgents]);
 
   return {
     trackEvent,

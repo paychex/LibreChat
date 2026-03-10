@@ -1,4 +1,5 @@
 import { useAuthContext } from '~/hooks/AuthContext';
+import { useAgentsMap } from '~/hooks';
 import { usePendo } from './usePendo';
 
 interface PendoInitializerProps {
@@ -38,6 +39,10 @@ export function PendoInitializer({
   children,
 }: PendoInitializerProps): React.ReactElement {
   const { isAuthenticated, user } = useAuthContext();
+  const agentsMap = useAgentsMap({ isAuthenticated });
+
+  // Calculate hasAgents flag for Pendo segmentation
+  const hasAgents = Object.keys(agentsMap || {}).length > 0;
 
   // Initialize Pendo - the hook handles all the logic
   usePendo({
@@ -45,6 +50,7 @@ export function PendoInitializer({
     user,
     accountId,
     accountName,
+    hasAgents,
   });
 
   return <>{children}</>;
