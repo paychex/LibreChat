@@ -219,6 +219,7 @@ export function usePendo({
     if (!isAuthenticated) {
       if (isInitializedRef.current && window.pendo?.clearSession) {
         try {
+          console.log('[Pendo] User logged out, clearing session');
           window.pendo.clearSession();
         } catch (error) {
           console.error('[Pendo] Error clearing session:', error);
@@ -226,6 +227,7 @@ export function usePendo({
       }
       isInitializedRef.current = false;
       previousUserIdRef.current = undefined;
+      previousHasAgentsRef.current = undefined;
       return;
     }
 
@@ -234,12 +236,22 @@ export function usePendo({
       return;
     }
 
+    // Wait for hasAgents to be evaluated before initializing
+    // This ensures we initialize with the correct segment from the start
+    if (hasAgents === undefined) {
+      console.log('[Pendo] Waiting for hasAgents to be evaluated...');
+      return;
+    }
+
+    console.log('[Pendo] hasAgents evaluated:', hasAgents);
+
     // Skip if already initialized for this user and hasAgents hasn't changed
     if (
       isInitializedRef.current &&
       previousUserIdRef.current === user.id &&
       previousHasAgentsRef.current === hasAgents
     ) {
+      console.log('[Pendo] Already initialized with same hasAgents value, skipping');
       return;
     }
 
@@ -261,8 +273,10 @@ export function usePendo({
           full_name: user.name || undefined,
           role: user.role || undefined,
           createdAt: user.createdAt ? new Date(user.createdAt).toISOString() : undefined,
-          hasAgents: hasAgents,
+          hasAgentAccess: hasAgents ? 'enabled' : 'disabled',
         };
+
+        console.log('[Pendo] Visitor data prepared:', visitorData);
 
         const accountData: PendoAccountMetadata | undefined = accountId
           ? {
@@ -276,12 +290,32 @@ export function usePendo({
           ...(accountData && { account: accountData }),
         };
 
-        // Use identify if already initialized, otherwise initialize
-        if (isInitializedRef.current) {
-          window.pendo.identify(initOptions);
-        } else {
+        // Check if hasAgents changed - requires reinitialization for reliable segment matching
+        const hasAgentsChanged =
+          isInitializedRef.current && previousHasAgentsRef.current !== hasAgents;
+
+        console.log(
+          '[Pendo] hasAgentsChanged:',
+          hasAgentsChanged,
+          'previousHasAgents:',
+          previousHasAgentsRef.current,
+          'currentHasAgents:',
+          hasAgents,
+        );
+
+        // If hasAgents changed, clear session to reinitialize with new segment
+        if (hasAgentsChanged && window.pendo.clearSession) {
+          console.log('[Pendo] Clearing session to reinitialize with new hasAgentAccess value');
+          window.pendo.clearSession();
+          isInitializedRef.current = false;
+        }
+
+        // Initialize with the correct hasAgentAccess value
+        if (!isInitializedRef.current) {
+          console.log('[Pendo] Initializing Pendo with options:', initOptions);
           window.pendo.initialize(initOptions);
           isInitializedRef.current = true;
+          console.log('[Pendo] Pendo initialized successfully');
         }
 
         previousUserIdRef.current = user.id;
