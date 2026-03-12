@@ -627,6 +627,7 @@ const getListAgentsByAccess = async ({
     author: 1,
     projectIds: 1,
     description: 1,
+    short_description: 1,
     updatedAt: 1,
     category: 1,
     support_contact: 1,
@@ -697,6 +698,7 @@ const getListAgents = async (searchParameter) => {
       author: 1,
       projectIds: 1,
       description: 1,
+      short_description: 1,
       // @deprecated - isCollaborative replaced by ACL permissions
       isCollaborative: 1,
       category: 1,

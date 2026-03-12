@@ -117,6 +117,10 @@ export const useEndpoints = ({
           acc[agent.id] = agent.name || '';
           return acc;
         }, {});
+        result.agentDescriptions = agents?.reduce((acc, agent) => {
+          acc[agent.id] = agent.short_description || agent.description || '';
+          return acc;
+        }, {});
         result.modelIcons = agents?.reduce((acc, agent) => {
           acc[agent.id] = agent?.avatar?.filepath;
           return acc;

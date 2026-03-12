@@ -15,6 +15,9 @@ const agentSchema = new Schema<IAgent>(
     description: {
       type: String,
     },
+    short_description: {
+      type: String,
+    },
     instructions: {
       type: String,
     },

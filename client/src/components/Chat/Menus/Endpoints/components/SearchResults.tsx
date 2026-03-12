@@ -138,12 +138,14 @@ export function SearchResults({ results, localize, searchValue }: SearchResultsP
 
                   let isGlobal = false;
                   let modelName = modelId;
+                  let modelDescription = '';
                   if (
                     isAgentsEndpoint(endpoint.value) &&
                     endpoint.agentNames &&
                     endpoint.agentNames[modelId]
                   ) {
                     modelName = endpoint.agentNames[modelId];
+                    modelDescription = endpoint.agentDescriptions?.[modelId] || '';
                     const modelInfo = endpoint?.models?.find((m) => m.name === modelId);
                     isGlobal = modelInfo?.isGlobal ?? false;
                   } else if (
@@ -160,9 +162,9 @@ export function SearchResults({ results, localize, searchValue }: SearchResultsP
                       onClick={() => handleSelectModel(endpoint, modelId)}
                       className="flex w-full cursor-pointer items-center justify-start rounded-lg px-3 py-2 pl-6 text-sm"
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
                         {endpoint.modelIcons?.[modelId] && (
-                          <div className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full">
+                          <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center overflow-hidden rounded-full">
                             <img
                               src={endpoint.modelIcons[modelId]}
                               alt={modelName}
@@ -170,9 +172,18 @@ export function SearchResults({ results, localize, searchValue }: SearchResultsP
                             />
                           </div>
                         )}
-                        <span>{modelName}</span>
+                        <div className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate">{modelName}</span>
+                          {modelDescription && (
+                            <span className="truncate text-xs text-text-secondary">
+                              {modelDescription}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      {isGlobal && <EarthIcon className="ml-auto size-4 text-green-400" />}
+                      {isGlobal && (
+                        <EarthIcon className="ml-auto size-4 flex-shrink-0 text-green-400" />
+                      )}
                       {selectedEndpoint === endpoint.value && selectedModel === modelId && (
                         <svg
                           width="16"

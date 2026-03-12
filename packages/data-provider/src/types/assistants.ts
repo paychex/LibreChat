@@ -214,6 +214,7 @@ export type Agent = {
   endpoint?: string | null;
   authorName?: string | null;
   description: string | null;
+  short_description?: string | null;
   created_at: number;
   avatar: AgentAvatar | null;
   instructions: string | null;

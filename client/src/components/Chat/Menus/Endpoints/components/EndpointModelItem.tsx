@@ -15,11 +15,13 @@ export function EndpointModelItem({ modelId, endpoint, isSelected }: EndpointMod
   const { handleSelectModel } = useModelSelectorContext();
   let isGlobal = false;
   let modelName = modelId;
+  let modelDescription = '';
   const avatarUrl = endpoint?.modelIcons?.[modelId ?? ''] || null;
 
   // Use custom names if available
   if (endpoint && modelId && isAgentsEndpoint(endpoint.value) && endpoint.agentNames?.[modelId]) {
     modelName = endpoint.agentNames[modelId];
+    modelDescription = endpoint.agentDescriptions?.[modelId] || '';
 
     const modelInfo = endpoint?.models?.find((m) => m.name === modelId);
     isGlobal = modelInfo?.isGlobal ?? false;
@@ -39,17 +41,26 @@ export function EndpointModelItem({ modelId, endpoint, isSelected }: EndpointMod
       className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2 text-sm"
     >
       <div className="flex w-full min-w-0 items-center gap-2 px-1 py-1">
-        {avatarUrl ? (
+        {avatarUrl && (
           <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center overflow-hidden rounded-full">
             <img src={avatarUrl} alt={modelName ?? ''} className="h-full w-full object-cover" />
           </div>
-        ) : (isAgentsEndpoint(endpoint.value) || isAssistantsEndpoint(endpoint.value)) &&
-          endpoint.icon ? (
-          <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center overflow-hidden rounded-full">
-            {endpoint.icon}
-          </div>
-        ) : null}
-        <span className="truncate text-left">{modelName}</span>
+        )}
+        {!avatarUrl &&
+          (isAgentsEndpoint(endpoint.value) || isAssistantsEndpoint(endpoint.value)) &&
+          endpoint.icon && (
+            <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center overflow-hidden rounded-full">
+              {endpoint.icon}
+            </div>
+          )}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-left">{modelName}</span>
+          {modelDescription && (
+            <span className="truncate text-left text-xs text-text-secondary">
+              {modelDescription}
+            </span>
+          )}
+        </div>
         {isGlobal && (
           <EarthIcon className="ml-auto size-4 flex-shrink-0 self-center text-green-400" />
         )}

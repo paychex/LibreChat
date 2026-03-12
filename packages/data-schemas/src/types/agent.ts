@@ -10,6 +10,7 @@ export interface IAgent extends Omit<Document, 'model'> {
   id: string;
   name?: string;
   description?: string;
+  short_description?: string;
   instructions?: string;
   avatar?: {
     filepath: string;

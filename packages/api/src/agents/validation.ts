@@ -55,6 +55,7 @@ export const graphEdgeSchema = z.object({
 export const agentBaseSchema = z.object({
   name: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
+  short_description: z.string().max(50).nullable().optional(),
   instructions: z.string().nullable().optional(),
   avatar: agentAvatarSchema.nullable().optional(),
   model_parameters: z.record(z.unknown()).optional(),
