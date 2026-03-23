@@ -319,8 +319,30 @@ function createToolInstance({ res, toolName, serverName, toolDefinition, provide
     transformOneOfAnyOf: true,
   });
 
+  // This prevents race conditions where Claude sees inconsistent schemas during parallel calls
   if (!schema) {
-    schema = z.object({ input: z.string().optional() });
+    const isTavily =
+      serverName === 'Internet Search (Tavily)' || serverName.toLowerCase().includes('tavily');
+
+    if (isTavily && (toolName.includes('tavily_search') || toolName.includes('tavily_research'))) {
+      // Tavily tools require 'query' parameter, NOT 'input'
+      logger.warn(
+        `[MCP][${serverName}][${toolName}] Schema conversion failed - using Tavily-specific fallback schema with 'query' parameter`,
+      );
+      schema = z.object({
+        query: z.string().min(1, 'Search query is required and cannot be empty'),
+        search_depth: z.enum(['basic', 'fast', 'advanced']).optional(),
+        max_results: z.number().int().positive().optional(),
+        include_domains: z.array(z.string()).optional(),
+        exclude_domains: z.array(z.string()).optional(),
+      });
+    } else {
+      // Generic fallback for other tools
+      logger.warn(
+        `[MCP][${serverName}][${toolName}] Schema conversion failed - using generic fallback schema with 'input' parameter`,
+      );
+      schema = z.object({ input: z.string().optional() });
+    }
   }
 
   const normalizedToolKey = `${toolName}${Constants.mcp_delimiter}${normalizeServerName(serverName)}`;
