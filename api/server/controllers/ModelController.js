@@ -47,4 +47,26 @@ async function modelController(req, res) {
   }
 }
 
-module.exports = { modelController, loadModels, getModelsConfig };
+/**
+ * Refreshes the models cache by clearing MODELS_CONFIG from CONFIG_STORE
+ * and clearing the MODEL_QUERIES cache.
+ * @param {ServerRequest} req - The Express request object.
+ * @param {ServerResponse} res - The Express response object.
+ */
+async function refreshModelsCache(req, res) {
+  try {
+    const configCache = getLogStores(CacheKeys.CONFIG_STORE);
+    const modelQueriesCache = getLogStores(CacheKeys.MODEL_QUERIES);
+
+    await configCache.delete(CacheKeys.MODELS_CONFIG);
+    await modelQueriesCache.clear();
+
+    logger.info('[refreshModelsCache] Models cache cleared successfully');
+    res.status(200).json({ message: 'Models cache refreshed successfully' });
+  } catch (error) {
+    logger.error('[refreshModelsCache] Error refreshing models cache:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+module.exports = { modelController, loadModels, getModelsConfig, refreshModelsCache };
