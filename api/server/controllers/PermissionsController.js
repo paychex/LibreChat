@@ -4,15 +4,17 @@
 
 const mongoose = require('mongoose');
 const { logger } = require('@librechat/data-schemas');
-const { ResourceType, PrincipalType } = require('librechat-data-provider');
+const { ResourceType, PrincipalType, PermissionBits } = require('librechat-data-provider');
+const { enrichRemoteAgentPrincipals, backfillRemoteAgentPermissions } = require('@librechat/api');
 const {
   bulkUpdateResourcePermissions,
   ensureGroupPrincipalExists,
   getEffectivePermissions,
   ensurePrincipalExists,
   getAvailableRoles,
+  findAccessibleResources,
+  getResourcePermissionsMap,
 } = require('~/server/services/PermissionService');
-const { AclEntry } = require('~/db/models');
 const {
   searchPrincipals: searchLocalPrincipals,
   sortPrincipalsByRelevance,
@@ -22,6 +24,7 @@ const {
   entraIdPrincipalFeatureEnabled,
   searchEntraIdPrincipals,
 } = require('~/server/services/GraphApiService');
+const { Agent, AclEntry, AccessRole, User } = require('~/db/models');
 
 /**
  * Generic controller for resource permission endpoints
@@ -39,6 +42,28 @@ const validateResourceType = (resourceType) => {
     throw new Error(`Invalid resourceType: ${resourceType}. Valid types: ${validTypes.join(', ')}`);
   }
 };
+
+/**
+ * Removes an agent from the favorites of specified users (fire-and-forget).
+ * Both AGENT and REMOTE_AGENT resource types share the Agent collection.
+ * @param {string} resourceId - The agent's MongoDB ObjectId hex string
+ * @param {string[]} userIds - User ObjectId strings whose favorites should be cleaned
+ */
+const removeRevokedAgentFromFavorites = (resourceId, userIds) =>
+  Agent.findOne({ _id: resourceId }, { id: 1 })
+    .lean()
+    .then((agent) => {
+      if (!agent) {
+        return;
+      }
+      return User.updateMany(
+        { _id: { $in: userIds }, 'favorites.agentId': agent.id },
+        { $pull: { favorites: { agentId: agent.id } } },
+      );
+    })
+    .catch((err) => {
+      logger.error('[removeRevokedAgentFromFavorites] Error cleaning up favorites', err);
+    });
 
 /**
  * Bulk update permissions for a resource (grant, update, remove)
@@ -152,6 +177,16 @@ const updateResourcePermissions = async (req, res) => {
       grantedBy: userId,
     });
 
+    const isAgentResource =
+      resourceType === ResourceType.AGENT || resourceType === ResourceType.REMOTE_AGENT;
+    const revokedUserIds = results.revoked
+      .filter((p) => p.type === PrincipalType.USER && p.id)
+      .map((p) => p.id);
+
+    if (isAgentResource && revokedUserIds.length > 0) {
+      removeRevokedAgentFromFavorites(resourceId, revokedUserIds);
+    }
+
     /** @type {TUpdateResourcePermissionsResponse} */
     const response = {
       message: 'Permissions updated successfully',
@@ -232,7 +267,7 @@ const getResourcePermissions = async (req, res) => {
       },
     ]);
 
-    const principals = [];
+    let principals = [];
     let publicPermission = null;
 
     // Process aggregation results
@@ -276,6 +311,13 @@ const getResourcePermissions = async (req, res) => {
           accessRoleId: result.accessRoleId,
         });
       }
+    }
+
+    if (resourceType === ResourceType.REMOTE_AGENT) {
+      const enricherDeps = { AclEntry, AccessRole, logger };
+      const enrichResult = await enrichRemoteAgentPrincipals(enricherDeps, resourceId, principals);
+      principals = enrichResult.principals;
+      backfillRemoteAgentPermissions(enricherDeps, resourceId, enrichResult.entriesToBackfill);
     }
 
     // Return response in format expected by frontend
@@ -475,10 +517,58 @@ const searchPrincipals = async (req, res) => {
   }
 };
 
+/**
+ * Get user's effective permissions for all accessible resources of a type
+ * @route GET /api/permissions/{resourceType}/effective/all
+ */
+const getAllEffectivePermissions = async (req, res) => {
+  try {
+    const { resourceType } = req.params;
+    validateResourceType(resourceType);
+
+    const { id: userId } = req.user;
+
+    // Find all resources the user has at least VIEW access to
+    const accessibleResourceIds = await findAccessibleResources({
+      userId,
+      role: req.user.role,
+      resourceType,
+      requiredPermissions: PermissionBits.VIEW,
+    });
+
+    if (accessibleResourceIds.length === 0) {
+      return res.status(200).json({});
+    }
+
+    // Get effective permissions for all accessible resources
+    const permissionsMap = await getResourcePermissionsMap({
+      userId,
+      role: req.user.role,
+      resourceType,
+      resourceIds: accessibleResourceIds,
+    });
+
+    // Convert Map to plain object for JSON response
+    const result = {};
+    for (const [resourceId, permBits] of permissionsMap) {
+      result[resourceId] = permBits;
+    }
+
+    res.status(200).json(result);
+  } catch (error) {
+    logger.error('Error getting all effective permissions:', error);
+    res.status(500).json({
+      error: 'Failed to get all effective permissions',
+      details: error.message,
+    });
+  }
+};
+
 module.exports = {
   updateResourcePermissions,
   getResourcePermissions,
   getResourceRoles,
   getUserEffectivePermissions,
+  getAllEffectivePermissions,
   searchPrincipals,
 };

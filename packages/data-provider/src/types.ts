@@ -1,13 +1,12 @@
 import type { InfiniteData } from '@tanstack/react-query';
 import type {
-  TBanner,
-  TMessage,
-  TResPlugin,
-  TSharedLink,
-  TConversation,
-  EModelEndpoint,
   TConversationTag,
+  EModelEndpoint,
+  TConversation,
+  TSharedLink,
   TAttachment,
+  TMessage,
+  TBanner,
 } from './schemas';
 import type { SettingDefinition } from './generate';
 import type { TMinimalFeedback } from './feedback';
@@ -53,6 +52,8 @@ export type TEndpointOption = Pick<
   | 'promptCache'
   | 'thinking'
   | 'thinkingBudget'
+  | 'thinkingLevel'
+  | 'effort'
   // Assistant/Agent fields
   | 'assistant_id'
   | 'agent_id'
@@ -99,6 +100,7 @@ export type TEphemeralAgent = {
   web_search?: boolean;
   file_search?: boolean;
   execute_code?: boolean;
+  artifacts?: string;
 };
 
 export type TPayload = Partial<TMessage> &
@@ -110,6 +112,8 @@ export type TPayload = Partial<TMessage> &
     isTemporary: boolean;
     ephemeralAgent?: TEphemeralAgent | null;
     editedContent?: TEditedContent | null;
+    /** Added conversation for multi-convo feature */
+    addedConvo?: TConversation;
   };
 
 export type TEditedContent =
@@ -125,8 +129,6 @@ export type TEditedContent =
     };
 
 export type TSubmission = {
-  plugin?: TResPlugin;
-  plugins?: TResPlugin[];
   userMessage: TMessage;
   isEdited?: boolean;
   isContinued?: boolean;
@@ -139,6 +141,8 @@ export type TSubmission = {
   clientTimestamp?: string;
   ephemeralAgent?: TEphemeralAgent | null;
   editedContent?: TEditedContent | null;
+  /** Added conversation for multi-convo feature */
+  addedConvo?: TConversation;
 };
 
 export type EventSubmission = Omit<TSubmission, 'initialResponse'> & { initialResponse: TMessage };
@@ -232,6 +236,33 @@ export type TUpdateUserKeyRequest = {
   name: string;
   value: string;
   expiresAt: string;
+};
+
+export type TAgentApiKeyCreateRequest = {
+  name: string;
+  expiresAt?: string | null;
+};
+
+export type TAgentApiKeyCreateResponse = {
+  id: string;
+  name: string;
+  key: string;
+  keyPrefix: string;
+  createdAt: string;
+  expiresAt?: string;
+};
+
+export type TAgentApiKeyListItem = {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  lastUsedAt?: string;
+  expiresAt?: string;
+  createdAt: string;
+};
+
+export type TAgentApiKeyListResponse = {
+  keys: TAgentApiKeyListItem[];
 };
 
 export type TUpdateConversationRequest = {
@@ -394,28 +425,29 @@ export type TLoginResponse = {
   tempToken?: string;
 };
 
+/** Shared payload for any operation that requires OTP or backup-code verification. */
+export type TOTPVerificationPayload = {
+  token?: string;
+  backupCode?: string;
+};
+
+export type TEnable2FARequest = TOTPVerificationPayload;
+
 export type TEnable2FAResponse = {
   otpauthUrl: string;
   backupCodes: string[];
   message?: string;
 };
 
-export type TVerify2FARequest = {
-  token?: string;
-  backupCode?: string;
-};
+export type TVerify2FARequest = TOTPVerificationPayload;
 
 export type TVerify2FAResponse = {
   message: string;
 };
 
-/**
- * For verifying 2FA during login with a temporary token.
- */
-export type TVerify2FATempRequest = {
+/** For verifying 2FA during login with a temporary token. */
+export type TVerify2FATempRequest = TOTPVerificationPayload & {
   tempToken: string;
-  token?: string;
-  backupCode?: string;
 };
 
 export type TVerify2FATempResponse = {
@@ -424,29 +456,21 @@ export type TVerify2FATempResponse = {
   message?: string;
 };
 
-/**
- * Request for disabling 2FA.
- */
-export type TDisable2FARequest = {
-  token?: string;
-  backupCode?: string;
-};
+export type TDisable2FARequest = TOTPVerificationPayload;
 
-/**
- * Response from disabling 2FA.
- */
 export type TDisable2FAResponse = {
   message: string;
 };
 
-/**
- * Response from regenerating backup codes.
- */
+export type TRegenerateBackupCodesRequest = TOTPVerificationPayload;
+
 export type TRegenerateBackupCodesResponse = {
-  message: string;
+  message?: string;
   backupCodes: string[];
-  backupCodesHash: string[];
+  backupCodesHash: TBackupCode[];
 };
+
+export type TDeleteUserRequest = TOTPVerificationPayload;
 
 export type TRequestPasswordReset = {
   email: string;

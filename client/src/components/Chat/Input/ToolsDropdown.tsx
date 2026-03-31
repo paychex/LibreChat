@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import * as Ariakit from '@ariakit/react';
-import { Globe, Settings, Settings2, TerminalSquareIcon, WandSparkles } from 'lucide-react';
-import { TooltipAnchor, DropdownPopup, PinIcon, VectorIcon, MCPIcon } from '@librechat/client';
+import { Globe, Settings, Settings2, TerminalSquareIcon } from 'lucide-react';
+import { TooltipAnchor, DropdownPopup, PinIcon, VectorIcon } from '@librechat/client';
 import type { MenuItemProps } from '~/common';
 import {
   AuthType,
@@ -72,6 +72,11 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
     permission: Permissions.USE,
   });
 
+  const canUseMcp = useHasAccess({
+    permissionType: PermissionTypes.MCP_SERVERS,
+    permission: Permissions.USE,
+  });
+
   const showWebSearchSettings = useMemo(() => {
     const authTypes = webSearchAuthData?.authTypes ?? [];
     if (authTypes.length === 0) return true;
@@ -131,14 +136,14 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
 
   if (fileSearchEnabled && canUseFileSearch) {
     dropdownItems.push({
-      label: localize('com_assistants_file_search'),
-      description: localize('com_assistants_file_search_info_short'),
-      icon: <VectorIcon className="icon-md" />,
       onClick: handleFileSearchToggle,
       hideOnClick: false,
       render: (props) => (
         <div {...props}>
-          {props.children}
+          <div className="flex items-center gap-2">
+            <VectorIcon className="icon-md" />
+            <span>{localize('com_assistants_file_search')}</span>
+          </div>
           <button
             type="button"
             onClick={(e) => {
@@ -163,14 +168,14 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
 
   if (canUseWebSearch && webSearchEnabled) {
     dropdownItems.push({
-      label: localize('com_ui_web_search'),
-      description: localize('com_agents_search_info'),
-      icon: <Globe className="icon-md" />,
       onClick: handleWebSearchToggle,
       hideOnClick: false,
       render: (props) => (
         <div {...props}>
-          {props.children}
+          <div className="flex items-center gap-2">
+            <Globe className="icon-md" aria-hidden="true" />
+            <span>{localize('com_ui_web_search')}</span>
+          </div>
           <div className="flex items-center gap-1">
             {showWebSearchSettings && (
               <button
@@ -188,7 +193,7 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
                 ref={searchMenuTriggerRef}
               >
                 <div className="h-4 w-4">
-                  <Settings className="h-4 w-4" />
+                  <Settings className="h-4 w-4" aria-hidden="true" />
                 </div>
               </button>
             )}
@@ -217,14 +222,14 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
 
   if (canRunCode && codeEnabled) {
     dropdownItems.push({
-      label: localize('com_assistants_code_interpreter'),
-      description: localize('com_agents_code_interpreter'),
-      icon: <TerminalSquareIcon className="icon-md" />,
       onClick: handleCodeInterpreterToggle,
       hideOnClick: false,
       render: (props) => (
         <div {...props}>
-          {props.children}
+          <div className="flex items-center gap-2">
+            <TerminalSquareIcon className="icon-md" aria-hidden="true" />
+            <span>{localize('com_assistants_code_interpreter')}</span>
+          </div>
           <div className="flex items-center gap-1">
             {showCodeSettings && (
               <button
@@ -242,7 +247,7 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
                 aria-label="Configure code interpreter"
               >
                 <div className="h-4 w-4">
-                  <Settings className="h-4 w-4" />
+                  <Settings className="h-4 w-4" aria-hidden="true" />
                 </div>
               </button>
             )}
@@ -271,9 +276,6 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
 
   if (artifactsEnabled) {
     dropdownItems.push({
-      label: localize('com_ui_artifacts'),
-      description: localize('com_nav_info_code_artifacts'),
-      icon: <WandSparkles className="icon-md" />,
       hideOnClick: false,
       render: (props) => (
         <ArtifactsSubMenu
@@ -289,14 +291,11 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
     });
   }
 
-  const { configuredServers } = mcpServerManager;
-  if (configuredServers && configuredServers.length > 0) {
+  const { availableMCPServers } = mcpServerManager;
+  if (canUseMcp && availableMCPServers && availableMCPServers.length > 0) {
     dropdownItems.push({
-      label: mcpPlaceholder || localize('com_ui_mcp_servers'),
-      description: localize('com_agents_mcp_info'),
-      icon: <MCPIcon className="icon-md" />,
       hideOnClick: false,
-      render: (props) => <MCPSubMenu {...props} />,
+      render: (props) => <MCPSubMenu {...props} placeholder={mcpPlaceholder} />,
     });
   }
 
@@ -312,11 +311,12 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
           id="tools-dropdown-button"
           aria-label="Tools Options"
           className={cn(
-            'flex size-9 items-center justify-center rounded-full p-1 transition-colors hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50',
+            'flex size-9 items-center justify-center rounded-full p-1 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-opacity-50',
+            isPopoverActive && 'bg-surface-hover',
           )}
         >
           <div className="flex w-full items-center justify-center gap-2">
-            <Settings2 className="icon-md" />
+            <Settings2 className="size-5" aria-hidden="true" />
           </div>
         </Ariakit.MenuButton>
       }
@@ -328,6 +328,7 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
 
   return (
     <DropdownPopup
+      itemClassName="flex w-full cursor-pointer rounded-lg items-center justify-between hover:bg-surface-hover gap-5"
       menuId="tools-dropdown-menu"
       isOpen={isPopoverActive}
       setIsOpen={setIsPopoverActive}

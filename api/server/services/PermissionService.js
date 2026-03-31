@@ -1,7 +1,12 @@
 const mongoose = require('mongoose');
 const { isEnabled } = require('@librechat/api');
 const { getTransactionSupport, logger } = require('@librechat/data-schemas');
-const { ResourceType, PrincipalType, PrincipalModel } = require('librechat-data-provider');
+const {
+  ResourceType,
+  PrincipalType,
+  PrincipalModel,
+  PermissionBits,
+} = require('librechat-data-provider');
 const {
   entraIdPrincipalFeatureEnabled,
   getUserOwnedEntraGroups,
@@ -12,6 +17,7 @@ const {
 const {
   findAccessibleResources: findAccessibleResourcesACL,
   getEffectivePermissions: getEffectivePermissionsACL,
+  getEffectivePermissionsForResources: getEffectivePermissionsForResourcesACL,
   grantPermission: grantPermissionACL,
   findEntriesByPrincipalsAndResource,
   findGroupByExternalId,
@@ -140,7 +146,6 @@ const checkPermission = async ({ userId, role, resourceType, resourceId, require
 
     validateResourceType(resourceType);
 
-    // Get all principals for the user (user + groups + public)
     const principals = await getUserPrincipals({ userId, role });
 
     if (principals.length === 0) {
@@ -150,7 +155,6 @@ const checkPermission = async ({ userId, role, resourceType, resourceId, require
     return await hasPermission(principals, resourceType, resourceId, requiredPermission);
   } catch (error) {
     logger.error(`[PermissionService.checkPermission] Error: ${error.message}`);
-    // Re-throw validation errors
     if (error.message.includes('requiredPermission must be')) {
       throw error;
     }
@@ -171,16 +175,59 @@ const getEffectivePermissions = async ({ userId, role, resourceType, resourceId 
   try {
     validateResourceType(resourceType);
 
-    // Get all principals for the user (user + groups + public)
     const principals = await getUserPrincipals({ userId, role });
 
     if (principals.length === 0) {
       return 0;
     }
+
     return await getEffectivePermissionsACL(principals, resourceType, resourceId);
   } catch (error) {
     logger.error(`[PermissionService.getEffectivePermissions] Error: ${error.message}`);
     return 0;
+  }
+};
+
+/**
+ * Get effective permissions for multiple resources in a batch operation
+ * Returns map of resourceId → effectivePermissionBits
+ *
+ * @param {Object} params - Parameters
+ * @param {string|mongoose.Types.ObjectId} params.userId - User ID
+ * @param {string} [params.role] - User role (for group membership)
+ * @param {string} params.resourceType - Resource type (must be valid ResourceType)
+ * @param {Array<mongoose.Types.ObjectId>} params.resourceIds - Array of resource IDs
+ * @returns {Promise<Map<string, number>>} Map of resourceId string → permission bits
+ * @throws {Error} If resourceType is invalid
+ */
+const getResourcePermissionsMap = async ({ userId, role, resourceType, resourceIds }) => {
+  // Validate resource type - throw on invalid type
+  validateResourceType(resourceType);
+
+  // Handle empty input
+  if (!Array.isArray(resourceIds) || resourceIds.length === 0) {
+    return new Map();
+  }
+
+  try {
+    // Get user principals (user + groups + public)
+    const principals = await getUserPrincipals({ userId, role });
+
+    // Use batch method from aclEntry
+    const permissionsMap = await getEffectivePermissionsForResourcesACL(
+      principals,
+      resourceType,
+      resourceIds,
+    );
+
+    logger.debug(
+      `[PermissionService.getResourcePermissionsMap] Computed permissions for ${resourceIds.length} resources, ${permissionsMap.size} have permissions`,
+    );
+
+    return permissionsMap;
+  } catch (error) {
+    logger.error(`[PermissionService.getResourcePermissionsMap] Error: ${error.message}`, error);
+    throw error;
   }
 };
 
@@ -758,6 +805,49 @@ const bulkUpdateResourcePermissions = async ({
 };
 
 /**
+ * Returns resource IDs where the given user is the sole owner
+ * (no other principal holds the DELETE bit on the same resource).
+ * @param {mongoose.Types.ObjectId} userObjectId
+ * @param {string|string[]} resourceTypes - One or more ResourceType values.
+ * @returns {Promise<mongoose.Types.ObjectId[]>}
+ */
+const getSoleOwnedResourceIds = async (userObjectId, resourceTypes) => {
+  const types = Array.isArray(resourceTypes) ? resourceTypes : [resourceTypes];
+  const ownedEntries = await AclEntry.find({
+    principalType: PrincipalType.USER,
+    principalId: userObjectId,
+    resourceType: { $in: types },
+    permBits: { $bitsAllSet: PermissionBits.DELETE },
+  })
+    .select('resourceId')
+    .lean();
+
+  if (ownedEntries.length === 0) {
+    return [];
+  }
+
+  const ownedIds = ownedEntries.map((e) => e.resourceId);
+
+  const otherOwners = await AclEntry.aggregate([
+    {
+      $match: {
+        resourceType: { $in: types },
+        resourceId: { $in: ownedIds },
+        permBits: { $bitsAllSet: PermissionBits.DELETE },
+        $or: [
+          { principalId: { $ne: userObjectId } },
+          { principalType: { $ne: PrincipalType.USER } },
+        ],
+      },
+    },
+    { $group: { _id: '$resourceId' } },
+  ]);
+
+  const multiOwnerIds = new Set(otherOwners.map((doc) => doc._id.toString()));
+  return ownedIds.filter((id) => !multiOwnerIds.has(id.toString()));
+};
+
+/**
  * Remove all permissions for a resource (cleanup when resource is deleted)
  * @param {Object} params - Parameters for removing all permissions
  * @param {string} params.resourceType - Type of resource (e.g., 'agent', 'prompt')
@@ -788,6 +878,7 @@ module.exports = {
   grantPermission,
   checkPermission,
   getEffectivePermissions,
+  getResourcePermissionsMap,
   findAccessibleResources,
   findPubliclyAccessibleResources,
   hasPublicPermission,
@@ -796,5 +887,6 @@ module.exports = {
   ensurePrincipalExists,
   ensureGroupPrincipalExists,
   syncUserEntraGroupMemberships,
+  getSoleOwnedResourceIds,
   removeAllPermissions,
 };
