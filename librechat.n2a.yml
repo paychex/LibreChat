@@ -166,3 +166,5 @@ endpoints:
         - 'frequency_penalty'
         - 'presence_penalty'
         - 'top_p'
+      headers:
+        x-user-access-token: "{{LIBRECHAT_OPENID_ACCESS_TOKEN}}"
