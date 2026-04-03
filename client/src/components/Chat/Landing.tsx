@@ -69,6 +69,7 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
 
   const name = entity?.name ?? '';
   const description = (entity?.description || conversation?.greeting) ?? '';
+  const supportContact = isAgent && entity ? (entity as any).support_contact : null;
 
   const getGreeting = useCallback(() => {
     if (typeof startupConfig?.interface?.customWelcome === 'string') {
@@ -207,6 +208,18 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
         {description && (
           <div className="animate-fadeIn mt-4 max-w-md text-center text-sm font-normal text-text-primary">
             {description}
+          </div>
+        )}
+        {supportContact && (supportContact.name || supportContact.email) && (
+          <div className="animate-fadeIn mt-2 max-w-md text-center text-xs text-text-secondary">
+            {localize('com_agents_contact_support')}:{' '}
+            {supportContact.email ? (
+              <a href={`mailto:${supportContact.email}`} className="text-primary hover:underline">
+                {supportContact.name || supportContact.email}
+              </a>
+            ) : (
+              <span>{supportContact.name}</span>
+            )}
           </div>
         )}
       </div>
