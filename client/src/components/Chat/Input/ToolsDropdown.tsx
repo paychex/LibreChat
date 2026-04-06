@@ -136,14 +136,14 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
 
   if (fileSearchEnabled && canUseFileSearch) {
     dropdownItems.push({
+      label: localize('com_assistants_file_search'),
+      description: localize('com_assistants_file_search_info_short'),
+      icon: <VectorIcon className="icon-md" />,
       onClick: handleFileSearchToggle,
       hideOnClick: false,
       render: (props) => (
         <div {...props}>
-          <div className="flex items-center gap-2">
-            <VectorIcon className="icon-md" />
-            <span>{localize('com_assistants_file_search')}</span>
-          </div>
+          {props.children}
           <button
             type="button"
             onClick={(e) => {
@@ -168,14 +168,14 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
 
   if (canUseWebSearch && webSearchEnabled) {
     dropdownItems.push({
+      label: localize('com_ui_web_search'),
+      description: localize('com_agents_search_info'),
+      icon: <Globe className="icon-md" />,
       onClick: handleWebSearchToggle,
       hideOnClick: false,
       render: (props) => (
         <div {...props}>
-          <div className="flex items-center gap-2">
-            <Globe className="icon-md" aria-hidden="true" />
-            <span>{localize('com_ui_web_search')}</span>
-          </div>
+          {props.children}
           <div className="flex items-center gap-1">
             {showWebSearchSettings && (
               <button
@@ -222,14 +222,14 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
 
   if (canRunCode && codeEnabled) {
     dropdownItems.push({
+      label: localize('com_assistants_code_interpreter'),
+      description: localize('com_agents_code_interpreter'),
+      icon: <TerminalSquareIcon className="icon-md" />,
       onClick: handleCodeInterpreterToggle,
       hideOnClick: false,
       render: (props) => (
         <div {...props}>
-          <div className="flex items-center gap-2">
-            <TerminalSquareIcon className="icon-md" aria-hidden="true" />
-            <span>{localize('com_assistants_code_interpreter')}</span>
-          </div>
+          {props.children}
           <div className="flex items-center gap-1">
             {showCodeSettings && (
               <button

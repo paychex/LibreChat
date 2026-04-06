@@ -5,7 +5,12 @@ const { Calculator } = require('@librechat/agents');
 const { logger } = require('@librechat/data-schemas');
 const { zodToJsonSchema } = require('zod-to-json-schema');
 const { Tools, ImageVisionTool } = require('librechat-data-provider');
-const { getToolkitKey, oaiToolkit, geminiToolkit } = require('@librechat/api');
+const {
+  getToolkitKey,
+  oaiToolkit,
+  geminiToolkit,
+  sanitizeSchemaMetadata,
+} = require('@librechat/api');
 const { toolkits } = require('~/app/clients/tools/manifest');
 
 /**
@@ -133,7 +138,7 @@ function formatToOpenAIAssistantTool(tool) {
     [Tools.function]: {
       name: tool.name,
       description: tool.description,
-      parameters,
+      parameters: sanitizeSchemaMetadata(parameters),
     },
   };
 }
