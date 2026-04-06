@@ -626,7 +626,54 @@ git log v${CURRENT_VERSION}..v${TARGET_VERSION} --oneline -- <file>
 
 ---
 
-## 📋 Quick Reference Cheatsheet
+## � Maintaining the Verification Script
+
+As Paychex customizations evolve, the `verify-paychex-customizations.sh` script must be updated to verify new customizations.
+
+### When to Update
+
+Update the verification script:
+- After adding new Paychex customizations
+- Before major upstream merges (to capture new baseline)
+- Monthly during release preparation
+- When onboarding critical features (auth, analytics, endpoints)
+
+### Quick Update Process
+
+1. **Identify new customizations:**
+   ```bash
+   # Find recent Paychex commits
+   git log --oneline develop --not upstream/main --since="1 month ago"
+   
+   # Find code markers
+   grep -r "PAYCHEX:" --include="*.{js,ts,tsx}" api/ client/ packages/
+   ```
+
+2. **Use the update prompt template:**
+   - See [UPDATE_VERIFICATION_PROMPT.md](UPDATE_VERIFICATION_PROMPT.md) for detailed process
+   - Copy the AI prompt template and fill in customization details
+   - Provide to AI assistant to update the script
+
+3. **Test and commit:**
+   ```bash
+   ./verify-paychex-customizations.sh
+   git add verify-paychex-customizations.sh
+   git commit -m "test: Add verification for [feature]"
+   ```
+
+### Full Documentation
+
+For complete guidance on maintaining the verification script, see **[UPDATE_VERIFICATION_PROMPT.md](UPDATE_VERIFICATION_PROMPT.md)**, which includes:
+- Process for identifying new customizations
+- AI prompt template for script updates
+- Categorization guidelines (critical vs warning)
+- Common patterns for different customization types
+- Troubleshooting guide
+- Integration with development workflow
+
+---
+
+## �📋 Quick Reference Cheatsheet
 
 ```bash
 # Conflict Analysis
