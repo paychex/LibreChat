@@ -152,6 +152,8 @@ endpoints:
     - name: "LangGraph Agents"
       apiKey: "${LANGGRAPH_PROXY_API_KEY}"
       baseURL: "${LANGGRAPH_PROXY_BASE_URL}"
+      headers:
+        x-librechat-conversation-id: "{{LIBRECHAT_BODY_CONVERSATIONID}}"
       models:
         default:
           - langgraph-agent
@@ -160,6 +162,29 @@ endpoints:
       titleEndpoint: azureOpenAI
       titleModel: "gpt-41-mini"
       modelDisplayLabel: "LangGraph Agents"
+      streamRate: 25
+      dropParams:
+        - 'stop'
+        - 'frequency_penalty'
+        - 'presence_penalty'
+        - 'top_p'
+    - name: "LangGraph Agents Identification"
+      apiKey: "${LANGGRAPH_PROXY_API_KEY}"
+      baseURL: "${LANGGRAPH_PROXY_BASE_URL}"
+      headers:
+        x-librechat-conversation-id: "{{LIBRECHAT_BODY_CONVERSATIONID}}"
+        x-user-access-token: "{{LIBRECHAT_OPENID_ACCESS_TOKEN}}"
+        x-user-id: "{{LIBRECHAT_OPENID_USER_ID}}"
+        x-message-id: "{{LIBRECHAT_BODY_MESSAGEID}}"
+        x-parent-message-id: "{{LIBRECHAT_BODY_PARENTMESSAGEID}}"
+      models:
+        default:
+          - langgraph-agent-identification
+        fetch: false
+      titleConvo: true
+      titleEndpoint: azureOpenAI
+      titleModel: "gpt-41-mini"
+      modelDisplayLabel: "LangGraph Agents Identification"
       streamRate: 25
       dropParams:
         - 'stop'
