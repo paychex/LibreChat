@@ -1,4 +1,5 @@
-import fetch from 'node-fetch';
+import fetch, { Response as NodeFetchResponse, Headers as NodeFetchHeaders } from 'node-fetch';
+import { Transform } from 'stream';
 import { logger } from '@librechat/data-schemas';
 import { GraphEvents, sleep } from '@librechat/agents';
 import type { Response as ServerResponse } from 'express';
@@ -34,10 +35,85 @@ export function createFetch({
       url = reverseProxyUrl;
     }
     logger.debug(`Making request to ${url}`);
-    if (typeof Bun !== 'undefined') {
-      return await fetch(url, init);
+
+    const response = await fetch(url, init);
+
+    // TEMPORARY WORKAROUND for Kong SSE bug:
+    // Kong sends all parallel Claude tool call SSE chunks with index=0 (should increment per tool call).
+    // This breaks LangChain’s tool call grouping. We rewrite indices here to increment per tool call.
+    if (url && typeof url === 'string' && url.includes('claude') && response.body) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/event-stream')) {
+        let toolCallCounter = -1;
+        let seenFirstToolCallName = false;
+        let buffer = '';
+
+        const fixIndexTransform = new Transform({
+          transform(
+            chunk: Buffer,
+            _encoding: string,
+            callback: (error?: Error | null, data?: string) => void,
+          ) {
+            buffer += chunk.toString();
+            const lines = buffer.split('\n');
+            buffer = lines.pop() ?? '';
+            const output: string[] = [];
+
+            for (const line of lines) {
+              if (!line.startsWith('data: ') || line === 'data: [DONE]') {
+                output.push(line);
+                continue;
+              }
+              try {
+                const data = JSON.parse(line.substring(6));
+                const tcs = data?.choices?.[0]?.delta?.tool_calls;
+                if (Array.isArray(tcs) && tcs.length > 0) {
+                  for (const tc of tcs) {
+                    if (tc.function?.name && tc.function.name.length > 0) {
+                      // A name field marks the start of a new tool call
+                      if (!seenFirstToolCallName) {
+                        seenFirstToolCallName = true;
+                        toolCallCounter = 0;
+                      } else {
+                        toolCallCounter += 1;
+                      }
+                    }
+                    if (toolCallCounter >= 0) {
+                      tc.index = toolCallCounter;
+                    }
+                  }
+                  output.push('data: ' + JSON.stringify(data));
+                  continue;
+                }
+              } catch {
+                // leave line unmodified if parse fails
+              }
+              output.push(line);
+            }
+
+            callback(null, output.join('\n') + '\n');
+          },
+          flush(callback: (error?: Error | null, data?: string) => void) {
+            callback(null, buffer);
+          },
+        });
+
+        // Pipe original body through our transform
+        const nodeStream = response.body as unknown as NodeJS.ReadableStream;
+        const patchedStream = nodeStream.pipe(fixIndexTransform);
+
+        // Reconstruct a fetch Response with the patched stream body
+        const patchedHeaders = new NodeFetchHeaders(response.headers);
+        const patchedResponse = new NodeFetchResponse(patchedStream, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: patchedHeaders,
+        });
+        return patchedResponse;
+      }
     }
-    return await fetch(url, init);
+
+    return response;
   };
 }
 
