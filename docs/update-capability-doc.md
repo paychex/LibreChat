@@ -21,7 +21,7 @@ Follow these steps exactly:
 4. **Run** the upstream diff to identify Paychex-changed files:
    ```bash
    git remote add upstream https://github.com/danny-avila/LibreChat.git 2>/dev/null || true
-   git fetch upstream main --depth=1
+   git rev-parse --verify upstream/main 2>/dev/null || git fetch upstream main --depth=1
    git diff --name-status upstream/main..HEAD
    ```
    Classify by prefix: `A` = net-new Paychex addition, `M` = modified upstream file, `D` = deleted upstream feature (add to Known Limitations).

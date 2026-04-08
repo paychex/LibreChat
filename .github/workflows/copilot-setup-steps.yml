@@ -5,6 +5,7 @@ name: Copilot Setup Steps
 # See: https://docs.github.com/en/copilot/customizing-copilot/customizing-the-development-environment-for-copilot-coding-agent
 
 on:
+  workflow_call:
   workflow_dispatch:
 
 jobs:
