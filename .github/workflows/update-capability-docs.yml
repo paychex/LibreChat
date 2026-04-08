@@ -1,0 +1,90 @@
+name: Update Capability Docs
+
+# Triggers capability documentation generation by creating GitHub issues assigned to Copilot.
+# Copilot coding agent picks up the issue, runs the generation workflow, and opens a PR.
+#
+# Trigger mapping:
+#   - push to develop        → N2A doc update
+#   - push to release/*      → N1 doc update
+#   - workflow_dispatch      → manual, choose environment (n1, n2a, prod, or all)
+#
+# Note: Prod doc updates are manual dispatch only — never auto-triggered.
+
+on:
+  push:
+    branches:
+      - develop
+      - release/*
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to update documentation for"
+        required: true
+        default: "n2a"
+        type: choice
+        options:
+          - n1
+          - n2a
+          - prod
+          - all
+
+permissions:
+  issues: write
+
+jobs:
+  determine-environments:
+    name: Determine Target Environments
+    runs-on: paychex-ai-platform-arc-nonprod
+    outputs:
+      environments: ${{ steps.set-envs.outputs.environments }}
+    steps:
+      - name: Set target environments
+        id: set-envs
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            INPUT="${{ github.event.inputs.environment }}"
+            if [ "$INPUT" = "all" ]; then
+              echo 'environments=["n1","n2a","prod"]' >> $GITHUB_OUTPUT
+            else
+              echo "environments=[\"$INPUT\"]" >> $GITHUB_OUTPUT
+            fi
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            BRANCH="${{ github.ref_name }}"
+            if [ "$BRANCH" = "develop" ]; then
+              echo 'environments=["n2a"]' >> $GITHUB_OUTPUT
+            elif echo "$BRANCH" | grep -q "^release/"; then
+              echo 'environments=["n1"]' >> $GITHUB_OUTPUT
+            else
+              echo 'environments=[]' >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  create-issues:
+    name: Create Copilot Issue for ${{ matrix.environment }}
+    needs: determine-environments
+    runs-on: paychex-ai-platform-arc-nonprod
+    if: ${{ needs.determine-environments.outputs.environments != '[]' }}
+    strategy:
+      matrix:
+        environment: ${{ fromJson(needs.determine-environments.outputs.environments) }}
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Create Copilot issue for ${{ matrix.environment }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ENV: ${{ matrix.environment }}
+        run: |
+          # Read the issue template and substitute {ENV} placeholder
+          BODY=$(cat docs/update-capability-doc.md \
+            | sed '/^---$/,/^---$/d' \
+            | sed "s/{ENV}/$ENV/g")
+
+          gh issue create \
+            --title "Update ${ENV^^} Capability Documentation" \
+            --body "$BODY" \
+            --label "documentation,copilot" \
+            --assignee "copilot"
+
+          echo "Created capability doc issue for environment: $ENV"

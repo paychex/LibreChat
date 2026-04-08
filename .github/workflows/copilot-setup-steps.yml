@@ -1,0 +1,32 @@
+name: Copilot Setup Steps
+
+# Environment setup for the Copilot coding agent.
+# This workflow runs before the agent starts working on capability documentation tasks.
+# See: https://docs.github.com/en/copilot/customizing-copilot/customizing-the-development-environment-for-copilot-coding-agent
+
+on:
+  workflow_dispatch:
+
+jobs:
+  copilot-setup-steps:
+    runs-on: paychex-ai-platform-arc-nonprod
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Add upstream LibreChat remote
+        run: |
+          git remote add upstream https://github.com/danny-avila/LibreChat.git 2>/dev/null || true
+          echo "Upstream remote configured"
+
+      - name: Fetch upstream main branch
+        run: |
+          git fetch upstream main --depth=1
+          echo "Upstream main fetched"
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
