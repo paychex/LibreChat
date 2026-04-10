@@ -7,7 +7,7 @@ When you need to update `verify-paychex-customizations.sh` with new customizatio
 ## Step 1: Scan for New Customizations (30 seconds)
 
 ```bash
-./scan-paychex-customizations.sh 30
+../../scripts/scan-paychex-customizations.sh 30
 ```
 
 This generates a report identifying new Paychex customizations from the last 30 days.
@@ -57,7 +57,7 @@ After AI updates the script:
 
 ```bash
 # Test the updated script
-./verify-paychex-customizations.sh
+../../scripts/verify-paychex-customizations.sh
 
 # If all checks pass, commit
 git add verify-paychex-customizations.sh
@@ -150,10 +150,10 @@ if grep -q "pattern" "file"; then echo "✓ PASS"; else echo "✗ FAIL"; fi
 
 | Frequency | When | Command |
 |-----------|------|---------|
-| **Bi-weekly** | Sprint close | `./scan-paychex-customizations.sh 14` |
-| **Monthly** | Before release | `./scan-paychex-customizations.sh 30` |
-| **Pre-merge** | Before upstream merge | `./scan-paychex-customizations.sh 90` |
-| **Ad-hoc** | After major feature | `./scan-paychex-customizations.sh 7` |
+| **Bi-weekly** | Sprint close | `../../scripts/scan-paychex-customizations.sh 14` |
+| **Monthly** | Before release | `../../scripts/scan-paychex-customizations.sh 30` |
+| **Pre-merge** | Before upstream merge | `../../scripts/scan-paychex-customizations.sh 90` |
+| **Ad-hoc** | After major feature | `../../scripts/scan-paychex-customizations.sh 7` |
 
 ---
 

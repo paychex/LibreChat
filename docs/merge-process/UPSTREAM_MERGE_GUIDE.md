@@ -656,7 +656,7 @@ Update the verification script:
 
 3. **Test and commit:**
    ```bash
-   ./verify-paychex-customizations.sh
+   ../../scripts/verify-paychex-customizations.sh
    git add verify-paychex-customizations.sh
    git commit -m "test: Add verification for [feature]"
    ```

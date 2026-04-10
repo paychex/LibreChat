@@ -154,7 +154,7 @@ For each non-trivial conflict, verify:
 
 Run verification script:
 ```bash
-./verify-paychex-customizations.sh
+../../scripts/verify-paychex-customizations.sh
 ```
 
 Or manually verify each:

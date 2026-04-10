@@ -232,7 +232,7 @@ Provide the completed prompt to an AI assistant, which will:
 chmod +x verify-paychex-customizations.sh
 
 # Run verification
-./verify-paychex-customizations.sh
+../../scripts/verify-paychex-customizations.sh
 
 # Expected output: All new checks should PASS
 # If any FAIL, the pattern needs refinement
@@ -407,14 +407,14 @@ grep -r "PAYCHEX\|@paychex\|Paychex-specific" --include="*.{js,ts,tsx}" api/ cli
 ### Test Verification Script
 ```bash
 # Run and check exit code
-./verify-paychex-customizations.sh
+../../scripts/verify-paychex-customizations.sh
 echo "Exit code: $?"
 
 # Run with verbose output
-bash -x ./verify-paychex-customizations.sh 2>&1 | less
+bash -x ../../scripts/verify-paychex-customizations.sh 2>&1 | less
 
 # Check specific section
-./verify-paychex-customizations.sh | grep -A5 "Section Name"
+../../scripts/verify-paychex-customizations.sh | grep -A5 "Section Name"
 ```
 
 ### Update and Commit
