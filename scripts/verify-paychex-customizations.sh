@@ -203,8 +203,57 @@ fi
 
 echo ""
 
-# 9. Endpoints Index (proper imports)
-echo "9. Endpoints Index (imports from @librechat/api)"
+# 9. Axios Security Update (>= 1.15.0)
+echo "9. Axios Security Update (>= 1.15.0)"
+AXIOS_FILES=(
+    "api/package.json"
+    "packages/api/package.json"
+    "packages/data-provider/package.json"
+    "packages/data-provider/react-query/package.json"
+    "packages/data-provider/react-query/package-lock.json"
+)
+
+AXIOS_PASS=0
+AXIOS_FAIL=0
+
+for file in "${AXIOS_FILES[@]}"; do
+    if [ ! -f "$file" ]; then
+        echo -e "${YELLOW}⚠ WARN${NC}: File not found: $file"
+        WARN_COUNT=$((WARN_COUNT + 1))
+        continue
+    fi
+    
+    # Extract axios version from file (handles ^1.15.0 or "1.15.0")
+    AXIOS_VERSION=$(grep '"axios"' "$file" 2>/dev/null | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1)
+    
+    if [ -z "$AXIOS_VERSION" ]; then
+        echo -e "${YELLOW}⚠ WARN${NC}: axios version not found in $file"
+        WARN_COUNT=$((WARN_COUNT + 1))
+        continue
+    fi
+    
+    # Extract major and minor version numbers
+    MAJOR=$(echo "$AXIOS_VERSION" | cut -d. -f1)
+    MINOR=$(echo "$AXIOS_VERSION" | cut -d. -f2)
+    
+    # Check if version is >= 1.15
+    if [ "$MAJOR" -gt 1 ] || ([ "$MAJOR" -eq 1 ] && [ "$MINOR" -ge 15 ]); then
+        echo -e "${GREEN}✓ PASS${NC}: $file has axios $AXIOS_VERSION (>= 1.15.0)"
+        AXIOS_PASS=$((AXIOS_PASS + 1))
+    else
+        echo -e "${RED}✗ FAIL${NC}: $file has axios $AXIOS_VERSION (requires >= 1.15.0 for security fix)"
+        AXIOS_FAIL=$((AXIOS_FAIL + 1))
+    fi
+done
+
+# Update counters
+PASS_COUNT=$((PASS_COUNT + AXIOS_PASS))
+FAIL_COUNT=$((FAIL_COUNT + AXIOS_FAIL))
+
+echo ""
+
+# 10. Endpoints Index (proper imports)
+echo "10. Endpoints Index (imports from @librechat/api)"
 check_pattern \
     "api/server/services/Endpoints/index.js" \
     "= require('@librechat/api')" \
@@ -225,8 +274,8 @@ check_pattern \
 
 echo ""
 
-# 10. Check for lingering broken references
-echo "10. Checking for Broken References"
+# 11. Check for lingering broken references
+echo "11. Checking for Broken References"
 BROKEN_REFS=0
 
 if grep -r "require('.*custom/initialize')" api/server/services/Endpoints/index.js 2>/dev/null | grep -v "@librechat/api"; then
