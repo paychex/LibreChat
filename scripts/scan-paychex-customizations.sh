@@ -6,6 +6,7 @@
 
 DAYS=${1:-14}  # Default to 14 days if not specified
 REPORT_FILE="/tmp/paychex_customizations_$(date +%Y%m%d_%H%M%S).md"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "======================================"
 echo "Paychex Customizations Scanner"
@@ -175,7 +176,7 @@ echo "" >> "$REPORT_FILE"
 echo "Customizations currently verified by verify-paychex-customizations.sh:" >> "$REPORT_FILE"
 echo "" >> "$REPORT_FILE"
 echo '```' >> "$REPORT_FILE"
-grep -E "^echo \"[0-9]+\." verify-paychex-customizations.sh 2>/dev/null | sed 's/echo "/- /' | sed 's/"$//' >> "$REPORT_FILE"
+grep -E "^echo \"[0-9]+\." "$SCRIPT_DIR/verify-paychex-customizations.sh" 2>/dev/null | sed 's/echo "/- /' | sed 's/"$//' >> "$REPORT_FILE"
 echo '```' >> "$REPORT_FILE"
 echo "" >> "$REPORT_FILE"
 echo "**Action:** Compare this list with customizations found above to identify gaps." >> "$REPORT_FILE"
