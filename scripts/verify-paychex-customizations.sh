@@ -296,6 +296,47 @@ if [ $BROKEN_REFS -eq 0 ]; then
 fi
 
 echo ""
+
+# 12. MCP Server Name Normalization (Bug Fix - Upstream Defect)
+echo "12. MCP Server Name Normalization (prevents 400 errors)"
+check_pattern \
+    "packages/api/src/mcp/registry/MCPServerInspector.ts" \
+    "normalizeServerName" \
+    "MCPServerInspector imports normalizeServerName" \
+    "critical"
+
+check_pattern \
+    "packages/api/src/mcp/registry/MCPServerInspector.ts" \
+    'mcp_delimiter}${normalizeServerName(serverName)}' \
+    "MCPServerInspector uses normalizeServerName in getToolFunctions" \
+    "critical"
+
+check_pattern \
+    "api/server/services/MCP.js" \
+    'mcp_delimiter}${normalizeServerName(serverName)}' \
+    "MCP.js uses normalizeServerName in initializeServerTools toolKey" \
+    "critical"
+
+# Verify the pattern is NOT using raw serverName (anti-pattern check)
+if grep -n 'mcp_delimiter}${serverName}' packages/api/src/mcp/registry/MCPServerInspector.ts 2>/dev/null | grep -v normalizeServerName; then
+    echo -e "${RED}✗ FAIL${NC}: MCPServerInspector.ts still has raw serverName (should use normalizeServerName)"
+    echo "         This causes 400 errors with pattern validation for server names with spaces/special chars"
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+else
+    echo -e "${GREEN}✓ PASS${NC}: No raw serverName usage in MCPServerInspector"
+    PASS_COUNT=$((PASS_COUNT + 1))
+fi
+
+if grep -n "toolKey.*mcp_delimiter.*serverName" api/server/services/MCP.js 2>/dev/null | grep -v normalizeServerName; then
+    echo -e "${RED}✗ FAIL${NC}: MCP.js still has raw serverName in toolKey (should use normalizeServerName)"
+    echo "         This causes 400 errors with pattern validation for server names with spaces/special chars"
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+else
+    echo -e "${GREEN}✓ PASS${NC}: No raw serverName usage in MCP.js toolKey construction"
+    PASS_COUNT=$((PASS_COUNT + 1))
+fi
+
+echo ""
 echo "======================================"
 echo "Verification Summary"
 echo "======================================"

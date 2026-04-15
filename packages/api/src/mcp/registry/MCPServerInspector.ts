@@ -6,7 +6,7 @@ import { isMCPDomainAllowed, extractMCPServerDomain } from '~/auth/domain';
 import { MCPConnectionFactory } from '~/mcp/MCPConnectionFactory';
 import { MCPDomainNotAllowedError } from '~/mcp/errors';
 import { detectOAuthRequirement } from '~/mcp/oauth';
-import { hasCustomUserVars } from '~/mcp/utils';
+import { hasCustomUserVars, normalizeServerName } from '~/mcp/utils';
 import { isEnabled } from '~/utils';
 
 /**
@@ -141,7 +141,7 @@ export class MCPServerInspector {
 
     const toolFunctions: t.LCAvailableTools = {};
     tools.forEach((tool) => {
-      const name = `${tool.name}${Constants.mcp_delimiter}${serverName}`;
+      const name = `${tool.name}${Constants.mcp_delimiter}${normalizeServerName(serverName)}`;
       toolFunctions[name] = {
         type: 'function',
         ['function']: {
