@@ -103,7 +103,11 @@ function EndpointMenuContent({
     if (!modelSpecs || !modelSpecs.length) {
       return [];
     }
-    return modelSpecs.filter((spec: TModelSpec) => spec.group === endpoint.value);
+
+    return modelSpecs.filter(
+      (spec: TModelSpec) =>
+        spec.preset?.endpoint === endpoint.value && (!spec.group || spec.group === endpoint.value),
+    );
   }, [modelSpecs, endpoint.value]);
 
   if (isAssistantsEndpoint(endpoint.value) && endpoint.models === undefined) {
@@ -115,6 +119,36 @@ function EndpointMenuContent({
       >
         <Spinner aria-hidden="true" />
       </div>
+    );
+  }
+
+  if (endpointSpecs.length > 0) {
+    const normalizedSearch = searchValue.trim().toLowerCase();
+    const visibleSpecs = normalizedSearch
+      ? endpointSpecs.filter((spec: TModelSpec) => {
+          const label = spec.label?.toLowerCase() ?? '';
+          const description = spec.description?.toLowerCase() ?? '';
+          const name = spec.name?.toLowerCase() ?? '';
+          return (
+            label.includes(normalizedSearch) ||
+            description.includes(normalizedSearch) ||
+            name.includes(normalizedSearch)
+          );
+        })
+      : endpointSpecs;
+
+    return (
+      <>
+        {visibleSpecs.length > 0 ? (
+          visibleSpecs.map((spec: TModelSpec) => (
+            <ModelSpecItem key={spec.name} spec={spec} isSelected={selectedSpec === spec.name} />
+          ))
+        ) : (
+          <div className="cursor-default px-3 py-2 text-sm text-text-tertiary">
+            {localize('com_files_no_results')}
+          </div>
+        )}
+      </>
     );
   }
 
@@ -130,9 +164,6 @@ function EndpointMenuContent({
 
   return (
     <>
-      {endpointSpecs.map((spec: TModelSpec) => (
-        <ModelSpecItem key={spec.name} spec={spec} isSelected={selectedSpec === spec.name} />
-      ))}
       {filteredModels
         ? renderEndpointModels(endpoint, endpoint.models || [], filteredModels, endpointIndex)
         : endpoint.models &&
