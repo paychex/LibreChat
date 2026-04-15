@@ -12,6 +12,7 @@ import type { ToolDefinition } from './classification';
 import { resolveJsonSchemaRefs, normalizeJsonSchema } from '~/mcp/zod';
 import { buildToolClassification } from './classification';
 import { getToolDefinition } from './registry/definitions';
+import { normalizeServerName } from '~/mcp/utils';
 import { toolkitExpansion } from './toolkits/mapping';
 
 export interface MCPServerTool {
@@ -150,8 +151,12 @@ export async function loadToolDefinitions(
     if (toolName.startsWith(mcpAllPattern)) {
       for (const [actualToolName, toolDef] of Object.entries(serverTools)) {
         if (toolDef?.function) {
+          const parts = actualToolName.split(Constants.mcp_delimiter);
+          const rawServer = parts[parts.length - 1];
+          const toolBase = parts.slice(0, -1).join(Constants.mcp_delimiter);
+          const normalizedName = `${toolBase}${Constants.mcp_delimiter}${normalizeServerName(rawServer)}`;
           mcpToolDefs.push({
-            name: actualToolName,
+            name: normalizedName,
             description: toolDef.function.description,
             parameters: toolDef.function.parameters
               ? normalizeJsonSchema(resolveJsonSchemaRefs(toolDef.function.parameters))
@@ -165,8 +170,12 @@ export async function loadToolDefinitions(
 
     const toolDef = serverTools[toolName];
     if (toolDef?.function) {
+      const parts = toolName.split(Constants.mcp_delimiter);
+      const rawServer = parts[parts.length - 1];
+      const toolBase = parts.slice(0, -1).join(Constants.mcp_delimiter);
+      const normalizedName = `${toolBase}${Constants.mcp_delimiter}${normalizeServerName(rawServer)}`;
       mcpToolDefs.push({
-        name: toolName,
+        name: normalizedName,
         description: toolDef.function.description,
         parameters: toolDef.function.parameters
           ? normalizeJsonSchema(resolveJsonSchemaRefs(toolDef.function.parameters))

@@ -408,7 +408,7 @@ async function createMCPTools({
       userMCPAuthMap,
       streamId,
       availableTools: result.availableTools,
-      toolKey: `${tool.name}${Constants.mcp_delimiter}${normalizeServerName(serverName)}`,
+      toolKey: `${tool.name}${Constants.mcp_delimiter}${serverName}`,
       config: serverConfig,
     });
     if (toolInstance) {

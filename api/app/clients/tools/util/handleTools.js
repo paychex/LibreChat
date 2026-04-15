@@ -11,6 +11,7 @@ const {
   createSafeUser,
   mcpToolPattern,
   loadWebSearchAuth,
+  normalizeServerName,
   buildImageToolContext,
   buildWebSearchContext,
 } = require('@librechat/api');
@@ -335,14 +336,26 @@ const loadTools = async ({
       };
       continue;
     } else if (tool && mcpToolPattern.test(tool)) {
-      const [toolName, serverName] = tool.split(Constants.mcp_delimiter);
+      let [toolName, serverName] = tool.split(Constants.mcp_delimiter);
       if (toolName === Constants.mcp_server) {
         /** Placeholder used for UI purposes */
         continue;
       }
-      const serverConfig = serverName
+      let serverConfig = serverName
         ? await getMCPServersRegistry().getServerConfig(serverName, user)
         : null;
+      /** Fallback: tool name may contain a normalized server name (e.g. from event-driven path).
+       * Try to find the original server by matching normalized names. */
+      if (!serverConfig && serverName) {
+        const allConfigs = await getMCPServersRegistry().getAllServerConfigs(user);
+        const rawName = Object.keys(allConfigs).find(
+          (name) => normalizeServerName(name) === serverName,
+        );
+        if (rawName) {
+          serverConfig = allConfigs[rawName];
+          serverName = rawName;
+        }
+      }
       if (!serverConfig) {
         logger.warn(
           `MCP server "${serverName}" for "${toolName}" tool is not configured${agent?.id != null && agent.id ? ` but attached to "${agent.id}"` : ''}`,
@@ -363,7 +376,7 @@ const loadTools = async ({
       requestedMCPTools[serverName] = requestedMCPTools[serverName] || [];
       requestedMCPTools[serverName].push({
         type: 'single',
-        toolKey: tool,
+        toolKey: `${toolName}${Constants.mcp_delimiter}${serverName}`,
         serverName,
         config: serverConfig,
       });
