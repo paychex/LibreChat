@@ -15,6 +15,7 @@ import { UserConnectionManager } from './UserConnectionManager';
 import { ConnectionsRepository } from './ConnectionsRepository';
 import { MCPConnectionFactory } from './MCPConnectionFactory';
 import { preProcessGraphTokens } from '~/utils/graph';
+import { normalizeServerName } from '~/mcp/utils';
 import { formatToolContent } from './parsers';
 import { MCPConnection } from './connection';
 import { processMCPEnv } from '~/utils/env';
@@ -184,8 +185,8 @@ export class MCPManager extends UserConnectionManager {
   }
 
   /**
-   * Get instructions for MCP servers
-   * @param serverNames Optional array of server names. If not provided or empty, returns all servers.
+   * Get instructions for MCP servers.
+   * @param serverNames Optional array of server names (raw or normalized). If not provided or empty, returns all servers.
    * @returns Object mapping server names to their instructions
    */
   private async getInstructions(serverNames?: string[]): Promise<Record<string, string>> {
@@ -197,7 +198,17 @@ export class MCPManager extends UserConnectionManager {
       }
     }
     if (!serverNames) return instructions;
-    return pick(instructions, serverNames);
+
+    const normalizedToRaw: Record<string, string> = {};
+    for (const rawName of Object.keys(instructions)) {
+      normalizedToRaw[normalizeServerName(rawName)] = rawName;
+    }
+
+    const resolvedNames = serverNames.map(
+      (name) => (instructions[name] != null ? name : normalizedToRaw[name]) ?? name,
+    );
+
+    return pick(instructions, resolvedNames);
   }
 
   /**

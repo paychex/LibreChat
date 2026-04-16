@@ -98,7 +98,7 @@ export abstract class UserConnectionManager {
       );
     }
 
-    const config = await MCPServersRegistry.getInstance().getServerConfig(serverName, userId);
+    const config = await MCPServersRegistry.getInstance().getServerConfigByNormalizedName(serverName, userId);
 
     const userServerMap = this.userConnections.get(userId);
     let connection = forceNew ? undefined : userServerMap?.get(serverName);

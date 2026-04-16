@@ -6,6 +6,7 @@ import { MCPInspectionFailedError, isMCPDomainNotAllowedError } from '~/mcp/erro
 import { ServerConfigsCacheFactory } from './cache/ServerConfigsCacheFactory';
 import { MCPServerInspector } from './MCPServerInspector';
 import { ServerConfigsDB } from './db/ServerConfigsDB';
+import { normalizeServerName } from '~/mcp/utils';
 import { cacheConfig } from '~/cache/cacheConfig';
 
 /**
@@ -107,6 +108,32 @@ export class MCPServersRegistry {
     const configFromDB = await this.dbConfigsRepo.get(serverName, userId);
     await this.readThroughCache.set(cacheKey, configFromDB);
     return configFromDB;
+  }
+
+  /**
+   * Finds a server config by its raw or normalized name. Useful when server names
+   * come from tool name extraction (which uses normalized names) and the original config is needed.
+   * @param serverName - Raw or normalized server name
+   * @param userId - Optional user ID for user-specific configs
+   * @returns The server config if found, undefined otherwise
+   */
+  public async getServerConfigByNormalizedName(
+    serverName: string,
+    userId?: string,
+  ): Promise<t.ParsedServerConfig | undefined> {
+    const directMatch = await this.getServerConfig(serverName, userId);
+    if (directMatch) {
+      return directMatch;
+    }
+
+    const allConfigs = await this.getAllServerConfigs(userId);
+    for (const [rawServerName, config] of Object.entries(allConfigs)) {
+      if (normalizeServerName(rawServerName) === serverName) {
+        return config;
+      }
+    }
+
+    return undefined;
   }
 
   public async getAllServerConfigs(userId?: string): Promise<Record<string, t.ParsedServerConfig>> {
