@@ -495,7 +495,7 @@ const processAgentFileUpload = async ({ req, res, metadata }) => {
   // 1. Files are uploaded with entity_id=agent_id (or undefined for message attachments)
   // 2. Queries use entity_id from the agent context (may differ from upload)
   // 3. rag_api rejects queries where entity_id doesn't match the document's stored user_id
-  // 
+  //
   // Fix: Always use req.user.id as entity_id to ensure consistent authorization across both
   // upload and query operations. This ensures each user can only access their own files.
   //
