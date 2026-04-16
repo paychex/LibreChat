@@ -28,8 +28,6 @@ function MCPSelectContent() {
   const menuStore = Ariakit.useMenuStore({ focusLoop: true });
   const isOpen = menuStore.useState('open');
 
-  const selectedCount = mcpValues?.length ?? 0;
-
   const selectedServers = useMemo(() => {
     if (!mcpValues || mcpValues.length === 0) {
       return [];
@@ -37,18 +35,19 @@ function MCPSelectContent() {
     return selectableServers.filter((s) => mcpValues.includes(s.serverName));
   }, [selectableServers, mcpValues]);
 
+  const selectedCount = selectedServers.length;
+
   const displayText = useMemo(() => {
     if (selectedCount === 0) {
       return null;
     }
     if (selectedCount === 1) {
-      const server = selectableServers.find((s) => s.serverName === mcpValues?.[0]);
-      return server?.config?.title || mcpValues?.[0];
+      return selectedServers[0]?.config?.title || selectedServers[0]?.serverName;
     }
     return localize('com_ui_x_selected', { 0: selectedCount });
-  }, [selectedCount, selectableServers, mcpValues, localize]);
+  }, [selectedCount, selectedServers, localize]);
 
-  if (!isPinned && mcpValues?.length === 0) {
+  if (!isPinned && selectedCount === 0) {
     return null;
   }
 

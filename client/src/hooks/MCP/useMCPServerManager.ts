@@ -91,7 +91,7 @@ export function useMCPServerManager({
   const { mcpValues, setMCPValues, isPinned, setIsPinned } = useMCPSelect({
     conversationId,
     storageContextKey,
-    servers: selectableServers,
+    servers: availableMCPServers,
   });
   const mcpValuesRef = useRef(mcpValues);
 
