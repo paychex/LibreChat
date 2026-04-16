@@ -859,5 +859,4 @@ describe('useMCPSelect', () => {
       expect(newResult.current.mcpValues).toBeDefined();
     });
   });
-
 });
