@@ -340,7 +340,33 @@ grep -n "item.description" packages/client/src/components/DropdownPopup.tsx || e
 
 # 6. Dockerfile error handling
 grep -n "npm run frontend &&" Dockerfile || echo "⚠️ WARNING: Dockerfile may not use && for error handling"
+
+# 7. MCP startup field in API allowlist
+grep -n "startup: config.startup" packages/api/src/mcp/utils.ts || echo "❌ MISSING: MCP startup field in redactServerSecrets"
+
+# 8. MCP startup auto-select
+grep -n "s.config.startup === true" client/src/hooks/MCP/useMCPServerManager.ts || echo "❌ MISSING: MCP startup auto-select"
+
+# 9. Model preference guard
+grep -n "hasStoredModelSelection" client/src/routes/ChatRoute.tsx || echo "⚠️ WARNING: Model preference guard may be missing"
 ```
+
+> ⚠️ **`packages/api` rebuild requirement**: The `/api` Express server imports `@librechat/api` which
+> resolves to the **compiled** `packages/api/dist/index.js` — it does NOT run the TypeScript sources
+> directly. Any time `packages/api/src/**` files are changed (by Paychex or by upstream), the package
+> must be rebuilt or the backend will silently run stale code.
+>
+> ```bash
+> # After any change to packages/api/src/**
+> npm run build -w packages/api
+>
+> # Verify the rebuild included your change (example: checking for startup field)
+> grep -c "startup.*config\.startup" packages/api/dist/index.js
+> # Should be > 0
+> ```
+>
+> This was the root cause of the v0.8.4 post-merge Tavily auto-select regression: the TypeScript
+> source was fixed but the dist was never rebuilt, so the backend continued serving the old response.
 
 #### 7.2 Build & Test
 

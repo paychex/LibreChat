@@ -177,6 +177,33 @@ Complete catalog of Paychex-specific modifications to LibreChat.
 - **Added:** v0.8.4 merge retrospective
 - **Context:** You're reading these docs now!
 
+## MCP Customizations
+
+**18. MCP startup Field in API Response Allowlist**
+- **File:** `packages/api/src/mcp/utils.ts`
+- **Function:** `redactServerSecrets()`
+- **Pattern:** `startup: config.startup`
+- **Purpose:** Allowlists the `startup` field so it is included in `GET /api/mcp/servers` responses; without it the frontend never sees `startup: true` and cannot auto-select servers
+- **Criticality:** CRITICAL — Tavily (and any future `startup: true` server) will silently fail to auto-select without this
+- **Added:** v0.8.4 post-merge restoration
+- **Build note:** `packages/api/src/mcp/utils.ts` is TypeScript that compiles to `packages/api/dist/index.js`. The backend Express server imports the **compiled dist**, not the TypeScript sources. Any change here requires `npm run build -w packages/api` before restarting the backend, or the fix will not take effect.
+
+**19. MCP Startup Auto-Select**
+- **File:** `client/src/hooks/MCP/useMCPServerManager.ts`
+- **Pattern:** `s.config.startup === true`
+- **Purpose:** `useEffect` that auto-selects MCP servers configured with `startup: true` for every new conversation when `mcpValues` is empty; runs against `availableMCPServers` (unfiltered) so servers with `chatMenu: false` are still included
+- **Why here (not `useMCPSelect`):** `useMCPSelect` only receives `selectableServers` (filtered to `chatMenu !== false`). Placing the logic in `useMCPServerManager` gives it access to all servers regardless of menu visibility.
+- **Criticality:** CRITICAL — Without this, Tavily is never activated for new conversations
+- **Added:** v0.8.4 post-merge restoration (upstream removed the hook where this previously lived)
+
+**20. Model Preference Guard in New Conversation Preset**
+- **File:** `client/src/routes/ChatRoute.tsx`
+- **Function:** `getNewConvoPreset()`
+- **Pattern:** `hasStoredModelSelection`
+- **Purpose:** Prevents the default model spec preset from overwriting the user's previously stored model selection (`lastConversationSetup` in localStorage); if a stored model or agentOptions.model exists, `activePreset` is set to `undefined` so the user's choice is respected
+- **Criticality:** WARNING — App functions without it, but users' model selection is silently reset on every new conversation
+- **Added:** v0.8.4 post-merge restoration
+
 ## Verification Patterns
 
 Use these patterns when verifying customizations are present:
@@ -188,6 +215,11 @@ grep -r "sanitizeSchemaMetadata" api/server/services/start/
 grep -r "providerLower.includes('gemini')" api/server/services/MCP.js
 grep "npm run frontend &&" Dockerfile
 grep '"xlsx": "^0.18.5"' api/package.json packages/api/package.json
+
+# MCP customizations
+grep -n "startup: config.startup" packages/api/src/mcp/utils.ts
+grep -n "s.config.startup === true" client/src/hooks/MCP/useMCPServerManager.ts
+grep -n "hasStoredModelSelection" client/src/routes/ChatRoute.tsx
 
 # Frontend
 grep -r 'id="agentUsers"' client/src/components/

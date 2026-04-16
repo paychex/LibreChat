@@ -337,6 +337,50 @@ else
 fi
 
 echo ""
+
+# 13. MCP startup field in API allowlist
+echo "13. MCP startup Field in API Response Allowlist (packages/api)"
+check_pattern \
+    "packages/api/src/mcp/utils.ts" \
+    "startup: config.startup" \
+    "redactServerSecrets allowlists startup field for frontend" \
+    "critical"
+
+echo "    Note: After any change to packages/api/src/, run: npm run build -w packages/api"
+echo "    Verify dist is current: grep 'startup' packages/api/dist/index.js | grep 'config.startup'"
+echo ""
+
+# 14. MCP startup auto-select (frontend)
+echo "14. MCP Startup Auto-Select (useMCPServerManager.ts)"
+check_pattern \
+    "client/src/hooks/MCP/useMCPServerManager.ts" \
+    "s.config.startup === true" \
+    "Auto-select filter for startup:true MCP servers" \
+    "critical"
+
+check_pattern \
+    "client/src/hooks/MCP/useMCPServerManager.ts" \
+    "availableMCPServers" \
+    "Uses unfiltered availableMCPServers (not selectableServers) for auto-select" \
+    "critical"
+
+echo ""
+
+# 15. Model preference guard in ChatRoute
+echo "15. Model Preference Guard (ChatRoute.tsx)"
+check_pattern \
+    "client/src/routes/ChatRoute.tsx" \
+    "hasStoredModelSelection" \
+    "Guard prevents default spec preset from overwriting stored model choice" \
+    "warning"
+
+check_pattern \
+    "client/src/routes/ChatRoute.tsx" \
+    "activePreset" \
+    "activePreset variable respects stored model selection" \
+    "warning"
+
+echo ""
 echo "======================================"
 echo "Verification Summary"
 echo "======================================"

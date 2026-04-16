@@ -81,6 +81,23 @@
   grep -n '"xlsx":' api/package.json packages/api/package.json
   ```
 
+- [ ] **MCP startup field allowlisted** in `packages/api/src/mcp/utils.ts`
+  ```bash
+  grep -n "startup: config.startup" packages/api/src/mcp/utils.ts
+  ```
+  > **Critical build note:** Any change to `packages/api/src/**` requires a rebuild or the backend
+  > runs stale compiled code. Always verify and rebuild: `npm run build -w packages/api`
+
+- [ ] **MCP startup auto-select** in `useMCPServerManager.ts`
+  ```bash
+  grep -n "s.config.startup === true" client/src/hooks/MCP/useMCPServerManager.ts
+  ```
+
+- [ ] **Model preference guard** in `ChatRoute.tsx`
+  ```bash
+  grep -n "hasStoredModelSelection" client/src/routes/ChatRoute.tsx
+  ```
+
 ---
 
 ## Conflict Resolution Tracking
@@ -128,6 +145,9 @@ For each non-trivial conflict, verify:
 - [ ] No conflict markers remain: `git diff --check`
 - [ ] No unresolved conflicts: `git status` clean
 - [ ] Dependencies install cleanly: `npm install`
+- [ ] **`packages/api` rebuilt** if any `packages/api/src/**` files changed: `npm run build -w packages/api`
+  - Verify the dist reflects changes: `grep -c "startup" packages/api/dist/index.js`
+  - The Express server (`/api`) runs the compiled `dist/index.js`, NOT the TypeScript sources
 - [ ] Full build succeeds: `npm run build`
 - [ ] Build output reviewed for errors/warnings
 
