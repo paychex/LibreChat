@@ -462,7 +462,7 @@ const loadTools = async ({
           streamId: options.req?._resumableStreamId || null,
           model: agent?.model ?? model,
           serverName: config.serverName,
-          provider: agent?.provider ?? endpoint,
+          provider: agent?.endpoint ?? agent?.provider ?? endpoint,
           config: config.config,
         };
 

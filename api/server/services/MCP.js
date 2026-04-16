@@ -611,13 +611,21 @@ function createToolInstance({
       if (isAssistantsEndpoint(provider) && Array.isArray(result)) {
         return result[0];
       }
-      // Check if this is a Google-like provider (native Google or custom Gemini endpoint)
-      // Custom Gemini endpoints use OpenAI-compatible format but need text extraction
-      // to avoid sending array content that causes "Proto field is not repeating" errors
+      // Check if this is a Google-like provider (native Google or custom Gemini endpoint).
+      // Custom Gemini endpoints use OpenAI-compatible format internally (provider overridden to
+      // "openai" in getProviderConfig) but the GCP proxy requires function_response.response to
+      // be a Struct (object), not an array. Extract all text blocks into a plain string to avoid
+      // "Proto field is not repeating, cannot start list" errors.
       const isGoogleLike =
         isGoogle || (provider && (provider.includes('gemini') || provider.includes('google')));
-      if (isGoogleLike && Array.isArray(result[0]) && result[0][0]?.type === ContentTypes.TEXT) {
-        return [result[0][0].text, result[1]];
+      if (isGoogleLike && Array.isArray(result[0])) {
+        const textContent = result[0]
+          .filter((block) => block?.type === ContentTypes.TEXT)
+          .map((block) => block.text)
+          .join('\n\n');
+        if (textContent) {
+          return [textContent, result[1]];
+        }
       }
       return result;
     } catch (error) {
