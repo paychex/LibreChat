@@ -23,6 +23,7 @@ export function redactServerSecrets(config: ParsedServerConfig): Partial<ParsedS
     title: config.title,
     description: config.description,
     iconPath: config.iconPath,
+    startup: config.startup,
     chatMenu: config.chatMenu,
     requiresOAuth: config.requiresOAuth,
     capabilities: config.capabilities,

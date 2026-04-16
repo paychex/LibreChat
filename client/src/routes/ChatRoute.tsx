@@ -7,6 +7,7 @@ import { useGetModelsQuery } from 'librechat-data-provider/react-query';
 import type { TPreset } from 'librechat-data-provider';
 import {
   mergeQuerySettingsWithSpec,
+  getLocalStorageItems,
   processValidSettings,
   getDefaultModelSpec,
   getModelSpecPreset,
@@ -95,6 +96,16 @@ export default function ChatRoute() {
       const spec = result?.default ?? result?.last;
       const specPreset = spec ? getModelSpecPreset(spec) : undefined;
 
+      const { lastConversationSetup: storedSetup } = getLocalStorageItems();
+      const storedConvo =
+        storedSetup && typeof storedSetup === 'object' && Object.keys(storedSetup).length > 0
+          ? storedSetup
+          : null;
+      const hasStoredModelSelection = Boolean(
+        storedConvo?.model ?? storedConvo?.agentOptions?.model,
+      );
+      const activePreset = hasStoredModelSelection ? undefined : specPreset;
+
       const queryParams: Record<string, string> = {};
       searchParams.forEach((value, key) => {
         if (key !== 'prompt' && key !== 'q' && key !== 'submit') {
@@ -104,9 +115,9 @@ export default function ChatRoute() {
       const querySettings = processValidSettings(queryParams);
 
       if (Object.keys(querySettings).length > 0) {
-        return mergeQuerySettingsWithSpec(specPreset, querySettings);
+        return mergeQuerySettingsWithSpec(activePreset, querySettings);
       }
-      return specPreset;
+      return activePreset;
     };
 
     if (isNewConvo && endpointsQuery.data && modelsQuery.data) {

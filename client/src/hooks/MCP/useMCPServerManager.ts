@@ -100,6 +100,23 @@ export function useMCPServerManager({
     mcpValuesRef.current = mcpValues;
   }, [mcpValues]);
 
+  // Auto-select servers configured with startup: true for new conversations.
+  // Uses availableMCPServers (unfiltered) so servers with chatMenu: false (e.g. Tavily)
+  // are still auto-selected even when hidden from the menu UI.
+  useEffect(() => {
+    if (mcpValues.length > 0 || isLoading) return;
+    const isNewConvo = !conversationId || conversationId === Constants.NEW_CONVO;
+    if (!isNewConvo || availableMCPServers.length === 0) return;
+
+    const startupServers = availableMCPServers
+      .filter((s) => s.config.startup === true)
+      .map((s) => s.serverName);
+
+    if (startupServers.length > 0) {
+      setMCPValues(startupServers);
+    }
+  }, [conversationId, availableMCPServers, isLoading, mcpValues.length, setMCPValues]);
+
   // Check if specific permission bit is set
   const checkEffectivePermission = useCallback(
     (effectivePermissions: number, permissionBit: number): boolean => {
