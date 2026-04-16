@@ -488,7 +488,21 @@ const processAgentFileUpload = async ({ req, res, metadata }) => {
 
   const isImage = file.mimetype.startsWith('image');
   let fileInfoMetadata;
-  const entity_id = messageAttachment === true ? undefined : agent_id;
+  // PAYCHEX CUSTOMIZATION: File Upload Authorization Fix
+  // Why: Paychex uses external rag_api for file embeddings, which enforces strict user_id-based
+  // authorization on both upload and query operations. The upstream default behavior uses agent_id
+  // for entity_id, which causes authorization mismatches because:
+  // 1. Files are uploaded with entity_id=agent_id (or undefined for message attachments)
+  // 2. Queries use entity_id from the agent context (may differ from upload)
+  // 3. rag_api rejects queries where entity_id doesn't match the document's stored user_id
+  // 
+  // Fix: Always use req.user.id as entity_id to ensure consistent authorization across both
+  // upload and query operations. This ensures each user can only access their own files.
+  //
+  // Upstream doesn't need this because:
+  // - Default LibreChat uses MongoDB for file storage without rag_api's strict authorization
+  // - Agent-based entity_id works fine when authorization is agent-scoped, not user-scoped
+  const entity_id = req.user.id;
   const basePath = mime.getType(file.originalname)?.startsWith('image') ? 'images' : 'uploads';
   if (tool_resource === EToolResources.execute_code) {
     const isCodeEnabled = await checkCapability(req, AgentCapabilities.execute_code);

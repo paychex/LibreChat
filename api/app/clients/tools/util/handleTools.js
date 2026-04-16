@@ -313,7 +313,19 @@ const loadTools = async ({
         return createFileSearchTool({
           userId: user,
           files,
-          entity_id: agent?.id,
+          // PAYCHEX CUSTOMIZATION: File Search Authorization Fix
+          // Why: Must match the entity_id used during file upload (see process.js). Paychex rag_api
+          // enforces that query entity_id must match the document's stored user_id. The upstream
+          // default uses agent?.id here, which causes "Unauthorized access" errors because:
+          // - Upload stores files with entity_id=user_id (from process.js)
+          // - Query searches with entity_id=agent_id (from this line)
+          // - rag_api authorization check: if (doc_user_id !== query_entity_id) -> DENY
+          //
+          // Fix: Use options.req.user.id to query with the same user ID used during upload.
+          //
+          // Upstream doesn't need this because agent-scoped authorization is the expected behavior
+          // when not using external RAG APIs with user-based access control.
+          entity_id: options.req.user.id,
           fileCitations,
         });
       };
