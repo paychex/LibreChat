@@ -94,8 +94,7 @@ export const useEndpoints = ({
           (modelsQuery.data?.[ep]?.length ?? 0) > 0);
 
       const hasCustomIconURL =
-        !!endpointIconURL &&
-        (endpointIconURL.startsWith('/') || endpointIconURL.includes('http'));
+        !!endpointIconURL && (endpointIconURL.startsWith('/') || endpointIconURL.includes('http'));
 
       // Base result object with formatted default icon
       const result: Endpoint = {
