@@ -20,7 +20,7 @@ const SpecIcon: React.FC<SpecIconProps> = ({ currentSpec, endpointsConfig }) => 
   const iconKey = getIconKey({ endpoint, endpointsConfig, endpointIconURL });
   let Icon: IconType;
 
-  if (!iconURL.includes('http')) {
+  if (!iconURL.includes('http') && !iconURL.startsWith('/')) {
     Icon = (icons[iconURL] ?? icons[iconKey] ?? icons.unknown) as IconType;
   } else if (iconURL) {
     return (

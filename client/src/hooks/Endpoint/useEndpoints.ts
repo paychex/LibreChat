@@ -18,6 +18,7 @@ import type { Endpoint } from '~/common';
 import { useGetEndpointsQuery } from '~/data-provider';
 import { mapEndpoints, getIconKey } from '~/utils';
 import { useHasAccess } from '~/hooks';
+import { URLIcon } from '~/components/Endpoints/URLIcon';
 import { icons } from './Icons';
 
 export const useEndpoints = ({
@@ -92,19 +93,31 @@ export const useEndpoints = ({
           ep !== EModelEndpoint.agents &&
           (modelsQuery.data?.[ep]?.length ?? 0) > 0);
 
+      const hasCustomIconURL =
+        !!endpointIconURL &&
+        (endpointIconURL.startsWith('/') || endpointIconURL.includes('http'));
+
       // Base result object with formatted default icon
       const result: Endpoint = {
         value: ep,
         label: alternateName[ep] || ep,
         hasModels,
-        icon: Icon
-          ? React.createElement(Icon, {
-              size: 20,
-              className: 'text-text-primary shrink-0 icon-md',
-              iconURL: endpointIconURL,
+        icon: hasCustomIconURL
+          ? React.createElement(URLIcon, {
+              iconURL: endpointIconURL as string,
+              altName: ep,
+              containerStyle: { width: 20, height: 20 },
+              className: 'icon-md shrink-0 overflow-hidden rounded-full',
               endpoint: ep,
             })
-          : null,
+          : Icon
+            ? React.createElement(Icon, {
+                size: 20,
+                className: 'text-text-primary shrink-0 icon-md',
+                iconURL: endpointIconURL,
+                endpoint: ep,
+              })
+            : null,
       };
 
       // Handle agents case
