@@ -1,15 +1,13 @@
 import { Feather } from 'lucide-react';
 import { EModelEndpoint } from 'librechat-data-provider';
 import {
-  MinimalPlugin,
   GPTIcon,
+  Sparkles,
+  BedrockIcon,
+  AssistantIcon,
   AnthropicIcon,
   GoogleMinimalIcon,
   CustomMinimalIcon,
-  AssistantIcon,
-  LightningIcon,
-  BedrockIcon,
-  Sparkles,
 } from '@librechat/client';
 import type { IconMapProps, AgentIconMapProps, IconsRecord } from '~/common';
 import UnknownIcon from './UnknownIcon';
@@ -81,9 +79,7 @@ const GPTIconDark = ({ size = 20 }: IconMapProps) => {
 export const icons: IconsRecord = {
   [EModelEndpoint.azureOpenAI]: GPTIconDark,
   [EModelEndpoint.openAI]: GPTIcon,
-  [EModelEndpoint.gptPlugins]: MinimalPlugin,
   [EModelEndpoint.anthropic]: AnthropicIcon,
-  [EModelEndpoint.chatGPTBrowser]: LightningIcon,
   [EModelEndpoint.google]: GoogleMinimalIcon,
   [EModelEndpoint.custom]: CustomMinimalIcon,
   [EModelEndpoint.assistants]: AssistantAvatar,

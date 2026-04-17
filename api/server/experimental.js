@@ -14,6 +14,7 @@ const { logger } = require('@librechat/data-schemas');
 const mongoSanitize = require('express-mongo-sanitize');
 const {
   isEnabled,
+  apiNotFound,
   ErrorController,
   performStartupChecks,
   handleJsonParseError,
@@ -246,7 +247,22 @@ if (cluster.isMaster) {
     app.use(noIndex);
     app.use(express.json({ limit: '3mb' }));
     app.use(express.urlencoded({ extended: true, limit: '3mb' }));
+
     app.use(handleJsonParseError);
+
+    /**
+     * Express 5 Compatibility: Make req.query writable for mongoSanitize
+     * In Express 5, req.query is read-only by default, but express-mongo-sanitize needs to modify it
+     */
+    app.use((req, _res, next) => {
+      Object.defineProperty(req, 'query', {
+        ...Object.getOwnPropertyDescriptor(req, 'query'),
+        value: req.query,
+        writable: true,
+      });
+      next();
+    });
+
     app.use(mongoSanitize());
     app.use(cors());
     app.use(cookieParser());
@@ -282,11 +298,12 @@ if (cluster.isMaster) {
     /** Routes */
     app.use('/oauth', routes.oauth);
     app.use('/api/auth', routes.auth);
+    app.use('/api/admin', routes.adminAuth);
     app.use('/api/actions', routes.actions);
     app.use('/api/keys', routes.keys);
+    app.use('/api/api-keys', routes.apiKeys);
     app.use('/api/user', routes.user);
     app.use('/api/search', routes.search);
-    app.use('/api/edit', routes.edit);
     app.use('/api/messages', routes.messages);
     app.use('/api/convos', routes.convos);
     app.use('/api/presets', routes.presets);
@@ -295,7 +312,6 @@ if (cluster.isMaster) {
     app.use('/api/endpoints', routes.endpoints);
     app.use('/api/balance', routes.balance);
     app.use('/api/models', routes.models);
-    app.use('/api/plugins', routes.plugins);
     app.use('/api/config', routes.config);
     app.use('/api/assistants', routes.assistants);
     app.use('/api/files', await routes.files.initialize());
@@ -309,8 +325,8 @@ if (cluster.isMaster) {
     app.use('/api/tags', routes.tags);
     app.use('/api/mcp', routes.mcp);
 
-    /** Error handler */
-    app.use(ErrorController);
+    /** 404 for unmatched API routes */
+    app.use('/api', apiNotFound);
 
     /** SPA fallback - serve index.html for all unmatched routes */
     app.use((req, res) => {
@@ -328,8 +344,16 @@ if (cluster.isMaster) {
       res.send(updatedIndexHtml);
     });
 
+    /** Error handler (must be last - Express identifies error middleware by its 4-arg signature) */
+    app.use(ErrorController);
+
     /** Start listening on shared port (cluster will distribute connections) */
-    app.listen(port, host, async () => {
+    app.listen(port, host, async (err) => {
+      if (err) {
+        logger.error(`Worker ${process.pid} failed to start server:`, err);
+        process.exit(1);
+      }
+
       logger.info(
         `Worker ${process.pid} started: Server listening at http://${
           host == '0.0.0.0' ? 'localhost' : host

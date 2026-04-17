@@ -121,6 +121,15 @@ const userSchema = new Schema<IUser>(
       type: [BackupCodeSchema],
       select: false,
     },
+    pendingTotpSecret: {
+      type: String,
+      select: false,
+    },
+    pendingBackupCodes: {
+      type: [BackupCodeSchema],
+      select: false,
+      default: undefined,
+    },
     refreshToken: {
       type: [SessionSchema],
     },
@@ -140,6 +149,17 @@ const userSchema = new Schema<IUser>(
         },
       },
       default: {},
+    },
+    favorites: {
+      type: [
+        {
+          _id: false,
+          agentId: String, // for agent
+          model: String, // for model
+          endpoint: String, // for model
+        },
+      ],
+      default: [],
     },
     /** Field for external source identification (for consistency with TPrincipal schema) */
     idOnTheSource: {

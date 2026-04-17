@@ -25,6 +25,13 @@ jest.mock('~/app/clients/tools', () => ({
   toolkits: [],
 }));
 
+jest.mock('~/config', () => ({
+  createMCPServersRegistry: jest.fn(),
+  createMCPManager: jest.fn().mockResolvedValue({
+    getAppToolFunctions: jest.fn().mockResolvedValue({}),
+  }),
+}));
+
 describe('Server Configuration', () => {
   // Increase the default timeout to allow for Mongo cleanup
   jest.setTimeout(30_000);
@@ -91,6 +98,40 @@ describe('Server Configuration', () => {
     expect(response.headers['cache-control']).toBe('no-cache, no-store, must-revalidate');
     expect(response.headers['pragma']).toBe('no-cache');
     expect(response.headers['expires']).toBe('0');
+  });
+
+  it('should return 404 JSON for undefined API routes', async () => {
+    const response = await request(app).get('/api/nonexistent');
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ message: 'Endpoint not found' });
+  });
+
+  it('should return 404 JSON for nested undefined API routes', async () => {
+    const response = await request(app).get('/api/nonexistent/nested/path');
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ message: 'Endpoint not found' });
+  });
+
+  it('should return 404 JSON for non-GET methods on undefined API routes', async () => {
+    const post = await request(app).post('/api/nonexistent');
+    expect(post.status).toBe(404);
+    expect(post.body).toEqual({ message: 'Endpoint not found' });
+
+    const del = await request(app).delete('/api/nonexistent');
+    expect(del.status).toBe(404);
+    expect(del.body).toEqual({ message: 'Endpoint not found' });
+  });
+
+  it('should return 404 JSON for the /api root path', async () => {
+    const response = await request(app).get('/api');
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ message: 'Endpoint not found' });
+  });
+
+  it('should serve SPA HTML for non-API unmatched routes', async () => {
+    const response = await request(app).get('/this/does/not/exist');
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toMatch(/html/);
   });
 
   it('should return 500 for unknown errors via ErrorController', async () => {

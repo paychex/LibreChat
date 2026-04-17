@@ -205,7 +205,7 @@ endpoints:
       models:
         default:
           - langgraph-agent-identification
-        fetch: false
+        fetch: true
       titleConvo: true
       titleEndpoint: azureOpenAI
       titleModel: "gpt-41-mini"

@@ -23,10 +23,12 @@ interface AuthFieldProps {
   hasValue: boolean;
   control: any;
   errors: any;
+  autoFocus?: boolean;
 }
 
-function AuthField({ name, config, hasValue, control, errors }: AuthFieldProps) {
+function AuthField({ name, config, hasValue, control, errors, autoFocus }: AuthFieldProps) {
   const localize = useLocalize();
+  const statusText = hasValue ? localize('com_ui_set') : localize('com_ui_unset');
 
   const sanitizer = useMemo(() => {
     const instance = DOMPurify();
@@ -60,19 +62,21 @@ function AuthField({ name, config, hasValue, control, errors }: AuthFieldProps) 
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <Label htmlFor={name} className="text-sm font-medium">
-          {config.title}
+          {config.title} <span className="sr-only">({statusText})</span>
         </Label>
-        {hasValue ? (
-          <div className="flex min-w-fit items-center gap-2 whitespace-nowrap rounded-full border border-border-light px-2 py-0.5 text-xs font-medium text-text-secondary">
-            <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
-            <span>{localize('com_ui_set')}</span>
-          </div>
-        ) : (
-          <div className="flex min-w-fit items-center gap-2 whitespace-nowrap rounded-full border border-border-light px-2 py-0.5 text-xs font-medium text-text-secondary">
-            <div className="h-1.5 w-1.5 rounded-full border border-border-medium" />
-            <span>{localize('com_ui_unset')}</span>
-          </div>
-        )}
+        <div aria-hidden="true">
+          {hasValue ? (
+            <div className="flex min-w-fit items-center gap-2 whitespace-nowrap rounded-full border border-border-light px-2 py-0.5 text-xs font-medium text-text-secondary">
+              <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+              <span>{localize('com_ui_set')}</span>
+            </div>
+          ) : (
+            <div className="flex min-w-fit items-center gap-2 whitespace-nowrap rounded-full border border-border-light px-2 py-0.5 text-xs font-medium text-text-secondary">
+              <div className="h-1.5 w-1.5 rounded-full border border-border-medium" />
+              <span>{localize('com_ui_unset')}</span>
+            </div>
+          )}
+        </div>
       </div>
       <Controller
         name={name}
@@ -82,6 +86,11 @@ function AuthField({ name, config, hasValue, control, errors }: AuthFieldProps) 
           <Input
             id={name}
             type="text"
+            /* autoFocus is generally disabled due to the fact that it can disorient users,
+             * but in this case, the required field would logically be immediately navigated to anyways, and the component's
+             * functionality emulates that of a new modal opening, where users would expect focus to be shifted to the new content */
+            // eslint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus={autoFocus}
             {...field}
             placeholder={
               hasValue
@@ -147,7 +156,7 @@ export default function CustomUserVarsSection({
   return (
     <div className="flex-1 space-y-4">
       <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
-        {Object.entries(fields).map(([key, config]) => {
+        {Object.entries(fields).map(([key, config], index) => {
           const hasValue = authValuesData?.authValueFlags?.[key] || false;
 
           return (
@@ -158,6 +167,8 @@ export default function CustomUserVarsSection({
               hasValue={hasValue}
               control={control}
               errors={errors}
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- See AuthField autoFocus comment for more details
+              autoFocus={index === 0}
             />
           );
         })}

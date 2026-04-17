@@ -4,9 +4,10 @@ import type { MCPOAuthTokens } from './types';
 import { OAuthReconnectionTracker } from './OAuthReconnectionTracker';
 import { FlowStateManager } from '~/flow/manager';
 import { MCPManager } from '~/mcp/MCPManager';
-import { mcpServersRegistry } from '~/mcp/registry/MCPServersRegistry';
+import { MCPServersRegistry } from '~/mcp/registry/MCPServersRegistry';
 
 const DEFAULT_CONNECTION_TIMEOUT_MS = 10_000; // ms
+const RECONNECT_STAGGER_MS = 500; // ms between each server reconnection
 
 export class OAuthReconnectionManager {
   private static instance: OAuthReconnectionManager | null = null;
@@ -72,7 +73,7 @@ export class OAuthReconnectionManager {
 
     // 1. derive the servers to reconnect
     const serversToReconnect = [];
-    for (const serverName of await mcpServersRegistry.getOAuthServers()) {
+    for (const serverName of await MCPServersRegistry.getInstance().getOAuthServers()) {
       const canReconnect = await this.canReconnect(userId, serverName);
       if (canReconnect) {
         serversToReconnect.push(serverName);
@@ -84,9 +85,32 @@ export class OAuthReconnectionManager {
       this.reconnectionsTracker.setActive(userId, serverName);
     }
 
-    // 3. attempt to reconnect the servers
-    for (const serverName of serversToReconnect) {
-      void this.tryReconnect(userId, serverName);
+    // 3. attempt to reconnect the servers with staggered delays to avoid connection storms
+    for (let i = 0; i < serversToReconnect.length; i++) {
+      const serverName = serversToReconnect[i];
+      if (i === 0) {
+        void this.tryReconnect(userId, serverName);
+      } else {
+        setTimeout(() => void this.tryReconnect(userId, serverName), i * RECONNECT_STAGGER_MS);
+      }
+    }
+  }
+
+  /**
+   * Attempts to reconnect a single OAuth MCP server.
+   * @returns true if reconnection succeeded, false otherwise.
+   */
+  public async reconnectServer(userId: string, serverName: string): Promise<boolean> {
+    if (this.mcpManager == null) {
+      return false;
+    }
+
+    this.reconnectionsTracker.setActive(userId, serverName);
+    try {
+      await this.tryReconnect(userId, serverName);
+      return !this.reconnectionsTracker.isFailed(userId, serverName);
+    } catch {
+      return false;
     }
   }
 
@@ -104,7 +128,7 @@ export class OAuthReconnectionManager {
 
     logger.info(`${logPrefix} Attempting reconnection`);
 
-    const config = await mcpServersRegistry.getServerConfig(serverName, userId);
+    const config = await MCPServersRegistry.getInstance().getServerConfig(serverName, userId);
 
     const cleanupOnFailedReconnect = () => {
       this.reconnectionsTracker.setFailed(userId, serverName);
@@ -141,6 +165,10 @@ export class OAuthReconnectionManager {
     }
   }
 
+  public getTrackerStats() {
+    return this.reconnectionsTracker.getStats();
+  }
+
   private async canReconnect(userId: string, serverName: string) {
     if (this.mcpManager == null) {
       return false;
@@ -164,23 +192,31 @@ export class OAuthReconnectionManager {
       }
     }
 
-    // if the server has no tokens for the user, don't attempt to reconnect
+    // if the server has a valid (non-expired) access token, allow reconnect
     const accessToken = await this.tokenMethods.findToken({
       userId,
       type: 'mcp_oauth',
       identifier: `mcp:${serverName}`,
     });
-    if (accessToken == null) {
+
+    if (accessToken != null) {
+      const now = new Date();
+      if (!accessToken.expiresAt || accessToken.expiresAt >= now) {
+        return true;
+      }
+    }
+
+    // if the access token is expired or TTL-deleted, fall back to refresh token
+    const refreshToken = await this.tokenMethods.findToken({
+      userId,
+      type: 'mcp_oauth',
+      identifier: `mcp:${serverName}:refresh`,
+    });
+
+    if (refreshToken == null) {
       return false;
     }
 
-    // if the token has expired, don't attempt to reconnect
-    const now = new Date();
-    if (accessToken.expiresAt && accessToken.expiresAt < now) {
-      return false;
-    }
-
-    // …otherwise, we're good to go with the reconnect attempt
     return true;
   }
 }

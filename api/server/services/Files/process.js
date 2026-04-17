@@ -16,6 +16,7 @@ const {
   removeNullishValues,
   isAssistantsEndpoint,
   getEndpointFileConfig,
+  documentParserMimeTypes,
 } = require('librechat-data-provider');
 const { EnvVar } = require('@librechat/agents');
 const { logger } = require('@librechat/data-schemas');
@@ -28,8 +29,8 @@ const {
 const { addResourceFileId, deleteResourceFileId } = require('~/server/controllers/assistants/v2');
 const { addAgentResourceFile, removeAgentResourceFiles } = require('~/models/Agent');
 const { getOpenAIClient } = require('~/server/controllers/assistants/helpers');
-const { createFile, updateFileUsage, deleteFiles } = require('~/models/File');
 const { loadAuthValues } = require('~/server/services/Tools/credentials');
+const { createFile, updateFileUsage, deleteFiles } = require('~/models');
 const { getFileStrategy } = require('~/server/utils/getFileStrategy');
 const { checkCapability } = require('~/server/services/Config');
 const { LB_QueueAsyncCall } = require('~/server/utils/queue');
@@ -58,45 +59,6 @@ const createSanitizedUploadWrapper = (uploadFunction) => {
 
     return uploadFunction({ req, file: sanitizedFile, file_id, ...restParams });
   };
-};
-
-/**
- *
- * @param {Array<MongoFile>} files
- * @param {Array<string>} [fileIds]
- * @returns
- */
-const processFiles = async (files, fileIds) => {
-  const promises = [];
-  const seen = new Set();
-
-  for (let file of files) {
-    const { file_id } = file;
-    if (seen.has(file_id)) {
-      continue;
-    }
-    seen.add(file_id);
-    promises.push(updateFileUsage({ file_id }));
-  }
-
-  if (!fileIds) {
-    const results = await Promise.all(promises);
-    // Filter out null results from failed updateFileUsage calls
-    return results.filter((result) => result != null);
-  }
-
-  for (let file_id of fileIds) {
-    if (seen.has(file_id)) {
-      continue;
-    }
-    seen.add(file_id);
-    promises.push(updateFileUsage({ file_id }));
-  }
-
-  // TODO: calculate token cost when image is first uploaded
-  const results = await Promise.all(promises);
-  // Filter out null results from failed updateFileUsage calls
-  return results.filter((result) => result != null);
 };
 
 /**
@@ -526,7 +488,21 @@ const processAgentFileUpload = async ({ req, res, metadata }) => {
 
   const isImage = file.mimetype.startsWith('image');
   let fileInfoMetadata;
-  const entity_id = messageAttachment === true ? undefined : agent_id;
+  // PAYCHEX CUSTOMIZATION: File Upload Authorization Fix
+  // Why: Paychex uses external rag_api for file embeddings, which enforces strict user_id-based
+  // authorization on both upload and query operations. The upstream default behavior uses agent_id
+  // for entity_id, which causes authorization mismatches because:
+  // 1. Files are uploaded with entity_id=agent_id (or undefined for message attachments)
+  // 2. Queries use entity_id from the agent context (may differ from upload)
+  // 3. rag_api rejects queries where entity_id doesn't match the document's stored user_id
+  //
+  // Fix: Always use req.user.id as entity_id to ensure consistent authorization across both
+  // upload and query operations. This ensures each user can only access their own files.
+  //
+  // Upstream doesn't need this because:
+  // - Default LibreChat uses MongoDB for file storage without rag_api's strict authorization
+  // - Agent-based entity_id works fine when authorization is agent-scoped, not user-scoped
+  const entity_id = req.user.id;
   const basePath = mime.getType(file.originalname)?.startsWith('image') ? 'images' : 'uploads';
   if (tool_resource === EToolResources.execute_code) {
     const isCodeEnabled = await checkCapability(req, AgentCapabilities.execute_code);
@@ -562,6 +538,12 @@ const processAgentFileUpload = async ({ req, res, metadata }) => {
      * @return {Promise<void>}
      */
     const createTextFile = async ({ text, bytes, filepath, type = 'text/plain' }) => {
+      const textBytes = Buffer.byteLength(text, 'utf8');
+      if (textBytes > 15 * megabyte) {
+        throw new Error(
+          `Extracted text from "${file.originalname}" exceeds the 15MB storage limit (${Math.round(textBytes / megabyte)}MB). Try a shorter document.`,
+        );
+      }
       const fileInfo = removeNullishValues({
         text,
         bytes,
@@ -592,29 +574,52 @@ const processAgentFileUpload = async ({ req, res, metadata }) => {
 
     const fileConfig = mergeFileConfig(appConfig.fileConfig);
 
-    const shouldUseOCR =
+    const shouldUseConfiguredOCR =
       appConfig?.ocr != null &&
       fileConfig.checkType(file.mimetype, fileConfig.ocr?.supportedMimeTypes || []);
 
-    if (shouldUseOCR && !(await checkCapability(req, AgentCapabilities.ocr))) {
-      throw new Error('OCR capability is not enabled for Agents');
-    } else if (shouldUseOCR) {
+    const shouldUseDocumentParser =
+      !shouldUseConfiguredOCR && documentParserMimeTypes.some((regex) => regex.test(file.mimetype));
+
+    const shouldUseOCR = shouldUseConfiguredOCR || shouldUseDocumentParser;
+
+    const resolveDocumentText = async () => {
+      if (shouldUseConfiguredOCR) {
+        try {
+          const ocrStrategy = appConfig?.ocr?.strategy ?? FileSources.document_parser;
+          const { handleFileUpload } = getStrategyFunctions(ocrStrategy);
+          return await handleFileUpload({ req, file, loadAuthValues });
+        } catch (err) {
+          logger.error(
+            `[processAgentFileUpload] Configured OCR failed for "${file.originalname}", falling back to document_parser:`,
+            err,
+          );
+        }
+      }
       try {
-        const { handleFileUpload: uploadOCR } = getStrategyFunctions(
-          appConfig?.ocr?.strategy ?? FileSources.mistral_ocr,
-        );
-        const {
-          text,
-          bytes,
-          filepath: ocrFileURL,
-        } = await uploadOCR({ req, file, loadAuthValues });
-        return await createTextFile({ text, bytes, filepath: ocrFileURL });
-      } catch (ocrError) {
+        const { handleFileUpload } = getStrategyFunctions(FileSources.document_parser);
+        return await handleFileUpload({ req, file, loadAuthValues });
+      } catch (err) {
         logger.error(
-          `[processAgentFileUpload] OCR processing failed for file "${file.originalname}", falling back to text extraction:`,
-          ocrError,
+          `[processAgentFileUpload] Document parser failed for "${file.originalname}":`,
+          err,
         );
       }
+    };
+
+    if (shouldUseConfiguredOCR && !(await checkCapability(req, AgentCapabilities.ocr))) {
+      throw new Error('OCR capability is not enabled for Agents');
+    }
+
+    if (shouldUseOCR) {
+      const ocrResult = await resolveDocumentText();
+      if (ocrResult) {
+        const { text, bytes, filepath: ocrFileURL } = ocrResult;
+        return await createTextFile({ text, bytes, filepath: ocrFileURL });
+      }
+      throw new Error(
+        `Unable to extract text from "${file.originalname}". The document may be image-based and requires an OCR service to process.`,
+      );
     }
 
     const shouldUseSTT = fileConfig.checkType(
@@ -1057,7 +1062,6 @@ function filterFile({ req, image, isAvatar }) {
 
 module.exports = {
   filterFile,
-  processFiles,
   processFileURL,
   saveBase64Image,
   processImageFile,

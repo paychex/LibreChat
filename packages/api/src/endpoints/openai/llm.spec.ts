@@ -56,6 +56,77 @@ describe('getOpenAILLMConfig', () => {
     });
   });
 
+  describe('Empty String Handling (Issue Fix)', () => {
+    it('should remove empty string values for numeric parameters', () => {
+      const result = getOpenAILLMConfig({
+        apiKey: 'test-api-key',
+        streaming: true,
+        modelOptions: {
+          model: 'gpt-4',
+          temperature: '' as unknown as number,
+          topP: '' as unknown as number,
+          max_tokens: '' as unknown as number,
+        },
+      });
+
+      expect(result.llmConfig).not.toHaveProperty('temperature');
+      expect(result.llmConfig).not.toHaveProperty('topP');
+      expect(result.llmConfig).not.toHaveProperty('maxTokens');
+      expect(result.llmConfig).not.toHaveProperty('max_tokens');
+    });
+
+    it('should remove empty string values for frequency and presence penalties', () => {
+      const result = getOpenAILLMConfig({
+        apiKey: 'test-api-key',
+        streaming: true,
+        modelOptions: {
+          model: 'gpt-4',
+          frequency_penalty: '' as unknown as number,
+          presence_penalty: '' as unknown as number,
+        },
+      });
+
+      expect(result.llmConfig).not.toHaveProperty('frequencyPenalty');
+      expect(result.llmConfig).not.toHaveProperty('presencePenalty');
+      expect(result.llmConfig).not.toHaveProperty('frequency_penalty');
+      expect(result.llmConfig).not.toHaveProperty('presence_penalty');
+    });
+
+    it('should preserve valid numeric values while removing empty strings', () => {
+      const result = getOpenAILLMConfig({
+        apiKey: 'test-api-key',
+        streaming: true,
+        modelOptions: {
+          model: 'gpt-4',
+          temperature: 0.7,
+          topP: '' as unknown as number,
+          max_tokens: 4096,
+        },
+      });
+
+      expect(result.llmConfig).toHaveProperty('temperature', 0.7);
+      expect(result.llmConfig).not.toHaveProperty('topP');
+      expect(result.llmConfig).toHaveProperty('maxTokens', 4096);
+    });
+
+    it('should preserve zero values (not treat them as empty)', () => {
+      const result = getOpenAILLMConfig({
+        apiKey: 'test-api-key',
+        streaming: true,
+        modelOptions: {
+          model: 'gpt-4',
+          temperature: 0,
+          frequency_penalty: 0,
+          presence_penalty: 0,
+        },
+      });
+
+      expect(result.llmConfig).toHaveProperty('temperature', 0);
+      expect(result.llmConfig).toHaveProperty('frequencyPenalty', 0);
+      expect(result.llmConfig).toHaveProperty('presencePenalty', 0);
+    });
+  });
+
   describe('OpenAI Reasoning Models (o1/o3/gpt-5)', () => {
     const reasoningModels = [
       'o1',
@@ -310,6 +381,25 @@ describe('getOpenAILLMConfig', () => {
       expect(result.llmConfig).toHaveProperty('include_reasoning', true);
     });
 
+    it('should combine web search plugins and reasoning object for OpenRouter', () => {
+      const result = getOpenAILLMConfig({
+        apiKey: 'test-api-key',
+        streaming: true,
+        useOpenRouter: true,
+        modelOptions: {
+          model: 'anthropic/claude-3-sonnet',
+          reasoning_effort: ReasoningEffort.high,
+          web_search: true,
+        },
+      });
+
+      expect(result.llmConfig.modelKwargs).toHaveProperty('reasoning', {
+        effort: ReasoningEffort.high,
+      });
+      expect(result.llmConfig).not.toHaveProperty('include_reasoning');
+      expect(result.llmConfig.modelKwargs).toHaveProperty('plugins', [{ id: 'web' }]);
+    });
+
     it('should disable web search via dropParams', () => {
       const result = getOpenAILLMConfig({
         apiKey: 'test-api-key',
@@ -504,7 +594,7 @@ describe('getOpenAILLMConfig', () => {
   });
 
   describe('OpenRouter Configuration', () => {
-    it('should include include_reasoning for OpenRouter', () => {
+    it('should include include_reasoning for OpenRouter when no reasoning_effort set', () => {
       const result = getOpenAILLMConfig({
         apiKey: 'test-api-key',
         streaming: true,
@@ -515,6 +605,75 @@ describe('getOpenAILLMConfig', () => {
       });
 
       expect(result.llmConfig).toHaveProperty('include_reasoning', true);
+      expect(result.llmConfig).not.toHaveProperty('reasoning');
+    });
+
+    it('should use reasoning object for OpenRouter when reasoning_effort is set', () => {
+      const result = getOpenAILLMConfig({
+        apiKey: 'test-api-key',
+        streaming: true,
+        useOpenRouter: true,
+        modelOptions: {
+          model: 'anthropic/claude-3-sonnet',
+          reasoning_effort: ReasoningEffort.high,
+        },
+      });
+
+      expect(result.llmConfig.modelKwargs).toHaveProperty('reasoning', {
+        effort: ReasoningEffort.high,
+      });
+      expect(result.llmConfig).not.toHaveProperty('include_reasoning');
+      expect(result.llmConfig).not.toHaveProperty('reasoning_effort');
+    });
+
+    it('should exclude reasoning_summary from OpenRouter reasoning object', () => {
+      const result = getOpenAILLMConfig({
+        apiKey: 'test-api-key',
+        streaming: true,
+        useOpenRouter: true,
+        modelOptions: {
+          model: 'anthropic/claude-3-sonnet',
+          reasoning_effort: ReasoningEffort.high,
+          reasoning_summary: ReasoningSummary.detailed,
+        },
+      });
+
+      expect(result.llmConfig.modelKwargs).toHaveProperty('reasoning', {
+        effort: ReasoningEffort.high,
+      });
+    });
+
+    it.each([ReasoningEffort.xhigh, ReasoningEffort.minimal, ReasoningEffort.none])(
+      'should support OpenRouter effort level: %s',
+      (effort) => {
+        const result = getOpenAILLMConfig({
+          apiKey: 'test-api-key',
+          streaming: true,
+          useOpenRouter: true,
+          modelOptions: {
+            model: 'openai/o3-mini',
+            reasoning_effort: effort,
+          },
+        });
+
+        expect(result.llmConfig.modelKwargs).toHaveProperty('reasoning', { effort });
+        expect(result.llmConfig).not.toHaveProperty('include_reasoning');
+      },
+    );
+
+    it('should fall back to include_reasoning when reasoning_effort is unset (empty string)', () => {
+      const result = getOpenAILLMConfig({
+        apiKey: 'test-api-key',
+        streaming: true,
+        useOpenRouter: true,
+        modelOptions: {
+          model: 'anthropic/claude-3-sonnet',
+          reasoning_effort: ReasoningEffort.unset,
+        },
+      });
+
+      expect(result.llmConfig).toHaveProperty('include_reasoning', true);
+      expect(result.llmConfig).not.toHaveProperty('reasoning');
     });
   });
 

@@ -100,7 +100,7 @@ const Menu: React.FC<MenuProps> = ({
       finalFocus={finalFocus}
       unmountOnHide={unmountOnHide}
       preserveTabOrder={preserveTabOrder}
-      className={cn('popover-ui z-50', className)}
+      className={cn('popover-ui z-40', className)}
       {...props}
     >
       {items
@@ -148,11 +148,17 @@ const Menu: React.FC<MenuProps> = ({
               className={cn(
                 'group flex w-full cursor-pointer items-start gap-2 rounded-lg px-3 py-3.5 text-sm text-text-primary outline-none transition-colors duration-200 hover:bg-surface-hover focus:bg-surface-hover md:px-2.5 md:py-2',
                 itemClassName,
+                item.className,
               )}
               disabled={item.disabled}
               render={item.render}
               ref={item.ref}
               hideOnClick={item.hideOnClick}
+              aria-haspopup={item.ariaHasPopup}
+              aria-controls={item.ariaControls}
+              aria-label={item.ariaLabel}
+              aria-checked={item.ariaChecked}
+              {...(item.ariaChecked !== undefined ? { role: 'menuitemcheckbox' } : {})}
               onClick={(event) => {
                 event.preventDefault();
                 if (item.onClick) {

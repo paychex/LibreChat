@@ -25,7 +25,7 @@ const checkGlobalAgentShare = generateCheckAccess({
   permissionType: PermissionTypes.AGENTS,
   permissions: [Permissions.USE, Permissions.CREATE],
   bodyProps: {
-    [Permissions.SHARED_GLOBAL]: ['projectIds', 'removeProjectIds'],
+    [Permissions.SHARE]: ['projectIds', 'removeProjectIds'],
   },
   getRoleByName,
 });
@@ -117,7 +117,7 @@ router.post(
   '/:id/duplicate',
   checkAgentCreate,
   canAccessAgentResource({
-    requiredPermission: PermissionBits.VIEW,
+    requiredPermission: PermissionBits.EDIT,
     resourceIdParam: 'id',
   }),
   v1.duplicateAgent,

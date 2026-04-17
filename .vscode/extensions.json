@@ -1,0 +1,15 @@
+{
+  "recommendations": [
+    "github.copilot",
+    "github.copilot-chat",
+    "eamodio.gitlens",
+    "mhutchie.git-graph",
+    "usernamehw.errorlens",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "mongodb.mongodb-vscode",
+    "bradlc.vscode-tailwindcss",
+    "ms-azuretools.vscode-docker"
+  ],
+  "unwantedRecommendations": []
+}
