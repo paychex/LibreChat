@@ -4,7 +4,6 @@ import {
   MinimalPlugin,
   GPTIcon,
   AnthropicIcon,
-  AzureMinimalIcon,
   GoogleMinimalIcon,
   CustomMinimalIcon,
   AssistantIcon,

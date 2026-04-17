@@ -10,7 +10,6 @@ import {
   BedrockIcon,
   AssistantIcon,
   AnthropicIcon,
-  AzureMinimalIcon,
   CustomMinimalIcon,
 } from '@librechat/client';
 import UnknownIcon from '~/hooks/Endpoint/UnknownIcon';

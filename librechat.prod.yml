@@ -15,7 +15,7 @@ modelSpecs:
   list:
     - name: azure-gpt-4o
       label: GPT-4o
-      iconURL: /assets/google.png
+      iconURL: /assets/openai.png
       showIconInMenu: true
       showIconInHeader: true
       default: true

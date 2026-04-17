@@ -1,7 +1,6 @@
 import { Feather } from 'lucide-react';
 import { EModelEndpoint, alternateName } from 'librechat-data-provider';
 import {
-  AzureMinimalIcon,
   OpenAIMinimalIcon,
   LightningIcon,
   MinimalPlugin,
