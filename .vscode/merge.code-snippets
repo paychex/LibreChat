@@ -1,0 +1,126 @@
+{
+  "Merge Upstream Prompt": {
+    "prefix": "merge-prompt",
+    "body": [
+      "I need to merge LibreChat upstream version ${1:v0.8.5} into Paychex develop branch.",
+      "",
+      "**Context:**",
+      "- Current version: ${2:v0.8.4}",
+      "- Target version: ${1:v0.8.5}",
+      "- Merge branch: feature/merge-upstream-${1:v0.8.5}",
+      "- Repository: Paychex LibreChat fork",
+      "- Documentation: docs/merge-process/UPSTREAM_MERGE_GUIDE.md",
+      "",
+      "**Critical Paychex Customizations to Preserve:**",
+      "",
+      "1. **Tool Call Filtering** (api/app/clients/BaseClient.js)",
+      "   - Method: `filterCrossProviderToolCalls`",
+      "",
+      "2. **Schema Sanitization** (api/server/services/start/tools.js)",
+      "   - Import and usage of `sanitizeSchemaMetadata`",
+      "",
+      "3. **Gemini Endpoint Detection** (api/server/services/MCP.js)",
+      "   - Pattern: `providerLower.includes('gemini') || providerLower.includes('google')`",
+      "",
+      "4. **Pendo Analytics** (ModelSelector.tsx)",
+      "   - Element: `<span id=\"agentUsers\" />`",
+      "",
+      "5. **Menu Descriptions** (DropdownPopup.tsx)",
+      "   - `item.description`, `items-start`, CSS transitions",
+      "",
+      "6. **Dockerfile Error Handling** - `&&` operators",
+      "",
+      "7. **xlsx Package** - `\"xlsx\": \"^0.18.5\"` (npm registry)",
+      "",
+      "**Requirements:**",
+      "",
+      "✅ **Must Do:**",
+      "- Check git history: `git log develop -- <file>`",
+      "- Use Decision Matrix from UPSTREAM_MERGE_GUIDE.md",
+      "- Preserve ALL customizations",
+      "- Verify: `./scripts/verify-paychex-customizations.sh`",
+      "- Build and test before committing",
+      "",
+      "❌ **Must Not:**",
+      "- Blindly accept upstream",
+      "- Remove Paychex customizations",
+      "- Skip verification",
+      "",
+      "**Please:**",
+      "1. Analyze conflicts and categorize by risk",
+      "2. Guide me through resolving systematically",
+      "3. Ask for confirmation before major decisions",
+      "4. Verify all customizations preserved",
+      "5. Help create commit message",
+      "",
+      "Ready to start?"
+    ],
+    "description": "Full prompt template for AI-assisted upstream merge"
+  },
+  "Update Verification Prompt": {
+    "prefix": "update-verify",
+    "body": [
+      "I need to update scripts/verify-paychex-customizations.sh to verify new Paychex customizations.",
+      "",
+      "**New Customizations to Add:**",
+      "",
+      "1. **Customization Name:** ${1:Feature Name}",
+      "   - **File:** ${2:api/server/services/Feature.js}",
+      "   - **Pattern:** ${3:paychexFeatureConfig}",
+      "   - **Description:** ${4:What this customization does}",
+      "   - **Criticality:** ${5|critical,warning|}",
+      "   - **Context:** ${6:What breaks if this is lost}",
+      "",
+      "**Requirements:**",
+      "- Add new checks maintaining existing script structure",
+      "- Use clear section numbering",
+      "- Include descriptive echo statements",
+      "- Follow same format as existing check_pattern() calls",
+      "",
+      "**Deliverable:**",
+      "Update scripts/verify-paychex-customizations.sh with new check_pattern() calls."
+    ],
+    "description": "Prompt template for updating verification script with new customizations"
+  },
+  "Scan Customizations Command": {
+    "prefix": "scan-custom",
+    "body": [
+      "./scripts/scan-paychex-customizations.sh ${1:30}"
+    ],
+    "description": "Command to scan for new Paychex customizations (default: 30 days)"
+  },
+  "Verify Customizations Command": {
+    "prefix": "verify-custom",
+    "body": [
+      "./scripts/verify-paychex-customizations.sh"
+    ],
+    "description": "Command to verify all Paychex customizations are present"
+  },
+  "Paychex Customization Documentation": {
+    "prefix": "paychex-custom-doc",
+    "body": [
+      "**${1:Customization Name}**",
+      "- **File:** ${2:path/to/file.js}",
+      "- **Method/Pattern:** `${3:methodName}`",
+      "- **Purpose:** ${4:Description of what this does}",
+      "- **Criticality:** ${5|CRITICAL,WARNING|}",
+      "- **Added:** ${6:v0.8.x Paychex fork}",
+      "- **Context:** ${7:Additional context or impact}"
+    ],
+    "description": "Template for documenting a new Paychex customization"
+  },
+  "Git Check Customization": {
+    "prefix": "git-check-custom",
+    "body": [
+      "git log develop --oneline -- ${1:path/to/file}"
+    ],
+    "description": "Check git history for Paychex changes to a file"
+  },
+  "Git Diff Paychex Changes": {
+    "prefix": "git-diff-paychex",
+    "body": [
+      "git diff upstream/main...develop -- ${1:path/to/file}"
+    ],
+    "description": "Show Paychex changes vs upstream for a file"
+  }
+}

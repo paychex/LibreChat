@@ -1,10 +1,12 @@
 import {
   Verbosity,
   ImageDetail,
+  ThinkingLevel,
   EModelEndpoint,
   openAISettings,
   googleSettings,
   ReasoningEffort,
+  AnthropicEffort,
   ReasoningSummary,
   BedrockProviders,
   anthropicSettings,
@@ -239,6 +241,7 @@ const openAIParams: Record<string, SettingDefinition> = {
       ReasoningEffort.low,
       ReasoningEffort.medium,
       ReasoningEffort.high,
+      ReasoningEffort.xhigh,
     ],
     enumMappings: {
       [ReasoningEffort.unset]: 'com_ui_auto',
@@ -247,6 +250,7 @@ const openAIParams: Record<string, SettingDefinition> = {
       [ReasoningEffort.low]: 'com_ui_low',
       [ReasoningEffort.medium]: 'com_ui_medium',
       [ReasoningEffort.high]: 'com_ui_high',
+      [ReasoningEffort.xhigh]: 'com_ui_xhigh',
     },
     optionType: 'model',
     columnSpan: 4,
@@ -443,6 +447,26 @@ const anthropic: Record<string, SettingDefinition> = {
     showDefault: false,
     columnSpan: 2,
   },
+  effort: {
+    key: 'effort',
+    label: 'com_endpoint_effort',
+    labelCode: true,
+    description: 'com_endpoint_anthropic_effort',
+    descriptionCode: true,
+    type: 'enum',
+    default: anthropicSettings.effort.default,
+    component: 'slider',
+    options: anthropicSettings.effort.options,
+    enumMappings: {
+      [AnthropicEffort.unset]: 'com_ui_auto',
+      [AnthropicEffort.low]: 'com_ui_low',
+      [AnthropicEffort.medium]: 'com_ui_medium',
+      [AnthropicEffort.high]: 'com_ui_high',
+      [AnthropicEffort.max]: 'com_ui_max',
+    },
+    optionType: 'model',
+    columnSpan: 4,
+  },
 };
 
 const bedrock: Record<string, SettingDefinition> = {
@@ -506,6 +530,30 @@ const bedrock: Record<string, SettingDefinition> = {
     optionType: 'conversation',
     showDefault: false,
     columnSpan: 2,
+  },
+  reasoning_effort: {
+    key: 'reasoning_effort',
+    label: 'com_endpoint_reasoning_effort',
+    labelCode: true,
+    description: 'com_endpoint_bedrock_reasoning_effort',
+    descriptionCode: true,
+    type: 'enum',
+    default: ReasoningEffort.unset,
+    component: 'slider',
+    options: [
+      ReasoningEffort.unset,
+      ReasoningEffort.low,
+      ReasoningEffort.medium,
+      ReasoningEffort.high,
+    ],
+    enumMappings: {
+      [ReasoningEffort.unset]: 'com_ui_off',
+      [ReasoningEffort.low]: 'com_ui_low',
+      [ReasoningEffort.medium]: 'com_ui_medium',
+      [ReasoningEffort.high]: 'com_ui_high',
+    },
+    optionType: 'model',
+    columnSpan: 4,
   },
 };
 
@@ -625,6 +673,32 @@ const google: Record<string, SettingDefinition> = {
     optionType: 'conversation',
     columnSpan: 2,
   },
+  thinkingLevel: {
+    key: 'thinkingLevel',
+    label: 'com_endpoint_thinking_level',
+    labelCode: true,
+    description: 'com_endpoint_google_thinking_level',
+    descriptionCode: true,
+    type: 'enum',
+    default: ThinkingLevel.unset,
+    component: 'slider',
+    options: [
+      ThinkingLevel.unset,
+      ThinkingLevel.minimal,
+      ThinkingLevel.low,
+      ThinkingLevel.medium,
+      ThinkingLevel.high,
+    ],
+    enumMappings: {
+      [ThinkingLevel.unset]: 'com_ui_auto',
+      [ThinkingLevel.minimal]: 'com_ui_minimal',
+      [ThinkingLevel.low]: 'com_ui_low',
+      [ThinkingLevel.medium]: 'com_ui_medium',
+      [ThinkingLevel.high]: 'com_ui_high',
+    },
+    optionType: 'conversation',
+    columnSpan: 4,
+  },
   web_search: {
     key: 'web_search',
     label: 'com_endpoint_use_search_grounding',
@@ -651,6 +725,7 @@ const googleConfig: SettingsConfiguration = [
   librechat.resendFiles,
   google.thinking,
   google.thinkingBudget,
+  google.thinkingLevel,
   google.web_search,
   librechat.fileTokenLimit,
 ];
@@ -670,6 +745,7 @@ const googleCol2: SettingsConfiguration = [
   librechat.resendFiles,
   google.thinking,
   google.thinkingBudget,
+  google.thinkingLevel,
   google.web_search,
   librechat.fileTokenLimit,
 ];
@@ -732,6 +808,7 @@ const anthropicConfig: SettingsConfiguration = [
   anthropic.promptCache,
   anthropic.thinking,
   anthropic.thinkingBudget,
+  anthropic.effort,
   anthropic.web_search,
   librechat.fileTokenLimit,
 ];
@@ -752,6 +829,7 @@ const anthropicCol2: SettingsConfiguration = [
   anthropic.promptCache,
   anthropic.thinking,
   anthropic.thinkingBudget,
+  anthropic.effort,
   anthropic.web_search,
   librechat.fileTokenLimit,
 ];
@@ -770,6 +848,7 @@ const bedrockAnthropic: SettingsConfiguration = [
   bedrock.promptCache,
   anthropic.thinking,
   anthropic.thinkingBudget,
+  anthropic.effort,
   librechat.fileTokenLimit,
 ];
 
@@ -827,6 +906,7 @@ const bedrockAnthropicCol2: SettingsConfiguration = [
   bedrock.promptCache,
   anthropic.thinking,
   anthropic.thinkingBudget,
+  anthropic.effort,
   librechat.fileTokenLimit,
 ];
 
@@ -878,6 +958,70 @@ const bedrockGeneralCol2: SettingsConfiguration = [
   librechat.fileTokenLimit,
 ];
 
+const bedrockZAI: SettingsConfiguration = [
+  librechat.modelLabel,
+  librechat.promptPrefix,
+  librechat.maxContextTokens,
+  meta.temperature,
+  meta.topP,
+  librechat.resendFiles,
+  bedrock.region,
+  bedrock.reasoning_effort,
+  librechat.fileTokenLimit,
+];
+
+const bedrockZAICol1: SettingsConfiguration = [
+  baseDefinitions.model as SettingDefinition,
+  librechat.modelLabel,
+  librechat.promptPrefix,
+];
+
+const bedrockZAICol2: SettingsConfiguration = [
+  librechat.maxContextTokens,
+  meta.temperature,
+  meta.topP,
+  librechat.resendFiles,
+  bedrock.region,
+  bedrock.reasoning_effort,
+  librechat.fileTokenLimit,
+];
+
+const bedrockMoonshot: SettingsConfiguration = [
+  librechat.modelLabel,
+  bedrock.system,
+  librechat.maxContextTokens,
+  createDefinition(bedrock.maxTokens, {
+    default: 16384,
+  }),
+  bedrock.temperature,
+  bedrock.topP,
+  baseDefinitions.stop,
+  librechat.resendFiles,
+  bedrock.region,
+  bedrock.reasoning_effort,
+  librechat.fileTokenLimit,
+];
+
+const bedrockMoonshotCol1: SettingsConfiguration = [
+  baseDefinitions.model as SettingDefinition,
+  librechat.modelLabel,
+  bedrock.system,
+  baseDefinitions.stop,
+];
+
+const bedrockMoonshotCol2: SettingsConfiguration = [
+  librechat.maxContextTokens,
+  createDefinition(bedrock.maxTokens, {
+    default: 16384,
+  }),
+  bedrock.temperature,
+  bedrock.topP,
+  librechat.resendFiles,
+  bedrock.region,
+  bedrock.reasoning_effort,
+  librechat.fileTokenLimit,
+];
+
 export const paramSettings: Record<string, SettingsConfiguration | undefined> = {
   [EModelEndpoint.openAI]: openAI,
   [EModelEndpoint.azureOpenAI]: openAI,
@@ -890,6 +1034,10 @@ export const paramSettings: Record<string, SettingsConfiguration | undefined> = 
   [`${EModelEndpoint.bedrock}-${BedrockProviders.AI21}`]: bedrockGeneral,
   [`${EModelEndpoint.bedrock}-${BedrockProviders.Amazon}`]: bedrockGeneral,
   [`${EModelEndpoint.bedrock}-${BedrockProviders.DeepSeek}`]: bedrockGeneral,
+  [`${EModelEndpoint.bedrock}-${BedrockProviders.Moonshot}`]: bedrockMoonshot,
+  [`${EModelEndpoint.bedrock}-${BedrockProviders.MoonshotAI}`]: bedrockMoonshot,
+  [`${EModelEndpoint.bedrock}-${BedrockProviders.OpenAI}`]: bedrockGeneral,
+  [`${EModelEndpoint.bedrock}-${BedrockProviders.ZAI}`]: bedrockZAI,
   [EModelEndpoint.google]: googleConfig,
 };
 
@@ -934,6 +1082,19 @@ export const presetSettings: Record<
   [`${EModelEndpoint.bedrock}-${BedrockProviders.AI21}`]: bedrockGeneralColumns,
   [`${EModelEndpoint.bedrock}-${BedrockProviders.Amazon}`]: bedrockGeneralColumns,
   [`${EModelEndpoint.bedrock}-${BedrockProviders.DeepSeek}`]: bedrockGeneralColumns,
+  [`${EModelEndpoint.bedrock}-${BedrockProviders.Moonshot}`]: {
+    col1: bedrockMoonshotCol1,
+    col2: bedrockMoonshotCol2,
+  },
+  [`${EModelEndpoint.bedrock}-${BedrockProviders.MoonshotAI}`]: {
+    col1: bedrockMoonshotCol1,
+    col2: bedrockMoonshotCol2,
+  },
+  [`${EModelEndpoint.bedrock}-${BedrockProviders.OpenAI}`]: bedrockGeneralColumns,
+  [`${EModelEndpoint.bedrock}-${BedrockProviders.ZAI}`]: {
+    col1: bedrockZAICol1,
+    col2: bedrockZAICol2,
+  },
   [EModelEndpoint.google]: {
     col1: googleCol1,
     col2: googleCol2,

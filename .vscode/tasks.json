@@ -1,0 +1,112 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Verify Paychex Customizations",
+      "type": "shell",
+      "command": "./scripts/verify-paychex-customizations.sh",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "detail": "Verify all critical Paychex customizations are present"
+    },
+    {
+      "label": "Scan for New Customizations (14 days)",
+      "type": "shell",
+      "command": "./scripts/scan-paychex-customizations.sh 14",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared",
+        "showReuseMessage": false
+      },
+      "detail": "Scan for Paychex customizations added in last 14 days"
+    },
+    {
+      "label": "Scan for New Customizations (30 days)",
+      "type": "shell",
+      "command": "./scripts/scan-paychex-customizations.sh 30",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared",
+        "showReuseMessage": false
+      },
+      "detail": "Scan for Paychex customizations added in last 30 days"
+    },
+    {
+      "label": "Build Project",
+      "type": "shell",
+      "command": "npm run build",
+      "problemMatcher": ["$tsc"],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false
+      },
+      "group": "build",
+      "detail": "Build all compiled code via Turborepo"
+    },
+    {
+      "label": "Run Tests",
+      "type": "shell",
+      "command": "npm test",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false
+      },
+      "group": "test",
+      "detail": "Run Jest test suite"
+    },
+    {
+      "label": "Start Backend (Dev)",
+      "type": "shell",
+      "command": "npm run backend:dev",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": false
+      },
+      "detail": "Start backend server with file watching"
+    },
+    {
+      "label": "Start Frontend (Dev)",
+      "type": "shell",
+      "command": "npm run frontend:dev",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": false
+      },
+      "detail": "Start frontend dev server with HMR on port 3090"
+    }
+  ]
+}

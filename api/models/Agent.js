@@ -1,19 +1,52 @@
 const mongoose = require('mongoose');
 const crypto = require('node:crypto');
 const { logger } = require('@librechat/data-schemas');
-const { ResourceType, SystemRoles, Tools, actionDelimiter } = require('librechat-data-provider');
-const { GLOBAL_PROJECT_NAME, EPHEMERAL_AGENT_ID, mcp_all, mcp_delimiter } =
-  require('librechat-data-provider').Constants;
+const { getCustomEndpointConfig } = require('@librechat/api');
+const {
+  Tools,
+  SystemRoles,
+  ResourceType,
+  actionDelimiter,
+  isAgentsEndpoint,
+  isEphemeralAgentId,
+  encodeEphemeralAgentId,
+} = require('librechat-data-provider');
+const { mcp_all, mcp_delimiter } = require('librechat-data-provider').Constants;
 const {
   removeAgentFromAllProjects,
   removeAgentIdsFromProject,
   addAgentIdsToProject,
-  getProjectByName,
 } = require('./Project');
-const { removeAllPermissions } = require('~/server/services/PermissionService');
+const {
+  getSoleOwnedResourceIds,
+  removeAllPermissions,
+} = require('~/server/services/PermissionService');
 const { getMCPServerTools } = require('~/server/services/Config');
-const { Agent, AclEntry } = require('~/db/models');
+const { Agent, AclEntry, User } = require('~/db/models');
 const { getActions } = require('./Action');
+
+/**
+ * Extracts unique MCP server names from tools array
+ * Tools format: "toolName_mcp_serverName" or "sys__server__sys_mcp_serverName"
+ * @param {string[]} tools - Array of tool identifiers
+ * @returns {string[]} Array of unique MCP server names
+ */
+const extractMCPServerNames = (tools) => {
+  if (!tools || !Array.isArray(tools)) {
+    return [];
+  }
+  const serverNames = new Set();
+  for (const tool of tools) {
+    if (!tool || !tool.includes(mcp_delimiter)) {
+      continue;
+    }
+    const parts = tool.split(mcp_delimiter);
+    if (parts.length >= 2) {
+      serverNames.add(parts[parts.length - 1]);
+    }
+  }
+  return Array.from(serverNames);
+};
 
 /**
  * Create an agent with the provided data.
@@ -34,6 +67,7 @@ const createAgent = async (agentData) => {
       },
     ],
     category: agentData.category || 'general',
+    mcpServerNames: extractMCPServerNames(agentData.tools),
   };
 
   return (await Agent.create(initialAgentData)).toObject();
@@ -68,7 +102,7 @@ const getAgents = async (searchParameter) => await Agent.find(searchParameter).l
  * @param {import('@librechat/agents').ClientOptions} [params.model_parameters]
  * @returns {Promise<Agent|null>} The agent document as a plain object, or null if not found.
  */
-const loadEphemeralAgent = async ({ req, spec, agent_id, endpoint, model_parameters: _m }) => {
+const loadEphemeralAgent = async ({ req, spec, endpoint, model_parameters: _m }) => {
   const { model, ...model_parameters } = _m;
   const modelSpecs = req.config?.modelSpecs?.list;
   /** @type {TModelSpec | null} */
@@ -115,8 +149,28 @@ const loadEphemeralAgent = async ({ req, spec, agent_id, endpoint, model_paramet
   }
 
   const instructions = req.body.promptPrefix;
+
+  // Get endpoint config for modelDisplayLabel fallback
+  const appConfig = req.config;
+  let endpointConfig = appConfig?.endpoints?.[endpoint];
+  if (!isAgentsEndpoint(endpoint) && !endpointConfig) {
+    try {
+      endpointConfig = getCustomEndpointConfig({ endpoint, appConfig });
+    } catch (err) {
+      logger.error('[loadEphemeralAgent] Error getting custom endpoint config', err);
+    }
+  }
+
+  // For ephemeral agents, use modelLabel if provided, then model spec's label,
+  // then modelDisplayLabel from endpoint config, otherwise empty string to show model name
+  const sender =
+    model_parameters?.modelLabel ?? modelSpec?.label ?? endpointConfig?.modelDisplayLabel ?? '';
+
+  // Encode ephemeral agent ID with endpoint, model, and computed sender for display
+  const ephemeralId = encodeEphemeralAgentId({ endpoint, model, sender });
+
   const result = {
-    id: agent_id,
+    id: ephemeralId,
     instructions,
     provider: endpoint,
     model_parameters,
@@ -145,8 +199,8 @@ const loadAgent = async ({ req, spec, agent_id, endpoint, model_parameters }) =>
   if (!agent_id) {
     return null;
   }
-  if (agent_id === EPHEMERAL_AGENT_ID) {
-    return await loadEphemeralAgent({ req, spec, agent_id, endpoint, model_parameters });
+  if (isEphemeralAgentId(agent_id)) {
+    return await loadEphemeralAgent({ req, spec, endpoint, model_parameters });
   }
   const agent = await getAgent({
     id: agent_id,
@@ -354,6 +408,13 @@ const updateAgent = async (searchParameter, updateData, options = {}) => {
     } = currentAgent.toObject();
     const { $push, $pull, $addToSet, ...directUpdates } = updateData;
 
+    // Sync mcpServerNames when tools are updated
+    if (directUpdates.tools !== undefined) {
+      const mcpServerNames = extractMCPServerNames(directUpdates.tools);
+      directUpdates.mcpServerNames = mcpServerNames;
+      updateData.mcpServerNames = mcpServerNames; // Also update the original updateData
+    }
+
     let actionsHash = null;
 
     // Generate actions hash if agent has actions
@@ -531,40 +592,108 @@ const deleteAgent = async (searchParameter) => {
   const agent = await Agent.findOneAndDelete(searchParameter);
   if (agent) {
     await removeAgentFromAllProjects(agent.id);
-    await removeAllPermissions({
-      resourceType: ResourceType.AGENT,
-      resourceId: agent._id,
-    });
+    await Promise.all([
+      removeAllPermissions({
+        resourceType: ResourceType.AGENT,
+        resourceId: agent._id,
+      }),
+      removeAllPermissions({
+        resourceType: ResourceType.REMOTE_AGENT,
+        resourceId: agent._id,
+      }),
+    ]);
+    try {
+      await Agent.updateMany({ 'edges.to': agent.id }, { $pull: { edges: { to: agent.id } } });
+    } catch (error) {
+      logger.error('[deleteAgent] Error removing agent from handoff edges', error);
+    }
+    try {
+      await User.updateMany(
+        { 'favorites.agentId': agent.id },
+        { $pull: { favorites: { agentId: agent.id } } },
+      );
+    } catch (error) {
+      logger.error('[deleteAgent] Error removing agent from user favorites', error);
+    }
   }
   return agent;
 };
 
 /**
- * Deletes all agents created by a specific user.
+ * Deletes agents solely owned by the user and cleans up their ACLs/project references.
+ * Agents with other owners are left intact; the caller is responsible for
+ * removing the user's own ACL principal entries separately.
+ *
+ * Also handles legacy (pre-ACL) agents that only have the author field set,
+ * ensuring they are not orphaned if no permission migration has been run.
  * @param {string} userId - The ID of the user whose agents should be deleted.
- * @returns {Promise<void>} A promise that resolves when all user agents have been deleted.
+ * @returns {Promise<void>}
  */
 const deleteUserAgents = async (userId) => {
   try {
-    const userAgents = await getAgents({ author: userId });
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    const soleOwnedObjectIds = await getSoleOwnedResourceIds(userObjectId, [
+      ResourceType.AGENT,
+      ResourceType.REMOTE_AGENT,
+    ]);
 
-    if (userAgents.length === 0) {
+    const authoredAgents = await Agent.find({ author: userObjectId }).select('id _id').lean();
+
+    const migratedEntries =
+      authoredAgents.length > 0
+        ? await AclEntry.find({
+            resourceType: { $in: [ResourceType.AGENT, ResourceType.REMOTE_AGENT] },
+            resourceId: { $in: authoredAgents.map((a) => a._id) },
+          })
+            .select('resourceId')
+            .lean()
+        : [];
+    const migratedIds = new Set(migratedEntries.map((e) => e.resourceId.toString()));
+    const legacyAgents = authoredAgents.filter((a) => !migratedIds.has(a._id.toString()));
+
+    /** resourceId is the MongoDB _id; agent.id is the string identifier for project/edge queries */
+    const soleOwnedAgents =
+      soleOwnedObjectIds.length > 0
+        ? await Agent.find({ _id: { $in: soleOwnedObjectIds } })
+            .select('id _id')
+            .lean()
+        : [];
+
+    const allAgents = [...soleOwnedAgents, ...legacyAgents];
+
+    if (allAgents.length === 0) {
       return;
     }
 
-    const agentIds = userAgents.map((agent) => agent.id);
-    const agentObjectIds = userAgents.map((agent) => agent._id);
+    const agentIds = allAgents.map((agent) => agent.id);
+    const agentObjectIds = allAgents.map((agent) => agent._id);
 
-    for (const agentId of agentIds) {
-      await removeAgentFromAllProjects(agentId);
-    }
+    await Promise.all(agentIds.map((id) => removeAgentFromAllProjects(id)));
 
     await AclEntry.deleteMany({
-      resourceType: ResourceType.AGENT,
+      resourceType: { $in: [ResourceType.AGENT, ResourceType.REMOTE_AGENT] },
       resourceId: { $in: agentObjectIds },
     });
 
-    await Agent.deleteMany({ author: userId });
+    try {
+      await Agent.updateMany(
+        { 'edges.to': { $in: agentIds } },
+        { $pull: { edges: { to: { $in: agentIds } } } },
+      );
+    } catch (error) {
+      logger.error('[deleteUserAgents] Error removing agents from handoff edges', error);
+    }
+
+    try {
+      await User.updateMany(
+        { 'favorites.agentId': { $in: agentIds } },
+        { $pull: { favorites: { agentId: { $in: agentIds } } } },
+      );
+    } catch (error) {
+      logger.error('[deleteUserAgents] Error removing agents from user favorites', error);
+    }
+
+    await Agent.deleteMany({ _id: { $in: agentObjectIds } });
   } catch (error) {
     logger.error('[deleteUserAgents] General error:', error);
   }
@@ -667,59 +796,6 @@ const getListAgentsByAccess = async ({
     last_id: data.length > 0 ? data[data.length - 1].id : null,
     has_more: hasMore,
     after: nextCursor,
-  };
-};
-
-/**
- * Get all agents.
- * @deprecated Use getListAgentsByAccess for ACL-aware agent listing
- * @param {Object} searchParameter - The search parameters to find matching agents.
- * @param {string} searchParameter.author - The user ID of the agent's author.
- * @returns {Promise<Object>} A promise that resolves to an object containing the agents data and pagination info.
- */
-const getListAgents = async (searchParameter) => {
-  const { author, ...otherParams } = searchParameter;
-
-  let query = Object.assign({ author }, otherParams);
-
-  const globalProject = await getProjectByName(GLOBAL_PROJECT_NAME, ['agentIds']);
-  if (globalProject && (globalProject.agentIds?.length ?? 0) > 0) {
-    const globalQuery = { id: { $in: globalProject.agentIds }, ...otherParams };
-    delete globalQuery.author;
-    query = { $or: [globalQuery, query] };
-  }
-  const agents = (
-    await Agent.find(query, {
-      id: 1,
-      _id: 1,
-      name: 1,
-      avatar: 1,
-      author: 1,
-      projectIds: 1,
-      description: 1,
-      // @deprecated - isCollaborative replaced by ACL permissions
-      isCollaborative: 1,
-      category: 1,
-    }).lean()
-  ).map((agent) => {
-    if (agent.author?.toString() !== author) {
-      delete agent.author;
-    }
-    if (agent.author) {
-      agent.author = agent.author.toString();
-    }
-    return agent;
-  });
-
-  const hasMore = agents.length > 0;
-  const firstId = agents.length > 0 ? agents[0].id : null;
-  const lastId = agents.length > 0 ? agents[agents.length - 1].id : null;
-
-  return {
-    data: agents,
-    has_more: hasMore,
-    first_id: firstId,
-    last_id: lastId,
   };
 };
 
@@ -888,12 +964,11 @@ module.exports = {
   updateAgent,
   deleteAgent,
   deleteUserAgents,
-  getListAgents,
   revertAgentVersion,
   updateAgentProjects,
+  countPromotedAgents,
   addAgentResourceFile,
   getListAgentsByAccess,
   removeAgentResourceFiles,
   generateActionMetadataHash,
-  countPromotedAgents,
 };

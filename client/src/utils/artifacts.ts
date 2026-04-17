@@ -7,6 +7,7 @@ import type {
 
 const artifactFilename = {
   'application/vnd.react': 'App.tsx',
+  'application/vnd.ant.react': 'App.tsx',
   'text/html': 'index.html',
   'application/vnd.code-html': 'index.html',
   // mermaid and markdown types are handled separately in useArtifactProps.ts
@@ -28,11 +29,12 @@ const artifactTemplate: Record<
 > = {
   'text/html': 'static',
   'application/vnd.react': 'react-ts',
+  'application/vnd.ant.react': 'react-ts',
   'application/vnd.mermaid': 'react-ts',
   'application/vnd.code-html': 'static',
-  'text/markdown': 'react-ts',
-  'text/md': 'react-ts',
-  'text/plain': 'react-ts',
+  'text/markdown': 'static',
+  'text/md': 'static',
+  'text/plain': 'static',
   default: 'static',
   // 'css': 'css',
   // 'javascript': 'js',
@@ -105,10 +107,6 @@ const mermaidDependencies = {
   '@radix-ui/react-slot': '^1.1.0',
 };
 
-const markdownDependencies = {
-  'marked-react': '^2.0.0',
-};
-
 const dependenciesMap: Record<
   | keyof typeof artifactFilename
   | 'application/vnd.mermaid'
@@ -119,11 +117,12 @@ const dependenciesMap: Record<
 > = {
   'application/vnd.mermaid': mermaidDependencies,
   'application/vnd.react': standardDependencies,
+  'application/vnd.ant.react': standardDependencies,
   'text/html': standardDependencies,
   'application/vnd.code-html': standardDependencies,
-  'text/markdown': markdownDependencies,
-  'text/md': markdownDependencies,
-  'text/plain': markdownDependencies,
+  'text/markdown': {},
+  'text/md': {},
+  'text/plain': {},
   default: standardDependencies,
 };
 

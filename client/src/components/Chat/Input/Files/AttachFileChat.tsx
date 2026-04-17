@@ -2,15 +2,15 @@ import { memo, useMemo } from 'react';
 import {
   Constants,
   supportsFiles,
-  EModelEndpoint,
   mergeFileConfig,
   isAgentsEndpoint,
-  getEndpointField,
+  resolveEndpointType,
   isAssistantsEndpoint,
   getEndpointFileConfig,
 } from 'librechat-data-provider';
 import type { TConversation } from 'librechat-data-provider';
-import { useGetFileConfig, useGetEndpointsQuery } from '~/data-provider';
+import { useGetFileConfig, useGetEndpointsQuery, useGetAgentByIdQuery } from '~/data-provider';
+import { useAgentsMapContext } from '~/Providers';
 import AttachFileMenu from './AttachFileMenu';
 import AttachFile from './AttachFile';
 
@@ -26,27 +26,59 @@ function AttachFileChat({
   const isAgents = useMemo(() => isAgentsEndpoint(endpoint), [endpoint]);
   const isAssistants = useMemo(() => isAssistantsEndpoint(endpoint), [endpoint]);
 
+  const agentsMap = useAgentsMapContext();
+
+  const needsAgentFetch = useMemo(() => {
+    if (!isAgents || !conversation?.agent_id) {
+      return false;
+    }
+    const agent = agentsMap?.[conversation.agent_id];
+    return !agent?.model_parameters;
+  }, [isAgents, conversation?.agent_id, agentsMap]);
+
+  const { data: agentData } = useGetAgentByIdQuery(conversation?.agent_id, {
+    enabled: needsAgentFetch,
+  });
+
+  const useResponsesApi = useMemo(() => {
+    if (!isAgents || !conversation?.agent_id || conversation?.useResponsesApi) {
+      return conversation?.useResponsesApi;
+    }
+    const agent = agentData || agentsMap?.[conversation.agent_id];
+    return agent?.model_parameters?.useResponsesApi;
+  }, [isAgents, conversation?.agent_id, conversation?.useResponsesApi, agentData, agentsMap]);
+
   const { data: fileConfig = null } = useGetFileConfig({
     select: (data) => mergeFileConfig(data),
   });
 
   const { data: endpointsConfig } = useGetEndpointsQuery();
 
-  const endpointType = useMemo(() => {
-    return (
-      getEndpointField(endpointsConfig, endpoint, 'type') ||
-      (endpoint as EModelEndpoint | undefined)
-    );
-  }, [endpoint, endpointsConfig]);
+  const agentProvider = useMemo(() => {
+    if (!isAgents || !conversation?.agent_id) {
+      return undefined;
+    }
+    const agent = agentData || agentsMap?.[conversation.agent_id];
+    return agent?.provider;
+  }, [isAgents, conversation?.agent_id, agentData, agentsMap]);
 
+  const endpointType = useMemo(
+    () => resolveEndpointType(endpointsConfig, endpoint, agentProvider),
+    [endpointsConfig, endpoint, agentProvider],
+  );
+
+  const fileConfigEndpoint = useMemo(
+    () => (isAgents && agentProvider ? agentProvider : endpoint),
+    [isAgents, agentProvider, endpoint],
+  );
   const endpointFileConfig = useMemo(
     () =>
       getEndpointFileConfig({
-        endpoint,
         fileConfig,
         endpointType,
+        endpoint: fileConfigEndpoint,
       }),
-    [endpoint, fileConfig, endpointType],
+    [fileConfigEndpoint, fileConfig, endpointType],
   );
   const endpointSupportsFiles: boolean = useMemo(
     () => supportsFiles[endpointType ?? endpoint ?? ''] ?? false,
@@ -59,7 +91,7 @@ function AttachFileChat({
 
   if (isAssistants && endpointSupportsFiles && !isUploadDisabled) {
     return <AttachFile disabled={disableInputs} />;
-  } else if (isAgents || (endpointSupportsFiles && !isUploadDisabled)) {
+  } else if ((isAgents || endpointSupportsFiles) && !isUploadDisabled) {
     return (
       <AttachFileMenu
         endpoint={endpoint}
@@ -68,6 +100,7 @@ function AttachFileChat({
         conversationId={conversationId}
         agentId={conversation?.agent_id}
         endpointFileConfig={endpointFileConfig}
+        useResponsesApi={useResponsesApi}
       />
     );
   }

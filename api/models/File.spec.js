@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
-const { createModels } = require('@librechat/data-schemas');
 const { MongoMemoryServer } = require('mongodb-memory-server');
+const { createModels, createMethods } = require('@librechat/data-schemas');
 const {
   SystemRoles,
   ResourceType,
@@ -9,8 +9,6 @@ const {
   PrincipalType,
 } = require('librechat-data-provider');
 const { grantPermission } = require('~/server/services/PermissionService');
-const { getFiles, createFile } = require('./File');
-const { seedDefaultRoles } = require('~/models');
 const { createAgent } = require('./Agent');
 
 let File;
@@ -18,6 +16,10 @@ let Agent;
 let AclEntry;
 let User;
 let modelsToCleanup = [];
+let methods;
+let getFiles;
+let createFile;
+let seedDefaultRoles;
 
 describe('File Access Control', () => {
   let mongoServer;
@@ -41,6 +43,12 @@ describe('File Access Control', () => {
     Agent = dbModels.Agent;
     AclEntry = dbModels.AclEntry;
     User = dbModels.User;
+
+    // Create methods from data-schemas (includes file methods)
+    methods = createMethods(mongoose);
+    getFiles = methods.getFiles;
+    createFile = methods.createFile;
+    seedDefaultRoles = methods.seedDefaultRoles;
 
     // Seed default roles
     await seedDefaultRoles();
@@ -144,12 +152,11 @@ describe('File Access Control', () => {
       expect(accessMap.get(fileIds[3])).toBe(false);
     });
 
-    it('should grant access to all files when user is the agent author', async () => {
+    it('should only grant author access to files attached to the agent', async () => {
       const authorId = new mongoose.Types.ObjectId();
       const agentId = uuidv4();
       const fileIds = [uuidv4(), uuidv4(), uuidv4()];
 
-      // Create author user
       await User.create({
         _id: authorId,
         email: 'author@example.com',
@@ -157,7 +164,6 @@ describe('File Access Control', () => {
         provider: 'local',
       });
 
-      // Create agent
       await createAgent({
         id: agentId,
         name: 'Test Agent',
@@ -166,12 +172,11 @@ describe('File Access Control', () => {
         provider: 'openai',
         tool_resources: {
           file_search: {
-            file_ids: [fileIds[0]], // Only one file attached
+            file_ids: [fileIds[0]],
           },
         },
       });
 
-      // Check access as the author
       const { hasAccessToFilesViaAgent } = require('~/server/services/Files/permissions');
       const accessMap = await hasAccessToFilesViaAgent({
         userId: authorId,
@@ -180,10 +185,120 @@ describe('File Access Control', () => {
         agentId,
       });
 
-      // Author should have access to all files
+      expect(accessMap.get(fileIds[0])).toBe(true);
+      expect(accessMap.get(fileIds[1])).toBe(false);
+      expect(accessMap.get(fileIds[2])).toBe(false);
+    });
+
+    it('should deny all access when agent has no tool_resources', async () => {
+      const authorId = new mongoose.Types.ObjectId();
+      const agentId = uuidv4();
+      const fileId = uuidv4();
+
+      await User.create({
+        _id: authorId,
+        email: 'author-no-resources@example.com',
+        emailVerified: true,
+        provider: 'local',
+      });
+
+      await createAgent({
+        id: agentId,
+        name: 'Bare Agent',
+        author: authorId,
+        model: 'gpt-4',
+        provider: 'openai',
+      });
+
+      const { hasAccessToFilesViaAgent } = require('~/server/services/Files/permissions');
+      const accessMap = await hasAccessToFilesViaAgent({
+        userId: authorId,
+        role: SystemRoles.USER,
+        fileIds: [fileId],
+        agentId,
+      });
+
+      expect(accessMap.get(fileId)).toBe(false);
+    });
+
+    it('should grant access to files across multiple resource types', async () => {
+      const authorId = new mongoose.Types.ObjectId();
+      const agentId = uuidv4();
+      const fileIds = [uuidv4(), uuidv4(), uuidv4()];
+
+      await User.create({
+        _id: authorId,
+        email: 'author-multi@example.com',
+        emailVerified: true,
+        provider: 'local',
+      });
+
+      await createAgent({
+        id: agentId,
+        name: 'Multi Resource Agent',
+        author: authorId,
+        model: 'gpt-4',
+        provider: 'openai',
+        tool_resources: {
+          file_search: {
+            file_ids: [fileIds[0]],
+          },
+          execute_code: {
+            file_ids: [fileIds[1]],
+          },
+        },
+      });
+
+      const { hasAccessToFilesViaAgent } = require('~/server/services/Files/permissions');
+      const accessMap = await hasAccessToFilesViaAgent({
+        userId: authorId,
+        role: SystemRoles.USER,
+        fileIds,
+        agentId,
+      });
+
       expect(accessMap.get(fileIds[0])).toBe(true);
       expect(accessMap.get(fileIds[1])).toBe(true);
-      expect(accessMap.get(fileIds[2])).toBe(true);
+      expect(accessMap.get(fileIds[2])).toBe(false);
+    });
+
+    it('should grant author access to attached files when isDelete is true', async () => {
+      const authorId = new mongoose.Types.ObjectId();
+      const agentId = uuidv4();
+      const attachedFileId = uuidv4();
+      const unattachedFileId = uuidv4();
+
+      await User.create({
+        _id: authorId,
+        email: 'author-delete@example.com',
+        emailVerified: true,
+        provider: 'local',
+      });
+
+      await createAgent({
+        id: agentId,
+        name: 'Delete Test Agent',
+        author: authorId,
+        model: 'gpt-4',
+        provider: 'openai',
+        tool_resources: {
+          file_search: {
+            file_ids: [attachedFileId],
+          },
+        },
+      });
+
+      const { hasAccessToFilesViaAgent } = require('~/server/services/Files/permissions');
+      const accessMap = await hasAccessToFilesViaAgent({
+        userId: authorId,
+        role: SystemRoles.USER,
+        fileIds: [attachedFileId, unattachedFileId],
+        agentId,
+        isDelete: true,
+      });
+
+      expect(accessMap.get(attachedFileId)).toBe(true);
+      expect(accessMap.get(unattachedFileId)).toBe(false);
     });
 
     it('should handle non-existent agent gracefully', async () => {

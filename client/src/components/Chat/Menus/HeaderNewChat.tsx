@@ -1,14 +1,16 @@
 import { QueryKeys } from 'librechat-data-provider';
+import { useRecoilValue } from 'recoil';
 import { useQueryClient } from '@tanstack/react-query';
 import { TooltipAnchor, Button, NewChatIcon } from '@librechat/client';
-import { useChatContext } from '~/Providers';
+import { useNewConvo, useLocalize } from '~/hooks';
 import { clearMessagesCache } from '~/utils';
-import { useLocalize } from '~/hooks';
+import store from '~/store';
 
 export default function HeaderNewChat() {
   const localize = useLocalize();
   const queryClient = useQueryClient();
-  const { conversation, newConversation } = useChatContext();
+  const { newConversation } = useNewConvo();
+  const conversation = useRecoilValue(store.conversationByIndex(0));
 
   const clickHandler: React.MouseEventHandler<HTMLButtonElement> = (e) => {
     if (e.button === 0 && (e.ctrlKey || e.metaKey)) {
@@ -29,7 +31,7 @@ export default function HeaderNewChat() {
           variant="outline"
           data-testid="wide-header-new-chat-button"
           aria-label={localize('com_ui_new_chat')}
-          className="rounded-xl border border-border-light bg-surface-secondary p-2 hover:bg-surface-hover max-md:hidden"
+          className="rounded-xl bg-presentation duration-0 hover:bg-surface-active-alt max-md:hidden"
           onClick={clickHandler}
         >
           <NewChatIcon />

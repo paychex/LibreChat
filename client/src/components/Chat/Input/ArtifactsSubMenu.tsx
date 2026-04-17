@@ -1,7 +1,7 @@
 import React from 'react';
 import * as Ariakit from '@ariakit/react';
 import { PinIcon } from '@librechat/client';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, WandSparkles } from 'lucide-react';
 import { ArtifactModes } from 'librechat-data-provider';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
@@ -13,7 +13,6 @@ interface ArtifactsSubMenuProps {
   handleArtifactsToggle: () => void;
   handleShadcnToggle: () => void;
   handleCustomToggle: () => void;
-  children?: React.ReactNode;
 }
 
 const ArtifactsSubMenu = React.forwardRef<HTMLDivElement, ArtifactsSubMenuProps>(
@@ -25,7 +24,6 @@ const ArtifactsSubMenu = React.forwardRef<HTMLDivElement, ArtifactsSubMenuProps>
       handleArtifactsToggle,
       handleShadcnToggle,
       handleCustomToggle,
-      children,
       ...props
     },
     ref,
@@ -59,11 +57,15 @@ const ArtifactsSubMenu = React.forwardRef<HTMLDivElement, ArtifactsSubMenuProps>
                     menuStore.show();
                   }
                 }}
+                className="flex w-full cursor-pointer items-center justify-between rounded-lg p-2 hover:bg-surface-hover"
               />
             }
           >
-            {children}
-            {isEnabled && <ChevronRight className="h-3 w-3 flex-shrink-0" />}
+            <div className="flex items-center gap-2">
+              <WandSparkles className="icon-md" aria-hidden="true" />
+              <span>{localize('com_ui_artifacts')}</span>
+              {isEnabled && <ChevronRight className="ml-auto h-3 w-3" aria-hidden="true" />}
+            </div>
             <button
               type="button"
               onClick={(e) => {
@@ -88,8 +90,8 @@ const ArtifactsSubMenu = React.forwardRef<HTMLDivElement, ArtifactsSubMenuProps>
               portal={true}
               unmountOnHide={true}
               className={cn(
-                'animate-popover-left z-50 ml-3 flex min-w-[250px] flex-col rounded-xl',
-                'border border-border-light bg-surface-secondary px-1.5 py-1 shadow-lg',
+                'animate-popover-left z-40 ml-3 mt-6 flex min-w-[250px] flex-col rounded-xl',
+                'border border-border-light bg-surface-secondary shadow-lg',
               )}
             >
               <div className="px-2 py-1.5">
@@ -105,18 +107,16 @@ const ArtifactsSubMenu = React.forwardRef<HTMLDivElement, ArtifactsSubMenuProps>
                     event.stopPropagation();
                     handleShadcnToggle();
                   }}
-                  disabled={isCustomEnabled}
                   className={cn(
-                    'mb-1 flex items-center justify-between rounded-lg px-2 py-2',
-                    'cursor-pointer text-text-primary outline-none transition-colors',
-                    'hover:bg-black/[0.075] dark:hover:bg-white/10',
-                    'data-[active-item]:bg-black/[0.075] dark:data-[active-item]:bg-white/10',
-                    isCustomEnabled && 'cursor-not-allowed opacity-50',
+                    'mb-1 flex items-center justify-between gap-2 rounded-lg px-2 py-2',
+                    'cursor-pointer bg-surface-secondary text-text-primary outline-none transition-colors',
+                    'hover:bg-surface-hover data-[active-item]:bg-surface-hover',
+                    isShadcnEnabled && 'bg-surface-active',
                   )}
                 >
-                  <div className="flex items-center gap-2">
+                  <span className="text-sm">{localize('com_ui_include_shadcnui' as any)}</span>
+                  <div className="ml-auto flex items-center">
                     <Ariakit.MenuItemCheck checked={isShadcnEnabled} />
-                    <span className="text-sm">{localize('com_ui_include_shadcnui' as any)}</span>
                   </div>
                 </Ariakit.MenuItem>
 
@@ -129,15 +129,15 @@ const ArtifactsSubMenu = React.forwardRef<HTMLDivElement, ArtifactsSubMenuProps>
                     handleCustomToggle();
                   }}
                   className={cn(
-                    'flex items-center justify-between rounded-lg px-2 py-2',
-                    'cursor-pointer text-text-primary outline-none transition-colors',
-                    'hover:bg-black/[0.075] dark:hover:bg-white/10',
-                    'data-[active-item]:bg-black/[0.075] dark:data-[active-item]:bg-white/10',
+                    'mb-1 flex items-center justify-between gap-2 rounded-lg px-2 py-2',
+                    'cursor-pointer bg-surface-secondary text-text-primary outline-none transition-colors',
+                    'hover:bg-surface-hover data-[active-item]:bg-surface-hover',
+                    isCustomEnabled && 'bg-surface-active',
                   )}
                 >
-                  <div className="flex items-center gap-2">
+                  <span className="text-sm">{localize('com_ui_custom_prompt_mode' as any)}</span>
+                  <div className="ml-auto flex items-center">
                     <Ariakit.MenuItemCheck checked={isCustomEnabled} />
-                    <span className="text-sm">{localize('com_ui_custom_prompt_mode' as any)}</span>
                   </div>
                 </Ariakit.MenuItem>
               </div>

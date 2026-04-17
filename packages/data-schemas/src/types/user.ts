@@ -26,6 +26,12 @@ export interface IUser extends Document {
     used: boolean;
     usedAt?: Date | null;
   }>;
+  pendingTotpSecret?: string;
+  pendingBackupCodes?: Array<{
+    codeHash: string;
+    used: boolean;
+    usedAt?: Date | null;
+  }>;
   refreshToken?: Array<{
     refreshToken: string;
   }>;
@@ -34,6 +40,11 @@ export interface IUser extends Document {
   personalization?: {
     memories?: boolean;
   };
+  favorites?: Array<{
+    agentId?: string;
+    model?: string;
+    endpoint?: string;
+  }>;
   createdAt?: Date;
   updatedAt?: Date;
   /** Field for external source identification (for consistency with TPrincipal schema) */

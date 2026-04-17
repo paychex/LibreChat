@@ -12,11 +12,7 @@ interface LogContentProps {
   attachments?: TAttachment[];
 }
 
-type ImageAttachment = TFile &
-  TAttachmentMetadata & {
-    height: number;
-    width: number;
-  };
+type ImageAttachment = TFile & TAttachmentMetadata;
 
 const LogContent: React.FC<LogContentProps> = ({ output = '', renderImages, attachments }) => {
   const localize = useLocalize();
@@ -35,12 +31,8 @@ const LogContent: React.FC<LogContentProps> = ({ output = '', renderImages, atta
     const nonImageAtts: TAttachment[] = [];
 
     attachments?.forEach((attachment) => {
-      const { width, height, filepath = null } = attachment as TFile & TAttachmentMetadata;
-      const isImage =
-        imageExtRegex.test(attachment.filename ?? '') &&
-        width != null &&
-        height != null &&
-        filepath != null;
+      const { filepath = null } = attachment as TFile & TAttachmentMetadata;
+      const isImage = imageExtRegex.test(attachment.filename ?? '') && filepath != null;
       if (isImage) {
         imageAtts.push(attachment as ImageAttachment);
       } else {
@@ -65,6 +57,7 @@ const LogContent: React.FC<LogContentProps> = ({ output = '', renderImages, atta
       return `${filename} ${localize('com_download_expired')}`;
     }
 
+    const fileData = file as TFile & TAttachmentMetadata;
     const filepath = file.filepath || '';
 
     // const expirationText = expiresAt
@@ -72,7 +65,13 @@ const LogContent: React.FC<LogContentProps> = ({ output = '', renderImages, atta
     //   : ` ${localize('com_click_to_download')}`;
 
     return (
-      <LogLink href={filepath} filename={filename}>
+      <LogLink
+        href={filepath}
+        filename={filename}
+        file_id={fileData.file_id}
+        user={fileData.user}
+        source={fileData.source}
+      >
         {'- '}
         {filename} {localize('com_click_to_download')}
       </LogLink>
@@ -93,18 +92,15 @@ const LogContent: React.FC<LogContentProps> = ({ output = '', renderImages, atta
           ))}
         </div>
       )}
-      {imageAttachments?.map((attachment, index) => {
-        const { width, height, filepath } = attachment;
-        return (
-          <Image
-            key={index}
-            altText={attachment.filename}
-            imagePath={filepath}
-            height={height}
-            width={width}
-          />
-        );
-      })}
+      {imageAttachments?.map((attachment) => (
+        <Image
+          width={attachment.width}
+          height={attachment.height}
+          key={attachment.filepath}
+          altText={attachment.filename}
+          imagePath={attachment.filepath}
+        />
+      ))}
     </>
   );
 };

@@ -1,18 +1,27 @@
+const mongoose = require('mongoose');
 const { logger, webSearchKeys } = require('@librechat/data-schemas');
-const { Tools, CacheKeys, Constants, FileSources } = require('librechat-data-provider');
 const {
   MCPOAuthHandler,
   MCPTokenStorage,
-  mcpServersRegistry,
   normalizeHttpError,
   extractWebSearchEnvVars,
 } = require('@librechat/api');
 const {
+  Tools,
+  CacheKeys,
+  Constants,
+  FileSources,
+  ResourceType,
+} = require('librechat-data-provider');
+const {
   deleteAllUserSessions,
   deleteAllSharedLinks,
+  updateUserPlugins,
   deleteUserById,
   deleteMessages,
   deletePresets,
+  deleteUserKey,
+  getUserById,
   deleteConvos,
   deleteFiles,
   updateUser,
@@ -21,6 +30,7 @@ const {
 } = require('~/models');
 const {
   ConversationTag,
+  AgentApiKey,
   Transaction,
   MemoryEntry,
   Assistant,
@@ -32,15 +42,17 @@ const {
   User,
 } = require('~/db/models');
 const { updateUserPluginAuth, deleteUserPluginAuth } = require('~/server/services/PluginService');
-const { updateUserPluginsService, deleteUserKey } = require('~/server/services/UserService');
+const { verifyOTPOrBackupCode } = require('~/server/services/twoFactorService');
 const { verifyEmail, resendVerificationEmail } = require('~/server/services/AuthService');
+const { getMCPManager, getFlowStateManager, getMCPServersRegistry } = require('~/config');
+const { invalidateCachedTools } = require('~/server/services/Config/getCachedTools');
 const { needsRefresh, getNewS3URL } = require('~/server/services/Files/S3/crud');
 const { processDeleteRequest } = require('~/server/services/Files/process');
-const { getMCPManager, getFlowStateManager } = require('~/config');
 const { getAppConfig } = require('~/server/services/Config');
 const { deleteToolCalls } = require('~/models/ToolCall');
 const { deleteUserPrompts } = require('~/models/Prompt');
 const { deleteUserAgents } = require('~/models/Agent');
+const { getSoleOwnedResourceIds } = require('~/server/services/PermissionService');
 const { getLogStores } = require('~/cache');
 
 const getUserController = async (req, res) => {
@@ -109,19 +121,85 @@ const deleteUserFiles = async (req) => {
   }
 };
 
+/**
+ * Deletes MCP servers solely owned by the user and cleans up their ACLs.
+ * Disconnects live sessions for deleted servers before removing DB records.
+ * Servers with other owners are left intact; the caller is responsible for
+ * removing the user's own ACL principal entries separately.
+ *
+ * Also handles legacy (pre-ACL) MCP servers that only have the author field set,
+ * ensuring they are not orphaned if no permission migration has been run.
+ * @param {string} userId - The ID of the user.
+ */
+const deleteUserMcpServers = async (userId) => {
+  try {
+    const MCPServer = mongoose.models.MCPServer;
+    if (!MCPServer) {
+      return;
+    }
+
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    const soleOwnedIds = await getSoleOwnedResourceIds(userObjectId, ResourceType.MCPSERVER);
+
+    const authoredServers = await MCPServer.find({ author: userObjectId })
+      .select('_id serverName')
+      .lean();
+
+    const migratedEntries =
+      authoredServers.length > 0
+        ? await AclEntry.find({
+            resourceType: ResourceType.MCPSERVER,
+            resourceId: { $in: authoredServers.map((s) => s._id) },
+          })
+            .select('resourceId')
+            .lean()
+        : [];
+    const migratedIds = new Set(migratedEntries.map((e) => e.resourceId.toString()));
+    const legacyServers = authoredServers.filter((s) => !migratedIds.has(s._id.toString()));
+    const legacyServerIds = legacyServers.map((s) => s._id);
+
+    const allServerIdsToDelete = [...soleOwnedIds, ...legacyServerIds];
+
+    if (allServerIdsToDelete.length === 0) {
+      return;
+    }
+
+    const aclOwnedServers =
+      soleOwnedIds.length > 0
+        ? await MCPServer.find({ _id: { $in: soleOwnedIds } })
+            .select('serverName')
+            .lean()
+        : [];
+    const allServersToDelete = [...aclOwnedServers, ...legacyServers];
+
+    const mcpManager = getMCPManager();
+    if (mcpManager) {
+      await Promise.all(
+        allServersToDelete.map(async (s) => {
+          await mcpManager.disconnectUserConnection(userId, s.serverName);
+          await invalidateCachedTools({ userId, serverName: s.serverName });
+        }),
+      );
+    }
+
+    await AclEntry.deleteMany({
+      resourceType: ResourceType.MCPSERVER,
+      resourceId: { $in: allServerIdsToDelete },
+    });
+
+    await MCPServer.deleteMany({ _id: { $in: allServerIdsToDelete } });
+  } catch (error) {
+    logger.error('[deleteUserMcpServers] General error:', error);
+  }
+};
+
 const updateUserPluginsController = async (req, res) => {
   const appConfig = await getAppConfig({ role: req.user?.role });
   const { user } = req;
   const { pluginKey, action, auth, isEntityTool } = req.body;
   try {
     if (!isEntityTool) {
-      const userPluginsService = await updateUserPluginsService(user, pluginKey, action);
-
-      if (userPluginsService instanceof Error) {
-        logger.error('[userPluginsService]', userPluginsService);
-        const { status, message } = normalizeHttpError(userPluginsService);
-        return res.status(status).send({ message });
-      }
+      await updateUserPlugins(user._id, user.plugins, pluginKey, action);
     }
 
     if (auth == null) {
@@ -220,6 +298,7 @@ const updateUserPluginsController = async (req, res) => {
               `[updateUserPluginsController] Attempting disconnect of MCP server "${serverName}" for user ${user.id} after plugin auth update.`,
             );
             await mcpManager.disconnectUserConnection(user.id, serverName);
+            await invalidateCachedTools({ userId: user.id, serverName });
           }
         } catch (disconnectError) {
           logger.error(
@@ -244,6 +323,22 @@ const deleteUserController = async (req, res) => {
   const { user } = req;
 
   try {
+    const existingUser = await getUserById(
+      user.id,
+      '+totpSecret +backupCodes _id twoFactorEnabled',
+    );
+    if (existingUser && existingUser.twoFactorEnabled) {
+      const { token, backupCode } = req.body;
+      const result = await verifyOTPOrBackupCode({ user: existingUser, token, backupCode });
+
+      if (!result.verified) {
+        const msg =
+          result.message ??
+          'TOTP token or backup code is required to delete account with 2FA enabled';
+        return res.status(result.status ?? 400).json({ message: msg });
+      }
+    }
+
     await deleteMessages({ user: user.id }); // delete user messages
     await deleteAllUserSessions({ userId: user.id }); // delete user sessions
     await Transaction.deleteMany({ user: user.id }); // delete user transactions
@@ -262,10 +357,12 @@ const deleteUserController = async (req, res) => {
     await deleteFiles(null, user.id); // delete database files in case of orphaned files from previous steps
     await deleteToolCalls(user.id); // delete user tool calls
     await deleteUserAgents(user.id); // delete user agents
+    await AgentApiKey.deleteMany({ user: user._id }); // delete user agent API keys
     await Assistant.deleteMany({ user: user.id }); // delete user assistants
     await ConversationTag.deleteMany({ user: user.id }); // delete user conversation tags
     await MemoryEntry.deleteMany({ userId: user.id }); // delete user memory entries
-    await deleteUserPrompts(req, user.id); // delete user prompts
+    await deleteUserPrompts(user.id); // delete user prompts
+    await deleteUserMcpServers(user.id); // delete user MCP servers
     await Action.deleteMany({ user: user.id }); // delete user actions
     await Token.deleteMany({ userId: user.id }); // delete user OAuth tokens
     await Group.updateMany(
@@ -321,9 +418,9 @@ const maybeUninstallOAuthMCP = async (userId, pluginKey, appConfig) => {
 
   const serverName = pluginKey.replace(Constants.mcp_prefix, '');
   const serverConfig =
-    (await mcpServersRegistry.getServerConfig(serverName, userId)) ??
+    (await getMCPServersRegistry().getServerConfig(serverName, userId)) ??
     appConfig?.mcpServers?.[serverName];
-  const oauthServers = await mcpServersRegistry.getOAuthServers();
+  const oauthServers = await getMCPServersRegistry().getOAuthServers(userId);
   if (!oauthServers.has(serverName)) {
     // this server does not use OAuth, so nothing to do here as well
     return;
@@ -354,6 +451,7 @@ const maybeUninstallOAuthMCP = async (userId, pluginKey, appConfig) => {
     serverConfig.oauth?.revocation_endpoint_auth_methods_supported ??
     clientMetadata.revocation_endpoint_auth_methods_supported;
   const oauthHeaders = serverConfig.oauth_headers ?? {};
+  const allowedDomains = getMCPServersRegistry().getAllowedDomains();
 
   if (tokens?.access_token) {
     try {
@@ -369,6 +467,7 @@ const maybeUninstallOAuthMCP = async (userId, pluginKey, appConfig) => {
           revocationEndpointAuthMethodsSupported,
         },
         oauthHeaders,
+        allowedDomains,
       );
     } catch (error) {
       logger.error(`Error revoking OAuth access token for ${serverName}:`, error);
@@ -389,6 +488,7 @@ const maybeUninstallOAuthMCP = async (userId, pluginKey, appConfig) => {
           revocationEndpointAuthMethodsSupported,
         },
         oauthHeaders,
+        allowedDomains,
       );
     } catch (error) {
       logger.error(`Error revoking OAuth refresh token for ${serverName}:`, error);
@@ -420,4 +520,5 @@ module.exports = {
   verifyEmailController,
   updateUserPluginsController,
   resendVerificationController,
+  deleteUserMcpServers,
 };
