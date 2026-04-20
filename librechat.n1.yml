@@ -16,6 +16,9 @@ modelSpecs:
   list:
     - name: azure-gpt-4o
       label: GPT-4o
+      iconURL: /assets/openai.png
+      showIconInMenu: true
+      showIconInHeader: true
       default: true
       description: For daily tasks with a quick response time.
       preset:
@@ -23,42 +26,63 @@ modelSpecs:
         model: gpt-4o
     - name: azure-gpt-4o-mini
       label: GPT-4o Mini
+      iconURL: /assets/openai.png
+      showIconInMenu: true
+      showIconInHeader: true
       description: Offers simpler, more instant responses.
       preset:
         endpoint: azureOpenAI
         model: gpt-4o-mini
     - name: azure-gpt-41
       label: GPT-4.1
+      iconURL: /assets/openai.png
+      showIconInMenu: true
+      showIconInHeader: true
       description: For complex reasoning and coding.
       preset:
         endpoint: azureOpenAI
         model: gpt-41
     - name: azure-gpt-41-mini
       label: GPT-4.1 Mini
+      iconURL: /assets/openai.png
+      showIconInMenu: true
+      showIconInHeader: true
       description: A faster, more lightweight version of GPT-4.1.
       preset:
         endpoint: azureOpenAI
         model: gpt-41-mini
     - name: azure-gpt-5
       label: GPT-5
+      iconURL: /assets/openai.png
+      showIconInMenu: true
+      showIconInHeader: true
       description: For advanced tasks with the highest accuracy and reasoning depth.
       preset:
         endpoint: azureOpenAI
         model: gpt-5
     - name: google-gemini-25-pro
       label: Gemini 2.5 Pro
+      iconURL: /assets/google.png
+      showIconInMenu: true
+      showIconInHeader: true
       description: Quickly analyze complex, mixed media content.
       preset:
         endpoint: "Gemini 2.5 Pro"
         model: gemini-2.5-pro
     - name: google-gemini-25-flash
       label: Gemini 2.5 Flash
+      iconURL: /assets/google.png
+      showIconInMenu: true
+      showIconInHeader: true
       description: A faster, more lightweight version of Gemini 2.5 Pro.
       preset:
         endpoint: "Gemini 2.5 Flash"
         model: gemini-2.5-flash
     - name: anthropic-claude-sonnet-45
       label: Claude Sonnet 4.5 (Limited)
+      iconURL: /assets/anthropic.png
+      showIconInMenu: true
+      showIconInHeader: true
       description: For extended reasoning, coding, and automation. This model is being evaluated. It can be used a limited number of times.
       preset:
         endpoint: "Claude Sonnet 4.5"
@@ -107,6 +131,7 @@ endpoints:
     - name: "Gemini 2.5 Pro"
       apiKey: "${GCP_VERTEXAI_API_KEY}"
       baseURL: "${GCP_VERTEXAI_BASEURL}/gemini-2.5-pro/v1"
+      iconURL: "/assets/google.png"
       directEndpoint: true
       models:
         default:
@@ -123,6 +148,7 @@ endpoints:
     - name: "Gemini 2.5 Flash"
       apiKey: "${GCP_VERTEXAI_API_KEY}"
       baseURL: "${GCP_VERTEXAI_BASEURL}/gemini-2.5-flash/v1"
+      iconURL: "/assets/google.png"
       directEndpoint: true
       models:
         default:
@@ -139,6 +165,7 @@ endpoints:
     - name: "Claude Sonnet 4.5"
       apiKey: "${GCP_VERTEXAI_API_KEY}"
       baseURL: "${GCP_VERTEXAI_BASEURL}/claude-sonnet-4-5/v1"
+      iconURL: "/assets/anthropic.png"
       directEndpoint: true
       models:
         default:

@@ -4,7 +4,6 @@ import {
   Sparkles,
   BedrockIcon,
   AnthropicIcon,
-  AzureMinimalIcon,
   OpenAIMinimalIcon,
   GoogleMinimalIcon,
   CustomMinimalIcon,
@@ -24,7 +23,7 @@ const MinimalIcon: React.FC<IconProps> = (props) => {
 
   const endpointIcons = {
     [EModelEndpoint.azureOpenAI]: {
-      icon: <AzureMinimalIcon className={iconClassName} />,
+      icon: <OpenAIMinimalIcon className={iconClassName} />,
       name: props.chatGptLabel ?? 'ChatGPT',
     },
     [EModelEndpoint.openAI]: {

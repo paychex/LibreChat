@@ -6,7 +6,6 @@ import {
   BedrockIcon,
   AssistantIcon,
   AnthropicIcon,
-  AzureMinimalIcon,
   GoogleMinimalIcon,
   CustomMinimalIcon,
 } from '@librechat/client';
@@ -58,8 +57,27 @@ const Bedrock = ({ className = '' }: IconMapProps) => {
   return <BedrockIcon className={cn(className, 'h-full w-full')} />;
 };
 
+const GPTIconDark = ({ size = 20 }: IconMapProps) => {
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        backgroundColor: '#080808',
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
+      <GPTIcon size={(size as number) * 0.65} className="text-white" />
+    </div>
+  );
+};
+
 export const icons: IconsRecord = {
-  [EModelEndpoint.azureOpenAI]: AzureMinimalIcon,
+  [EModelEndpoint.azureOpenAI]: GPTIconDark,
   [EModelEndpoint.openAI]: GPTIcon,
   [EModelEndpoint.anthropic]: AnthropicIcon,
   [EModelEndpoint.google]: GoogleMinimalIcon,

@@ -2,7 +2,6 @@ import { memo } from 'react';
 import { Feather } from 'lucide-react';
 import { EModelEndpoint, isAssistantsEndpoint, alternateName } from 'librechat-data-provider';
 import {
-  Plugin,
   GPTIcon,
   PaLMIcon,
   CodeyIcon,
@@ -10,7 +9,6 @@ import {
   BedrockIcon,
   AssistantIcon,
   AnthropicIcon,
-  AzureMinimalIcon,
   CustomMinimalIcon,
 } from '@librechat/client';
 import UnknownIcon from '~/hooks/Endpoint/UnknownIcon';
@@ -124,8 +122,8 @@ const MessageEndpointIcon: React.FC<IconProps> = (props) => {
     [EModelEndpoint.agents]: agentsIcon,
     [EModelEndpoint.azureAssistants]: assistantsIcon,
     [EModelEndpoint.azureOpenAI]: {
-      icon: <AzureMinimalIcon size={size * 0.5555555555555556} />,
-      bg: 'linear-gradient(0.375turn, #61bde2, #4389d0)',
+      icon: <GPTIcon size={size * 0.5555555555555556} />,
+      bg: '#080808',
       name: 'ChatGPT',
     },
     [EModelEndpoint.openAI]: {
@@ -176,6 +174,16 @@ const MessageEndpointIcon: React.FC<IconProps> = (props) => {
 
   if (iconURL && endpointIcons[iconURL]) {
     ({ icon, bg, name } = endpointIcons[iconURL]);
+  }
+
+  if (iconURL && (iconURL.startsWith('/') || iconURL.includes('http')) && !endpointIcons[iconURL]) {
+    return (
+      <img
+        src={iconURL}
+        alt={name ?? endpoint ?? 'icon'}
+        style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover' }}
+      />
+    );
   }
 
   if (isAssistantsEndpoint(endpoint)) {
