@@ -85,7 +85,10 @@ export class MCPServerInspector {
         this.fetchToolFunctions(),
       ]);
 
-      if (tempConnection) await this.connection.disconnect();
+      if (tempConnection) {
+        this.connection.stopReconnecting();
+        await this.connection.disconnect();
+      }
     }
   }
 

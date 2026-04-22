@@ -1084,7 +1084,11 @@ export class MCPConnection extends EventEmitter {
         ? 'Transport error (transient, will reconnect)'
         : 'Transport error (may require manual intervention)';
 
-      logger.error(`${this.getLogPrefix()} ${errorLabel}: ${errorMessage}`, errorContext);
+      if (isTransient) {
+        logger.warn(`${this.getLogPrefix()} ${errorLabel}: ${errorMessage}`, errorContext);
+      } else {
+        logger.error(`${this.getLogPrefix()} ${errorLabel}: ${errorMessage}`, errorContext);
+      }
 
       this.emit('connectionChange', 'error');
     };
@@ -1099,6 +1103,16 @@ export class MCPConnection extends EventEmitter {
     );
     this.agents = [];
     await Promise.all(closing);
+  }
+
+  /**
+   * Signals the reconnection loop to stop without closing the transport.
+   * Call this before disconnect() when the connection is intentionally torn down
+   * (e.g. after a temporary inspection connection) to prevent the background
+   * handleReconnection() loop from continuing after disconnect() returns.
+   */
+  public stopReconnecting(): void {
+    this.shouldStopReconnecting = true;
   }
 
   public async disconnect(resetCycleTracking = true): Promise<void> {
