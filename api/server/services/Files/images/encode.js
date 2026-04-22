@@ -215,6 +215,21 @@ async function encodeAndFormat(req, files, params, mode) {
       },
     };
 
+    if (
+      effectiveEndpoint &&
+      (effectiveEndpoint === EModelEndpoint.anthropic ||
+        effectiveEndpoint.toLowerCase().includes('claude') ||
+        effectiveEndpoint.toLowerCase().includes('anthropic'))
+    ) {
+      imagePart.type = 'image';
+      imagePart.source = {
+        type: 'base64',
+        media_type: file.type,
+        data: imageContent,
+      };
+      delete imagePart.image_url;
+    }
+
     if (mode === VisionModes.agents) {
       result.image_urls.push({ ...imagePart });
       result.files.push({ ...fileMetadata });
@@ -233,14 +248,6 @@ async function encodeAndFormat(req, files, params, mode) {
       };
     } else if (effectiveEndpoint && effectiveEndpoint === EModelEndpoint.google) {
       imagePart.image_url = imagePart.image_url.url;
-    } else if (effectiveEndpoint && effectiveEndpoint === EModelEndpoint.anthropic) {
-      imagePart.type = 'image';
-      imagePart.source = {
-        type: 'base64',
-        media_type: file.type,
-        data: imageContent,
-      };
-      delete imagePart.image_url;
     }
 
     result.image_urls.push({ ...imagePart });
