@@ -20,8 +20,13 @@ jest.mock('librechat-data-provider', () => ({
 }));
 
 const { getStrategyFunctions } = require('~/server/services/Files/strategies');
-const { FileSources, VisionModes, ContentTypes, EModelEndpoint, ImageDetail } =
-  require('librechat-data-provider');
+const {
+  FileSources,
+  VisionModes,
+  ContentTypes,
+  EModelEndpoint,
+  ImageDetail,
+} = require('librechat-data-provider');
 const { encodeAndFormat } = require('./encode');
 
 const FAKE_BASE64 = Buffer.from('fake image data').toString('base64');

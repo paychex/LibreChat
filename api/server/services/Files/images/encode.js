@@ -215,7 +215,8 @@ async function encodeAndFormat(req, files, params, mode) {
       },
     };
 
-    const endpointLower = typeof effectiveEndpoint === 'string' ? effectiveEndpoint.toLowerCase() : '';
+    const endpointLower =
+      typeof effectiveEndpoint === 'string' ? effectiveEndpoint.toLowerCase() : '';
     if (
       effectiveEndpoint &&
       (effectiveEndpoint === EModelEndpoint.anthropic ||
