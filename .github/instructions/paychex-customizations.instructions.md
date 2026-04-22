@@ -242,6 +242,16 @@ Complete catalog of Paychex-specific modifications to LibreChat.
 - **Criticality:** WARNING — App functions without it, but users' model selection is silently reset on every new conversation
 - **Added:** v0.8.4 post-merge restoration
 
+**25. Anthropic Image Encoding for Custom Endpoints**
+- **File:** `api/server/services/Files/images/encode.js`
+- **Function:** `encodeAndFormat()`
+- **Pattern:** `effectiveEndpoint.toLowerCase().includes('claude') || effectiveEndpoint.toLowerCase().includes('anthropic')`
+- **Purpose:** Converts uploaded image parts to Anthropic-native format (`type: 'image'`, `source: { type: 'base64', ... }`) for both the native `anthropic` endpoint **and** custom endpoints whose name contains "claude" or "anthropic" (e.g. `"Claude Sonnet 4.5"`). Without this, the `image_url` OpenAI-style part is sent to the Anthropic API, which rejects it with a 400 error.
+- **Also fixes:** The Anthropic conversion block is now placed **before** the `VisionModes.agents` early-return so it is reachable for agent-path uploads (previously dead code for agents). Google formatting remains after the agents check, unaffected.
+- **Criticality:** CRITICAL — Image uploads to any Claude/Anthropic endpoint throw a 400 error without this
+- **Added:** April 2026 bugfix
+- **Context:** For ephemeral agents (non-agent-endpoint model chats), `agent.provider` is set to the endpoint name string, not `EModelEndpoint.anthropic`, so a strict equality check is insufficient.
+
 ## Verification Patterns
 
 Use these patterns when verifying customizations are present:
@@ -278,6 +288,12 @@ grep -n "normalizeServerName" packages/api/src/mcp/registry/MCPServerInspector.t
 grep -n "normalizeServerName" api/server/services/MCP.js
 # Anti-patterns — raw serverName after mcp_delimiter must NOT appear without normalizeServerName:
 grep -n 'mcp_delimiter}${serverName}' packages/api/src/mcp/registry/MCPServerInspector.ts | grep -v normalizeServerName
+
+# 25. Anthropic image encoding for custom endpoints
+grep -n "includes('claude')\|includes('anthropic')" api/server/services/Files/images/encode.js
+# Anti-pattern — Anthropic branch must NOT be below the VisionModes.agents early-return:
+# Verify the 'if (mode === VisionModes.agents)' block appears AFTER the Anthropic else-if block
+grep -n "VisionModes.agents\|includes('claude')" api/server/services/Files/images/encode.js
 
 # 22-24. MCP customizations
 grep -n "startup: config.startup" packages/api/src/mcp/utils.ts

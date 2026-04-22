@@ -22,6 +22,7 @@ These customizations MUST be preserved during upstream merges. Verify after ever
 | Declarative Tools UI | `client/src/components/Chat/Input/ToolsDropdown.tsx` | `label:`, `description:`, `icon:` properties | Code organization (non-breaking) |
 | Dockerfile Error Handling | `Dockerfile` | `&&` operators (not `;`) | Prevents masked build failures - critical for CI/CD |
 | xlsx Package | `api/package.json`, `packages/api/package.json` | `"xlsx": "^0.18.5"` (npm registry, not CDN) | CDN returns 403 errors - builds fail without this |
+| Anthropic Image Encoding | `api/server/services/Files/images/encode.js` | `includes('claude') \|\| includes('anthropic')` (before `VisionModes.agents` block) | Custom Claude/Anthropic endpoints get 400 errors on image uploads without this; block order matters |
 
 ## Merge Conflict Decision Matrix
 
@@ -55,6 +56,7 @@ Apply this matrix when resolving each conflict:
 - `api/app/clients/BaseClient.js`
 - `api/server/services/start/tools.js`
 - `api/server/services/MCP.js`
+- `api/server/services/Files/images/encode.js`
 - `Dockerfile`
 - `api/package.json`
 - `packages/api/package.json`
