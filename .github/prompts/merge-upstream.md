@@ -44,6 +44,12 @@ I need to merge LibreChat upstream version [TARGET_VERSION] into Paychex develop
 7. **xlsx Package** (api/package.json, packages/api/package.json)
    - Must use: `"xlsx": "^0.18.5"` (npm registry, not CDN)
 
+8. **Anthropic Image Encoding** (api/server/services/Files/images/encode.js)
+   - Pattern: `effectiveEndpoint.toLowerCase().includes('claude') || effectiveEndpoint.toLowerCase().includes('anthropic')`
+   - This block must appear **before** the `if (mode === VisionModes.agents)` early-return
+   - Converts image parts to Anthropic-native format for custom Claude/Anthropic endpoints
+   - Without this (or if block order is wrong), image uploads to Claude endpoints throw 400 errors
+
 **Requirements:**
 
 ✅ **Must Do:**

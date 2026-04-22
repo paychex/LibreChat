@@ -381,6 +381,41 @@ check_pattern \
     "warning"
 
 echo ""
+
+# 16. Anthropic Image Encoding for Custom Endpoints
+echo "16. Anthropic Image Encoding for Custom Endpoints (encode.js)"
+check_pattern \
+    "api/server/services/Files/images/encode.js" \
+    "includes('claude')" \
+    "Custom Claude endpoint detected by name for Anthropic image encoding" \
+    "critical"
+
+check_pattern \
+    "api/server/services/Files/images/encode.js" \
+    "includes('anthropic')" \
+    "Custom Anthropic endpoint detected by name for Anthropic image encoding" \
+    "critical"
+
+# Verify ordering: the Anthropic conversion block must appear BEFORE the VisionModes.agents check.
+# If VisionModes.agents appears before includes('claude'), the Anthropic conversion is dead code for agents.
+ANTHROPIC_LINE=$(grep -n "includes('claude')" api/server/services/Files/images/encode.js 2>/dev/null | head -1 | cut -d: -f1)
+AGENTS_LINE=$(grep -n "mode === VisionModes.agents" api/server/services/Files/images/encode.js 2>/dev/null | head -1 | cut -d: -f1)
+
+if [ -n "$ANTHROPIC_LINE" ] && [ -n "$AGENTS_LINE" ]; then
+    if [ "$ANTHROPIC_LINE" -lt "$AGENTS_LINE" ]; then
+        echo -e "${GREEN}✓ PASS${NC}: Anthropic conversion block appears before VisionModes.agents early-return (line $ANTHROPIC_LINE < $AGENTS_LINE)"
+        PASS_COUNT=$((PASS_COUNT + 1))
+    else
+        echo -e "${RED}✗ FAIL${NC}: Anthropic conversion block is AFTER VisionModes.agents early-return (line $ANTHROPIC_LINE >= $AGENTS_LINE)"
+        echo "         This makes the Anthropic branch dead code for agent-path uploads — images will 400 on Claude endpoints"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+else
+    echo -e "${YELLOW}⚠ WARN${NC}: Could not determine line ordering for Anthropic block vs VisionModes.agents"
+    WARN_COUNT=$((WARN_COUNT + 1))
+fi
+
+echo ""
 echo "======================================"
 echo "Verification Summary"
 echo "======================================"

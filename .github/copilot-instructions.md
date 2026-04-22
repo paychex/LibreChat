@@ -69,6 +69,11 @@ When working with code, always preserve these critical Paychex customizations:
 - **Purpose:** Build stops on first error instead of masking failures
 - **Critical:** YES - Prevents broken builds from being deployed
 
+### 8. Anthropic Image Encoding for Custom Endpoints (api/server/services/Files/images/encode.js)
+- **Pattern:** `effectiveEndpoint.toLowerCase().includes('claude') || effectiveEndpoint.toLowerCase().includes('anthropic')`
+- **Purpose:** Converts image parts to Anthropic-native format (`type: 'image'`, `source: { base64 }`) for both the native `anthropic` endpoint and custom endpoints whose name contains "claude" or "anthropic". The conversion block is placed **before** the `VisionModes.agents` early-return so agent-path uploads are also converted correctly.
+- **Critical:** YES - Image uploads to any Claude/Anthropic endpoint throw a 400 error without this
+
 ## Upstream Merge Process
 
 When merging upstream LibreChat releases:
@@ -85,6 +90,7 @@ When merging upstream LibreChat releases:
 - `api/app/clients/BaseClient.js` — Contains `filterCrossProviderToolCalls`
 - `api/server/services/start/tools.js` — Contains `sanitizeSchemaMetadata`
 - `api/server/services/MCP.js` — Custom Gemini endpoint detection
+- `api/server/services/Files/images/encode.js` — Anthropic image encoding; block order relative to `VisionModes.agents` is critical
 - `Dockerfile` — Build error handling
 - `package.json` files — Dependency versions (use npm registry for xlsx, not CDN)
 

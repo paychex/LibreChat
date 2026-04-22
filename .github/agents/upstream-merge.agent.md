@@ -76,6 +76,7 @@ For each conflicted file, determine its risk level:
 - `api/app/clients/BaseClient.js` — filterCrossProviderToolCalls
 - `api/server/services/start/tools.js` — sanitizeSchemaMetadata  
 - `api/server/services/MCP.js` — Gemini custom endpoint detection
+- `api/server/services/Files/images/encode.js` — Anthropic image encoding; `includes('claude')||includes('anthropic')` block must appear before `VisionModes.agents` early-return
 - `Dockerfile` — && error handling
 - `**/package.json` — xlsx must use npm registry
 

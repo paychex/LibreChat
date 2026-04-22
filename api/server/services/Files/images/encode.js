@@ -215,11 +215,12 @@ async function encodeAndFormat(req, files, params, mode) {
       },
     };
 
+    const endpointLower = typeof effectiveEndpoint === 'string' ? effectiveEndpoint.toLowerCase() : '';
     if (
       effectiveEndpoint &&
       (effectiveEndpoint === EModelEndpoint.anthropic ||
-        effectiveEndpoint.toLowerCase().includes('claude') ||
-        effectiveEndpoint.toLowerCase().includes('anthropic'))
+        endpointLower.includes('claude') ||
+        endpointLower.includes('anthropic'))
     ) {
       imagePart.type = 'image';
       imagePart.source = {
