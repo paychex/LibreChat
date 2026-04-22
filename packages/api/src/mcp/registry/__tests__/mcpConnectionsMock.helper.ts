@@ -33,6 +33,7 @@ export function createMockConnection(serverName: string): jest.Mocked<MCPConnect
   return {
     client: mockClient,
     disconnect: jest.fn().mockResolvedValue(undefined),
+    stopReconnecting: jest.fn(),
   } as unknown as jest.Mocked<MCPConnection>;
 }
 
