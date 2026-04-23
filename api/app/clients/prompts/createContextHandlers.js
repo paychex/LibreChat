@@ -83,10 +83,7 @@ function createContextHandlers(req, userMessageContent) {
                 'The file may not have been indexed successfully.',
             );
           } else {
-            logger.error(
-              `Error fetching context for file "${file.filename}":`,
-              result.reason,
-            );
+            logger.error(`Error fetching context for file "${file.filename}":`, result.reason);
           }
         }
       }
