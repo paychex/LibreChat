@@ -65,8 +65,38 @@ function createContextHandlers(req, userMessageContent) {
         return '';
       }
 
-      const oneFile = processedFiles.length === 1;
-      const header = `The user has attached ${oneFile ? 'a' : processedFiles.length} file${
+      const settledQueries = await Promise.allSettled(queryPromises);
+
+      const successfulResults = [];
+      const successfulFiles = [];
+      for (let i = 0; i < settledQueries.length; i++) {
+        const result = settledQueries[i];
+        const file = processedFiles[i];
+        if (result.status === 'fulfilled') {
+          successfulResults.push(result.value);
+          successfulFiles.push(file);
+        } else {
+          const statusCode = result.reason?.response?.status;
+          if (statusCode === 404) {
+            logger.warn(
+              `File context not found for "${file.filename}" (file_id: ${file.file_id}). ` +
+                'The file may not have been indexed successfully.',
+            );
+          } else {
+            logger.error(
+              `Error fetching context for file "${file.filename}":`,
+              result.reason,
+            );
+          }
+        }
+      }
+
+      if (!successfulResults.length) {
+        return '';
+      }
+
+      const oneFile = successfulFiles.length === 1;
+      const header = `The user has attached ${oneFile ? 'a' : successfulFiles.length} file${
         !oneFile ? 's' : ''
       } to the conversation:`;
 
@@ -75,7 +105,7 @@ function createContextHandlers(req, userMessageContent) {
           ? ''
           : `
       <files>`
-      }${processedFiles
+      }${successfulFiles
         .map(
           (file) => `
               <file>
@@ -90,14 +120,12 @@ function createContextHandlers(req, userMessageContent) {
         </files>`
       }`;
 
-      const resolvedQueries = await Promise.all(queryPromises);
-
       const context =
-        resolvedQueries.length === 0
+        successfulResults.length === 0
           ? '\n\tThe semantic search did not return any results.'
-          : resolvedQueries
+          : successfulResults
               .map((queryResult, index) => {
-                const file = processedFiles[index];
+                const file = successfulFiles[index];
                 let contextItems = queryResult.data;
 
                 const generateContext = (currentContext) =>
