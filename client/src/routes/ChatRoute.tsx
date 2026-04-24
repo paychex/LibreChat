@@ -108,7 +108,13 @@ export default function ChatRoute() {
 
       const queryParams: Record<string, string> = {};
       searchParams.forEach((value, key) => {
-        if (key !== 'prompt' && key !== 'q' && key !== 'submit') {
+        if (
+          key !== 'prompt' &&
+          key !== 'q' &&
+          key !== 'submit' &&
+          key !== 'promptCatalogId' &&
+          key !== 'prompt_catalog_id'
+        ) {
           queryParams[key] = value;
         }
       });

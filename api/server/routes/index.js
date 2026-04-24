@@ -4,6 +4,7 @@ const categories = require('./categories');
 const adminAuth = require('./admin/auth');
 const endpoints = require('./endpoints');
 const staticRoute = require('./static');
+const prompthub = require('./prompthub');
 const messages = require('./messages');
 const memories = require('./memories');
 const presets = require('./presets');
@@ -46,6 +47,7 @@ module.exports = {
   config,
   models,
   prompts,
+  prompthub,
   actions,
   presets,
   balance,
