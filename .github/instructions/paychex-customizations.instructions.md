@@ -252,6 +252,25 @@ Complete catalog of Paychex-specific modifications to LibreChat.
 - **Added:** April 2026 bugfix
 - **Context:** For ephemeral agents (non-agent-endpoint model chats), `agent.provider` is set to the endpoint name string, not `EModelEndpoint.anthropic`, so a strict equality check is insufficient.
 
+**26. Prompt Catalog Insert Deep-Link Integration**
+- **Files:** `api/server/index.js`, `api/server/experimental.js`, `api/server/routes/index.js`, `api/server/routes/prompthub.js`, `packages/api/src/promptCatalog/handlers.ts`, `packages/api/src/promptCatalog/index.ts`, `packages/api/src/index.ts`, `client/src/hooks/Input/useQueryParams.ts`, `client/src/routes/ChatRoute.tsx`, `.env.example`
+- **Patterns (must be present):**
+  - `/api/prompthub` mounted in both `api/server/index.js` and `api/server/experimental.js`
+  - `POST /api/prompthub/resolve-insert`
+  - `createPromptHubResolveInsertHandler`
+  - `PROMPT_CATALOG_API_URL`
+  - `promptCatalogId` and `prompt_catalog_id`
+  - `x-forwarded-user-email`, `x-forwarded-user-name`
+  - `com_ui_prompt_catalog_insert_error`
+- **Purpose:** Supports AI Hub Prompt Catalog deep links that open LibreChat with only a Prompt Catalog ID. LibreChat resolves the stored prompt server-side through its own backend, forwards authenticated user identity headers to Prompt Catalog, injects the resolved text into the composer, excludes insert params from model/preset query parsing, and shows a toast if resolution fails or times out.
+- **Anti-patterns (must be absent):**
+  - direct browser fetch from LibreChat client to Prompt Catalog
+  - full prompt text handoff in the LibreChat URL for this feature
+- **Criticality:** WARNING — App functions without it, but AI Hub → LibreChat Prompt Catalog deep links silently break or hang without these pieces
+- **Added:** April 2026
+- **Context:** This is intentionally simpler than `feature/prompthub-integration`; preserve the ID-based same-origin flow and do not replace it with ticket/callback/export behavior unless scope changes.
+- **Build note:** `packages/api/src/promptCatalog/*.ts` compiles into `@librechat/api`, which the JS route layer loads from `packages/api/dist`. Any change here requires `npm run build:api` before restarting the backend, or use the updated `npm run backend:dev` script which rebuilds the compiled packages first.
+
 ## Verification Patterns
 
 Use these patterns when verifying customizations are present:
@@ -295,6 +314,14 @@ grep -n "includes('claude')\|includes('anthropic')" api/server/services/Files/im
 # Verify the 'if (mode === VisionModes.agents)' block appears AFTER the Anthropic else-if block
 grep -n "VisionModes.agents\|includes('claude')" api/server/services/Files/images/encode.js
 
+# 26. Prompt Catalog insert deep-link integration
+grep -n "/api/prompthub" api/server/index.js api/server/experimental.js api/server/routes/index.js
+grep -n "createPromptHubResolveInsertHandler" api/server/routes/prompthub.js packages/api/src/index.ts packages/api/src/promptCatalog/handlers.ts
+grep -n "PROMPT_CATALOG_API_URL" .env.example api/server/routes/prompthub.js packages/api/src/promptCatalog/handlers.ts
+grep -n "x-forwarded-user-email\|x-forwarded-user-name" packages/api/src/promptCatalog/handlers.ts
+grep -n "promptCatalogId\|prompt_catalog_id" client/src/hooks/Input/useQueryParams.ts client/src/routes/ChatRoute.tsx
+grep -n "com_ui_prompt_catalog_insert_error" client/src/hooks/Input/useQueryParams.ts client/src/locales/en/translation.json
+
 # 22-24. MCP customizations
 grep -n "startup: config.startup" packages/api/src/mcp/utils.ts
 grep -n "s.config.startup === true" client/src/hooks/MCP/useMCPServerManager.ts
@@ -328,6 +355,7 @@ When adding new Paychex customizations:
 - Code organization improvements
 - Documentation
 - Model preference guard
+- Prompt Catalog insert integration
 
 Use this as reference when deciding whether to preserve customization during upstream merges.
 

@@ -74,6 +74,12 @@ When working with code, always preserve these critical Paychex customizations:
 - **Purpose:** Converts image parts to Anthropic-native format (`type: 'image'`, `source: { base64 }`) for both the native `anthropic` endpoint and custom endpoints whose name contains "claude" or "anthropic". The conversion block is placed **before** the `VisionModes.agents` early-return so agent-path uploads are also converted correctly.
 - **Critical:** YES - Image uploads to any Claude/Anthropic endpoint throw a 400 error without this
 
+### 9. Prompt Catalog Insert Deep Link Integration
+- **Files:** `api/server/routes/prompthub.js`, `packages/api/src/promptCatalog/handlers.ts`, `packages/api/src/index.ts`, `client/src/hooks/Input/useQueryParams.ts`, `client/src/routes/ChatRoute.tsx`
+- **Patterns:** `POST /api/prompthub/resolve-insert`, `promptCatalogId`, `PROMPT_CATALOG_API_URL`, `com_ui_prompt_catalog_insert_error`
+- **Purpose:** Lets AI Hub open LibreChat with only a Prompt Catalog ID. LibreChat must resolve the stored prompt server-side, forward authenticated user identity headers to Prompt Catalog, exclude insert params from preset merging, and show a user-visible toast if resolution fails or times out.
+- **Critical:** NO - App functions without it, but AI Hub Prompt Catalog deep links silently break or hang without it
+
 ## Upstream Merge Process
 
 When merging upstream LibreChat releases:
@@ -91,6 +97,10 @@ When merging upstream LibreChat releases:
 - `api/server/services/start/tools.js` — Contains `sanitizeSchemaMetadata`
 - `api/server/services/MCP.js` — Custom Gemini endpoint detection
 - `api/server/services/Files/images/encode.js` — Anthropic image encoding; block order relative to `VisionModes.agents` is critical
+- `api/server/routes/prompthub.js` — Prompt Catalog resolve-insert route wiring
+- `packages/api/src/promptCatalog/handlers.ts` and `packages/api/src/index.ts` — Prompt Catalog resolver export loaded by `@librechat/api`
+- `client/src/hooks/Input/useQueryParams.ts` — `promptCatalogId` resolution, timeout, and toast behavior
+- `client/src/routes/ChatRoute.tsx` — Excludes Prompt Catalog query params from preset merging
 - `Dockerfile` — Build error handling
 - `package.json` files — Dependency versions (use npm registry for xlsx, not CDN)
 
@@ -107,6 +117,7 @@ When merging upstream LibreChat releases:
 | `npm run smart-reinstall` | Install deps (if lockfile changed) + build via Turborepo |
 | `npm run backend` | Start the backend server |
 | `npm run backend:dev` | Start backend with file watching (development) |
+| `npm run build:api` | Rebuild compiled `@librechat/api` after changes in `packages/api/src` |
 | `npm run frontend:dev` | Start frontend dev server with HMR (port 3090) |
 | `npm run build` | Build all compiled code via Turborepo |
 | `scripts/verify-paychex-customizations.sh` | Verify all Paychex customizations are present |
