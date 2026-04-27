@@ -7,6 +7,7 @@ const USER_FACING_UPLOAD_ERRORS = [
   'Invalid file format',
   'exceeds token limit',
   'Unable to extract text from',
+  'No content could be extracted from the file',
 ] as const;
 
 /**

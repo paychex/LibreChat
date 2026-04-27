@@ -115,7 +115,12 @@ async function uploadVectors({ req, file, file_id, entity_id, storageMetadata })
       error,
       message: 'Error uploading vectors',
     });
-    throw new Error(error.message || 'An error occurred during file upload.');
+    const ragDetail = error.response?.data?.detail;
+    const err = new Error(ragDetail || error.message || 'An error occurred during file upload.');
+    if (error.response?.status) {
+      err.status = error.response.status;
+    }
+    throw err;
   }
 }
 
