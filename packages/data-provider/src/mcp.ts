@@ -103,6 +103,47 @@ const BaseOptionsSchema = z.object({
     .optional(),
 });
 
+const ClientTLSCommonSchema = z.object({
+  /**
+   * Override the TLS Server Name Indication value.
+   * Defaults to the hostname from the MCP server URL.
+   */
+  servername: z.string().optional(),
+  /**
+   * Optional CA bundle (PEM) used to verify the remote server.
+   * Useful when the endpoint is signed by a private CA that is not in the default trust store.
+   */
+  ca: z.string().optional(),
+  /**
+   * Whether to verify the remote server certificate. Defaults to true when omitted.
+   */
+  rejectUnauthorized: z.boolean().optional(),
+  /**
+   * Optional passphrase for the client certificate private key or PKCS#12 bundle.
+   */
+  passphrase: z.string().optional(),
+});
+
+const ClientTLSPFXSchema = ClientTLSCommonSchema.extend({
+  /**
+   * Base64-encoded PKCS#12 / PFX client certificate bundle.
+   */
+  pfx: z.string(),
+});
+
+const ClientTLSPemSchema = ClientTLSCommonSchema.extend({
+  /**
+   * PEM-encoded client certificate.
+   */
+  cert: z.string(),
+  /**
+   * PEM-encoded private key for the client certificate.
+   */
+  key: z.string(),
+});
+
+const ClientTLSOptionsSchema = z.union([ClientTLSPFXSchema, ClientTLSPemSchema]);
+
 export const StdioOptionsSchema = BaseOptionsSchema.extend({
   type: z.literal('stdio').optional(),
   /**
@@ -163,6 +204,7 @@ export const WebSocketOptionsSchema = BaseOptionsSchema.extend({
 export const SSEOptionsSchema = BaseOptionsSchema.extend({
   type: z.literal('sse').optional(),
   headers: z.record(z.string(), z.string()).optional(),
+  tls: ClientTLSOptionsSchema.optional(),
   url: z
     .string()
     .transform((val: string) => extractEnvVariable(val))
@@ -181,6 +223,7 @@ export const SSEOptionsSchema = BaseOptionsSchema.extend({
 export const StreamableHTTPOptionsSchema = BaseOptionsSchema.extend({
   type: z.union([z.literal('streamable-http'), z.literal('http')]),
   headers: z.record(z.string(), z.string()).optional(),
+  tls: ClientTLSOptionsSchema.optional(),
   url: z
     .string()
     .transform((val: string) => extractEnvVariable(val))
@@ -221,6 +264,7 @@ const omitServerManagedFields = <T extends z.ZodObject<z.ZodRawShape>>(schema: T
     requiresOAuth: true,
     customUserVars: true,
     oauth_headers: true,
+    tls: true,
   });
 
 const envVarPattern = /\$\{[^}]+\}/;

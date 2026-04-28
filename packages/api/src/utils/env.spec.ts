@@ -1083,6 +1083,47 @@ describe('processMCPEnv', () => {
     });
   });
 
+  it('should process nested TLS configuration for remote MCP transports', () => {
+    process.env.MCP_TLS_PFX = 'UEtDUzEyLURBVEE=';
+    process.env.MCP_TLS_CA = '-----BEGIN CERTIFICATE-----\\nTEST-CA\\n-----END CERTIFICATE-----';
+    process.env.MCP_TLS_SERVERNAME = 'play.clientssl.ain2a.paychex.com';
+
+    const options: MCPOptions = {
+      type: 'streamable-http',
+      url: '${MCP_SERVER_URL}/api',
+      tls: {
+        pfx: '${MCP_TLS_PFX}',
+        ca: '${MCP_TLS_CA}',
+        servername: '${MCP_TLS_SERVERNAME}',
+        passphrase: '{{CLIENT_CERT_PASSPHRASE}}',
+        rejectUnauthorized: true,
+      },
+    };
+
+    const result = processMCPEnv({
+      options,
+      customUserVars: {
+        CLIENT_CERT_PASSPHRASE: 'tls-passphrase',
+      },
+    });
+
+    expect(result).toEqual({
+      type: 'streamable-http',
+      url: 'https://mcp.example.com/api',
+      tls: {
+        pfx: 'UEtDUzEyLURBVEE=',
+        ca: '-----BEGIN CERTIFICATE-----\\nTEST-CA\\n-----END CERTIFICATE-----',
+        servername: 'play.clientssl.ain2a.paychex.com',
+        passphrase: 'tls-passphrase',
+        rejectUnauthorized: true,
+      },
+    });
+
+    delete process.env.MCP_TLS_PFX;
+    delete process.env.MCP_TLS_CA;
+    delete process.env.MCP_TLS_SERVERNAME;
+  });
+
   it('should process user field placeholders in all fields', () => {
     const user = createTestUser({
       id: 'user-123',

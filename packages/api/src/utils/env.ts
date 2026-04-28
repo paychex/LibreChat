@@ -397,6 +397,16 @@ export function processMCPEnv(params: {
     newObj.oauth = processedOAuth;
   }
 
+  if ('tls' in newObj && newObj.tls) {
+    newObj.tls = resolveNestedObject({
+      obj: newObj.tls,
+      user,
+      body,
+      dbSourced,
+      customUserVars,
+    });
+  }
+
   return newObj;
 }
 
@@ -412,6 +422,7 @@ function processValue(
     customUserVars?: Record<string, string>;
     user?: IUser;
     body?: RequestBody;
+    dbSourced?: boolean;
   },
 ): unknown {
   if (typeof value === 'string') {
@@ -420,6 +431,7 @@ function processValue(
       customUserVars: options.customUserVars,
       user: options.user,
       body: options.body,
+      dbSourced: options.dbSourced,
     });
   }
 
@@ -454,8 +466,9 @@ export function resolveNestedObject<T = unknown>(options?: {
   user?: Partial<IUser> | { id: string };
   body?: RequestBody;
   customUserVars?: Record<string, string>;
+  dbSourced?: boolean;
 }): T {
-  const { obj, user, body, customUserVars } = options ?? {};
+  const { obj, user, body, customUserVars, dbSourced } = options ?? {};
 
   if (!obj) {
     return obj as T;
@@ -465,6 +478,7 @@ export function resolveNestedObject<T = unknown>(options?: {
     customUserVars,
     user: user as IUser,
     body,
+    dbSourced,
   }) as T;
 }
 

@@ -18,6 +18,7 @@ import type {
 } from 'undici';
 import type { MCPOAuthTokens } from './oauth/types';
 import type * as t from './types';
+import { buildMCPClientTLSConnectOptions } from './tls';
 import { createSSRFSafeUndiciConnect, resolveHostnameSSRF } from '~/auth';
 import { runOutsideTracing } from '~/utils/tracing';
 import { sanitizeUrlForLogging } from './utils';
@@ -25,6 +26,8 @@ import { withTimeout } from '~/utils/promise';
 import { mcpConfig } from './mcpConfig';
 
 type FetchLike = (url: string | URL, init?: RequestInit) => Promise<Response>;
+type AgentOptions = NonNullable<ConstructorParameters<typeof Agent>[0]>;
+type AgentConnectOptions = Exclude<AgentOptions['connect'], undefined>;
 
 function isStdioOptions(options: t.MCPOptions): options is t.StdioOptions {
   return 'command' in options;
@@ -428,9 +431,9 @@ export class MCPConnection extends EventEmitter {
     getHeaders: () => Record<string, string> | null | undefined,
     timeout?: number,
     sseBodyTimeout?: number,
+    agentConnectOptions?: AgentConnectOptions,
   ): (input: UndiciRequestInfo, init?: UndiciRequestInit) => Promise<UndiciResponse> {
-    const ssrfConnect = this.useSSRFProtection ? createSSRFSafeUndiciConnect() : undefined;
-    const connectOpts = ssrfConnect != null ? { connect: ssrfConnect } : {};
+    const connectOpts = agentConnectOptions != null ? { connect: agentConnectOptions } : {};
     const effectiveTimeout = timeout || DEFAULT_TIMEOUT;
     const postAgent = new Agent({
       bodyTimeout: effectiveTimeout,
@@ -482,6 +485,19 @@ export class MCPConnection extends EventEmitter {
         dispatcher,
       });
     };
+  }
+
+  private createAgentConnectOptions(
+    options?: t.SSEOptions | t.StreamableHTTPOptions,
+  ): AgentConnectOptions | undefined {
+    const connectOptions = {
+      ...(this.useSSRFProtection ? createSSRFSafeUndiciConnect() : {}),
+      ...(options != null ? buildMCPClientTLSConnectOptions(options) ?? {} : {}),
+    };
+
+    return Object.keys(connectOptions).length > 0
+      ? (connectOptions as AgentConnectOptions)
+      : undefined;
   }
 
   private emitError(error: unknown, errorContext: string): void {
@@ -566,13 +582,13 @@ export class MCPConnection extends EventEmitter {
            * The connect timeout is extended because proxies may delay initial response.
            */
           const sseTimeout = this.timeout || SSE_CONNECT_TIMEOUT;
-          const ssrfConnect = this.useSSRFProtection ? createSSRFSafeUndiciConnect() : undefined;
+          const agentConnectOptions = this.createAgentConnectOptions(options);
           const sseAgent = new Agent({
             bodyTimeout: sseTimeout,
             headersTimeout: sseTimeout,
             keepAliveTimeout: sseTimeout,
             keepAliveMaxTimeout: sseTimeout * 2,
-            ...(ssrfConnect != null ? { connect: ssrfConnect } : {}),
+            ...(agentConnectOptions != null ? { connect: agentConnectOptions } : {}),
           });
           this.agents.push(sseAgent);
           const transport = new SSEClientTransport(url, {
@@ -598,6 +614,8 @@ export class MCPConnection extends EventEmitter {
             fetch: this.createFetchFunction(
               this.getRequestHeaders.bind(this),
               sseTimeout,
+              undefined,
+              agentConnectOptions,
             ) as unknown as FetchLike,
           });
 
@@ -636,6 +654,7 @@ export class MCPConnection extends EventEmitter {
               this.getRequestHeaders.bind(this),
               this.timeout,
               this.sseReadTimeout || DEFAULT_SSE_READ_TIMEOUT,
+              this.createAgentConnectOptions(options),
             ) as unknown as FetchLike,
           });
 
