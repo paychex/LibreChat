@@ -33,6 +33,7 @@ export * from './memory';
 export * from './agents';
 /* Prompts */
 export * from './prompts';
+export * from './promptCatalog';
 /* Endpoints */
 export * from './endpoints';
 /* Files */

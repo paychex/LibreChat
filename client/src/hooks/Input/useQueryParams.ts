@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useRef } from 'react';
+import { useToastContext } from '@librechat/client';
 import { useRecoilValue } from 'recoil';
 import { useSearchParams } from 'react-router-dom';
 import { QueryClient, useQueryClient } from '@tanstack/react-query';
@@ -18,10 +19,57 @@ import {
   getConvoSwitchLogic,
   logger,
 } from '~/utils';
-import { useAuthContext, useAgentsMap, useDefaultConvo, useSubmitMessage } from '~/hooks';
+import {
+  useAuthContext,
+  useAgentsMap,
+  useDefaultConvo,
+  useSubmitMessage,
+  useLocalize,
+} from '~/hooks';
 import { useChatContext, useChatFormContext } from '~/Providers';
+import { NotificationSeverity } from '~/common';
 import { useGetAgentByIdQuery } from '~/data-provider';
 import store from '~/store';
+
+const PROMPT_CATALOG_ID_QUERY_PARAM = 'promptCatalogId';
+const LEGACY_PROMPT_CATALOG_ID_QUERY_PARAM = 'prompt_catalog_id';
+
+async function resolvePromptCatalogInsert(promptCatalogId: string, token: string): Promise<string> {
+  const response = await fetch('/api/prompthub/resolve-insert', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ promptCatalogId }),
+  });
+
+  let data: { prompt?: string; content?: string; message?: string } | null = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.message || 'Failed to resolve Prompt Catalog insert');
+  }
+
+  const promptText =
+    typeof data?.content === 'string'
+      ? data.content
+      : typeof data?.prompt === 'string'
+        ? data.prompt
+        : null;
+
+  if (promptText == null) {
+    throw new Error('PromptHub resolve response did not include prompt text');
+  }
+
+  return promptText;
+}
 
 const injectAgentIntoAgentsMap = (queryClient: QueryClient, agent: any) => {
   const editCacheKey = [QueryKeys.agents, { requiredPermission: PermissionBits.EDIT }];
@@ -56,6 +104,9 @@ export default function useQueryParams({
   const settingsAppliedRef = useRef(false);
   const submissionHandledRef = useRef(false);
   const promptTextRef = useRef<string | null>(null);
+  const promptCatalogTextRef = useRef<string | null>(null);
+  const promptCatalogFetchStartedRef = useRef(false);
+  const promptCatalogFailedRef = useRef(false);
   const validSettingsRef = useRef<TPreset | null>(null);
   const settingsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -65,6 +116,9 @@ export default function useQueryParams({
   const modularChat = useRecoilValue(store.modularChat);
   const availableTools = useRecoilValue(store.availableTools);
   const { submitMessage } = useSubmitMessage();
+  const { token, isAuthenticated } = useAuthContext();
+  const { showToast } = useToastContext();
+  const localize = useLocalize();
 
   const queryClient = useQueryClient();
   const { conversation, newConversation } = useChatContext();
@@ -233,22 +287,48 @@ export default function useQueryParams({
         queryParams[key] = value;
       });
 
+      const promptCatalogId =
+        queryParams[PROMPT_CATALOG_ID_QUERY_PARAM] ||
+        queryParams[LEGACY_PROMPT_CATALOG_ID_QUERY_PARAM] ||
+        '';
       // Support both 'prompt' and 'q' as query parameters, with 'prompt' taking precedence
-      const decodedPrompt = queryParams.prompt || queryParams.q || '';
+      const decodedPrompt = promptCatalogId
+        ? promptCatalogTextRef.current || ''
+        : queryParams.prompt || queryParams.q || '';
       const shouldAutoSubmit = queryParams.submit?.toLowerCase() === 'true';
+      delete queryParams[PROMPT_CATALOG_ID_QUERY_PARAM];
+      delete queryParams[LEGACY_PROMPT_CATALOG_ID_QUERY_PARAM];
       delete queryParams.prompt;
       delete queryParams.q;
       delete queryParams.submit;
       const validSettings = processValidSettings(queryParams);
 
-      return { decodedPrompt, validSettings, shouldAutoSubmit };
+      return { decodedPrompt, promptCatalogId, validSettings, shouldAutoSubmit };
+    };
+
+    const handlePromptCatalogFailure = (reason: string) => {
+      processedRef.current = true;
+      logger.warn('conversation', reason);
+      showToast({
+        message: localize('com_ui_prompt_catalog_insert_error'),
+        severity: NotificationSeverity.ERROR,
+      });
+      setSearchParams(new URLSearchParams(), { replace: true });
     };
 
     const intervalId = setInterval(() => {
+      const { decodedPrompt, promptCatalogId, validSettings, shouldAutoSubmit } =
+        processQueryParams();
+
       if (processedRef.current || attemptsRef.current >= maxAttempts) {
         clearInterval(intervalId);
         if (attemptsRef.current >= maxAttempts) {
           console.warn('Max attempts reached, failed to process parameters');
+          if (promptCatalogId && promptCatalogTextRef.current == null) {
+            handlePromptCatalogFailure(
+              'PromptHub insert timed out before Prompt Catalog prompt could be resolved',
+            );
+          }
         }
         return;
       }
@@ -262,9 +342,33 @@ export default function useQueryParams({
       if (!startupConfig) {
         return;
       }
-
-      const { decodedPrompt, validSettings, shouldAutoSubmit } = processQueryParams();
       const hasSettings = Object.keys(validSettings).length > 0;
+
+      if (promptCatalogId && promptCatalogTextRef.current == null) {
+        if (!isAuthenticated || token == null || token === '') {
+          return;
+        }
+
+        attemptsRef.current = Math.max(0, attemptsRef.current - 1);
+
+        if (!promptCatalogFetchStartedRef.current) {
+          promptCatalogFetchStartedRef.current = true;
+          void resolvePromptCatalogInsert(promptCatalogId, token)
+            .then((prompt) => {
+              promptCatalogTextRef.current = prompt;
+            })
+            .catch((error) => {
+              promptCatalogFailedRef.current = true;
+              logger.error('Failed to resolve PromptHub insert:', error);
+            });
+        }
+
+        if (promptCatalogFailedRef.current) {
+          clearInterval(intervalId);
+          handlePromptCatalogFailure('PromptHub insert failed to resolve');
+        }
+        return;
+      }
 
       if (!shouldAutoSubmit) {
         submissionHandledRef.current = true;
@@ -349,6 +453,10 @@ export default function useQueryParams({
     queryClient,
     processSubmission,
     areSettingsApplied,
+    isAuthenticated,
+    token,
+    showToast,
+    localize,
   ]);
 
   useEffect(() => {
@@ -378,7 +486,6 @@ export default function useQueryParams({
     }
   }, [conversation, processSubmission, areSettingsApplied]);
 
-  const { isAuthenticated } = useAuthContext();
   const agentsMap = useAgentsMap({ isAuthenticated });
   useEffect(() => {
     if (urlAgent) {

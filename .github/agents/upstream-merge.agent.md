@@ -77,6 +77,9 @@ For each conflicted file, determine its risk level:
 - `api/server/services/start/tools.js` — sanitizeSchemaMetadata  
 - `api/server/services/MCP.js` — Gemini custom endpoint detection
 - `api/server/services/Files/images/encode.js` — Anthropic image encoding; `includes('claude')||includes('anthropic')` block must appear before `VisionModes.agents` early-return
+- `api/server/routes/prompthub.js` — Prompt Catalog deep-link route; preserve `POST /api/prompthub/resolve-insert`
+- `packages/api/src/promptCatalog/handlers.ts`, `packages/api/src/index.ts` — Prompt Catalog resolver export loaded by `@librechat/api`
+- `client/src/hooks/Input/useQueryParams.ts`, `client/src/routes/ChatRoute.tsx` — `promptCatalogId` handling, timeout/toast behavior, and query-param exclusion
 - `Dockerfile` — && error handling
 - `**/package.json` — xlsx must use npm registry
 
@@ -186,6 +189,21 @@ grep "@librechat/api" api/server/services/Endpoints/index.js
 
 Should see: `initializeCustom, initializeOpenAI, initializeAnthropic, etc.`
 
+**Prompt Catalog deep-link integration:**
+Verify route mounts, resolver export, and client query-param handling:
+```bash
+grep -n "/api/prompthub" api/server/index.js api/server/experimental.js api/server/routes/index.js
+grep -n "createPromptHubResolveInsertHandler" api/server/routes/prompthub.js packages/api/src/index.ts packages/api/src/promptCatalog/handlers.ts
+grep -n "PROMPT_CATALOG_API_URL" .env.example api/server/routes/prompthub.js packages/api/src/promptCatalog/handlers.ts
+grep -n "promptCatalogId\|prompt_catalog_id" client/src/hooks/Input/useQueryParams.ts client/src/routes/ChatRoute.tsx
+grep -n "com_ui_prompt_catalog_insert_error" client/src/hooks/Input/useQueryParams.ts client/src/locales/en/translation.json
+```
+
+If the backend crashes with `createPromptHubResolveInsertHandler is not a function`, rebuild the compiled package that `@librechat/api` exports:
+```bash
+npm run build:api
+```
+
 ### Step 11 — Build and test
 
 ```bash
@@ -224,6 +242,7 @@ Critical customizations verified:
 - filterCrossProviderToolCalls (BaseClient.js)
 - sanitizeSchemaMetadata (tools.js)
 - Gemini custom endpoint detection (MCP.js)
+- Prompt Catalog deep-link integration (`/api/prompthub/resolve-insert`, `promptCatalogId`, `PROMPT_CATALOG_API_URL`)
 - Dockerfile error handling
 - All other Paychex-specific features preserved
 
@@ -265,6 +284,7 @@ Also suggest:
 ❌ **Don't** skip verification steps  
 ❌ **Don't** commit without building and testing  
 ❌ **Don't** forget to fix broken import paths after file moves  
+❌ **Don't** drop the Prompt Catalog route mount, `promptCatalogId` flow, or `@librechat/api` export during refactors  
 
 ✅ **Do** check git history before resolving conflicts  
 ✅ **Do** verify customizations are present after each major step  

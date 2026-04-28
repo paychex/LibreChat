@@ -50,6 +50,11 @@ I need to merge LibreChat upstream version [TARGET_VERSION] into Paychex develop
    - Converts image parts to Anthropic-native format for custom Claude/Anthropic endpoints
    - Without this (or if block order is wrong), image uploads to Claude endpoints throw 400 errors
 
+9. **Prompt Catalog Insert Deep-Link Integration** (`api/server/routes/prompthub.js`, `packages/api/src/promptCatalog/handlers.ts`, `client/src/hooks/Input/useQueryParams.ts`, `client/src/routes/ChatRoute.tsx`)
+   - Patterns: `/api/prompthub/resolve-insert`, `promptCatalogId`, `PROMPT_CATALOG_API_URL`, `com_ui_prompt_catalog_insert_error`
+   - Required for AI Hub Prompt Catalog deep links to open LibreChat with server-side resolved prompt text
+   - Preserve the route mount, `@librechat/api` export, query-param exclusion in `ChatRoute`, and failure timeout/toast behavior
+
 **Requirements:**
 
 ✅ **Must Do:**
@@ -58,6 +63,7 @@ I need to merge LibreChat upstream version [TARGET_VERSION] into Paychex develop
 - Preserve ALL customizations listed above
 - Verify after resolution: `./scripts/verify-paychex-customizations.sh`
 - Build and test before committing
+- Rebuild `@librechat/api` (`npm run build:api`) if merged files under `packages/api/src` changed
 - Ask clarifying questions when uncertain
 
 ❌ **Must Not:**
