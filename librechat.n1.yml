@@ -97,6 +97,17 @@ mcpServers:
     chatMenu: false
     serverInstructions: "TAVILY SEARCH PROTOCOL: (1) Never use tavily_research tool unless the user explicitly includes '/deep-research' in their prompt. For all other queries, use tavily_search which has higher rate limits. If /deep-research is requested, use 'mini' model first, and only escalate to 'pro' if the task clearly requires broader multi-topic coverage. (2) If a search fails or returns errors, analyze the error message, modify the query or parameters, and retry with adjustments. "
     requiresOAuth: false
+  Example MCP (N1 Direct IP):
+    type: streamable-http
+    url: https://10.3.65.16/mcp
+    headers:
+      Host: play.clientssl.ain2a.paychex.com
+    tls:
+      pfx: "${MCP_CLIENTSSL_AIN2A_PFX}"
+      servername: play.clientssl.ain2a.paychex.com
+    startup: true
+    chatMenu: true
+    requiresOAuth: false
 endpoints:
   azureOpenAI:
     # Endpoint-level configuration
