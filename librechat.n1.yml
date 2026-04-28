@@ -101,10 +101,10 @@ mcpServers:
     type: streamable-http
     url: https://10.3.65.16/mcp
     headers:
-      Host: play.clientssl.ain2a.paychex.com
+      Host: is-intose-examplemcp-svc-pyx.n2a-lb.paychex.com
     tls:
       pfx: "${MCP_CLIENTSSL_AIN2A_PFX}"
-      servername: play.clientssl.ain2a.paychex.com
+      servername: is-intose-examplemcp-svc-pyx.n2a-lb.paychex.com
     startup: true
     chatMenu: true
     requiresOAuth: false
