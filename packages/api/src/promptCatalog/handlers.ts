@@ -56,7 +56,7 @@ function buildPromptCatalogPromptUrl(promptCatalogApiUrl: string, promptId: numb
     ? promptCatalogApiUrl
     : `${promptCatalogApiUrl}/`;
 
-  return new URL(`/api/prompts/${promptId}`, normalizedApiUrl).toString();
+  return new URL(`api/prompts/${promptId}`, normalizedApiUrl).toString();
 }
 
 async function parsePromptCatalogResponse(
