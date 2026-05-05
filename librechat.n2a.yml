@@ -15,67 +15,13 @@ modelSpecs:
     - "Gemini 2.5 Flash"
     - "Claude Sonnet 4.5"
   list:
-    - name: azure-gpt-4o
-      label: GPT-4o
-      iconURL: /assets/openai.png
-      showIconInMenu: true
-      showIconInHeader: true
-      default: true
-      description: For daily tasks with a quick response time.
-      preset:
-        endpoint: azureOpenAI
-        model: gpt-4o
-    - name: azure-gpt-4o-mini
-      label: GPT-4o Mini
-      iconURL: /assets/openai.png
-      showIconInMenu: true
-      showIconInHeader: true
-      description: Offers simpler, more instant responses.
-      preset:
-        endpoint: azureOpenAI
-        model: gpt-4o-mini
-    - name: azure-gpt-41
-      label: GPT-4.1
-      iconURL: /assets/openai.png
-      showIconInMenu: true
-      showIconInHeader: true
-      description: For complex reasoning and coding.
-      preset:
-        endpoint: azureOpenAI
-        model: gpt-41
-    - name: azure-gpt-41-mini
-      label: GPT-4.1 Mini
-      iconURL: /assets/openai.png
-      showIconInMenu: true
-      showIconInHeader: true
-      description: A faster, more lightweight version of GPT-4.1.
-      preset:
-        endpoint: azureOpenAI
-        model: gpt-41-mini
-    - name: azure-gpt-5
-      label: GPT-5
-      iconURL: /assets/openai.png
-      showIconInMenu: true
-      showIconInHeader: true
-      description: For advanced tasks with the highest accuracy and reasoning depth.
-      preset:
-        endpoint: azureOpenAI
-        model: gpt-5
-    - name: azure-gpt-5.4
-      label: GPT-5.4
-      iconURL: /assets/openai.png
-      showIconInMenu: true
-      showIconInHeader: true
-      description: For advanced tasks with improved reasoning and coding.
-      preset:
-        endpoint: azureOpenAI
-        model: gpt-5.4
     - name: azure-gpt-5.4-mini
       label: GPT-5.4 Mini
       iconURL: /assets/openai.png
       showIconInMenu: true
       showIconInHeader: true
-      description: A faster, more lightweight version of GPT-5.4.
+      default: true
+      description: For daily tasks with a quick response time.
       preset:
         endpoint: azureOpenAI
         model: gpt-5.4-mini
@@ -84,10 +30,19 @@ modelSpecs:
       iconURL: /assets/openai.png
       showIconInMenu: true
       showIconInHeader: true
-      description: The fastest, most lightweight version of GPT-5.4.
+      description: Offers simpler, more instant responses.
       preset:
         endpoint: azureOpenAI
         model: gpt-5.4-nano
+    - name: azure-gpt-5.4
+      label: GPT-5.4
+      iconURL: /assets/openai.png
+      showIconInMenu: true
+      showIconInHeader: true
+      description: For advanced tasks with the highest accuracy and reasoning depth.
+      preset:
+        endpoint: azureOpenAI
+        model: gpt-5.4
     - name: google-gemini-25-pro
       label: Gemini 2.5 Pro
       iconURL: /assets/google.png
@@ -128,7 +83,7 @@ mcpServers:
 endpoints:
   azureOpenAI:
     # Endpoint-level configuration
-    titleModel: "gpt-4o"
+    titleModel: "gpt-5.4-mini"
     plugins: false
     assistants: false
     groups:
@@ -140,27 +95,12 @@ endpoints:
       version: "2024-10-21"
       # Model-level configuration
       models:
-        gpt-5:
-          deploymentName: gpt-5
-          version: "2024-10-21"
         gpt-5.4:
           deploymentName: gpt-5.4
         gpt-5.4-mini:
           deploymentName: gpt-5.4-mini
         gpt-5.4-nano:
           deploymentName: gpt-5.4-nano
-        gpt-4o:
-          deploymentName: gpt-4o
-          version: "2024-10-21"
-        gpt-4o-mini:
-          deploymentName: gpt-4o-mini
-          version: "2024-10-21"
-        gpt-41:
-          deploymentName: gpt-41
-          version: "2024-10-21"
-        gpt-41-mini:
-          deploymentName: gpt-41-mini
-          version: "2024-10-21"
   custom:
     - name: "Gemini 2.5 Pro"
       apiKey: "${GCP_VERTEXAI_API_KEY}"
@@ -220,7 +160,7 @@ endpoints:
         fetch: true
       titleConvo: true
       titleEndpoint: azureOpenAI
-      titleModel: "gpt-41-mini"
+      titleModel: "gpt-5.4-mini"
       modelDisplayLabel: "LangGraph Agents"
       streamRate: 25
       dropParams:
@@ -243,7 +183,7 @@ endpoints:
         fetch: false
       titleConvo: true
       titleEndpoint: azureOpenAI
-      titleModel: "gpt-41-mini"
+      titleModel: "gpt-5.4-mini"
       modelDisplayLabel: "LangGraph Agents Identification"
       streamRate: 25
       dropParams:
