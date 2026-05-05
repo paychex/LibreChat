@@ -61,7 +61,7 @@ modelSpecs:
       preset:
         endpoint: azureOpenAI
         model: gpt-5
-    - name: azure-gpt-54
+    - name: azure-gpt-5.4
       label: GPT-5.4
       iconURL: /assets/openai.png
       showIconInMenu: true
@@ -69,16 +69,25 @@ modelSpecs:
       description: For advanced tasks with improved reasoning and coding.
       preset:
         endpoint: azureOpenAI
-        model: gpt-54
-    - name: azure-gpt-54-nano
-      label: GPT-5.4 Nano
+        model: gpt-5.4
+    - name: azure-gpt-5.4-mini
+      label: GPT-5.4 Mini
       iconURL: /assets/openai.png
       showIconInMenu: true
       showIconInHeader: true
       description: A faster, more lightweight version of GPT-5.4.
       preset:
         endpoint: azureOpenAI
-        model: gpt-54-nano
+        model: gpt-5.4-mini
+    - name: azure-gpt-5.4-nano
+      label: GPT-5.4 Nano
+      iconURL: /assets/openai.png
+      showIconInMenu: true
+      showIconInHeader: true
+      description: The fastest, most lightweight version of GPT-5.4.
+      preset:
+        endpoint: azureOpenAI
+        model: gpt-5.4-nano
     - name: google-gemini-25-pro
       label: Gemini 2.5 Pro
       iconURL: /assets/google.png
@@ -134,10 +143,12 @@ endpoints:
         gpt-5:
           deploymentName: gpt-5
           version: "2024-10-21"
-        gpt-54:
-          deploymentName: gpt-54
-        gpt-54-nano:
-          deploymentName: gpt-54-nano
+        gpt-5.4:
+          deploymentName: gpt-5.4
+        gpt-5.4-mini:
+          deploymentName: gpt-5.4-mini
+        gpt-5.4-nano:
+          deploymentName: gpt-5.4-nano
         gpt-4o:
           deploymentName: gpt-4o
           version: "2024-10-21"
