@@ -99,9 +99,15 @@ monospace.json
 *.pem
 config.local.ts
 **/storageState.json
+**/storageState.*.json
 junit.xml
 **/.venv/
 **/venv/
+
+# Playwright MCP local runtime artifacts
+.playwright-mcp/
+.playwright-mcp-profile/
+e2e/specs/.test-results-poc/
 
 # docker override file
 docker-compose.override.yaml
@@ -175,3 +181,4 @@ claude-flow.config.json
 claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
+.playwright-mcp-profile/

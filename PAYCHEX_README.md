@@ -187,3 +187,40 @@ All Paychex customizations are maintained on the `develop` branch and follow the
    git branch -d upstream/vX.X.X-integration
    git push origin --delete upstream/vX.X.X-integration
    ```
+
+## Generating E2E Specs with Playwright MCP
+
+The repo includes a Playwright MCP setup that lets an LLM agent (via VS Code Copilot Chat in Agent mode) drive a real browser and generate Playwright spec files for us. See [docs/playwright-mcp-poc.md](docs/playwright-mcp-poc.md) for the full POC findings and recommendation.
+
+### Enable in VS Code
+
+The MCP server is pre-configured in [.vscode/mcp.json](.vscode/mcp.json). To activate it:
+
+1. Open [.vscode/mcp.json](.vscode/mcp.json), click the `▷ Start` codelens above the `"playwright"` entry (or run **MCP: List Servers** from the command palette and start it from there).
+2. Open Copilot Chat in **Agent** mode (dropdown at the bottom of the chat input).
+3. Open the tool picker (Command Palette → **Chat: Configure Tools…**) and confirm the `playwright` tools are enabled.
+
+### Run generated specs
+
+Generated specs live alongside the existing suite at [e2e/specs/](e2e/specs/) with an `mcp-` prefix. They use a lightweight POC config that does not spin up its own backend — start the dev servers first, then run:
+
+```bash
+npm run backend:dev          # in one terminal
+npm run frontend:dev         # in another terminal
+cd e2e
+npx playwright test --config=playwright.config.poc.ts
+```
+
+### Authentication note
+
+Saved `storageState` files go stale quickly because of how the app rotates refresh tokens. The simpler pattern (used by the POC specs) is to log in inline in `beforeEach` — see [e2e/specs/mcp-tools-dropdown.spec.ts](e2e/specs/mcp-tools-dropdown.spec.ts) for an example. A test user with email `tmarkovic@email.com` / password `test1234` exists in local dev.
+
+### Generating new specs
+
+In Copilot Chat (Agent mode) with the playwright tools enabled, prompt the agent to:
+
+1. Log in to http://localhost:3090
+2. Explore the feature you want covered
+3. Save a new spec to `e2e/specs/mcp-<feature-name>.spec.ts`
+
+Then review the generated spec like any other PR — the agent can over-assert from a single observation, so a human pass is required before committing.
