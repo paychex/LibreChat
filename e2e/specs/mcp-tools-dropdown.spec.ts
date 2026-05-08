@@ -6,9 +6,7 @@ type ToolName = (typeof TOOLS)[number];
 
 const openToolsDropdown = async (page: Page) => {
   await page.getByRole('button', { name: 'Tools Options' }).click();
-  await expect(
-    page.getByRole('menuitem', { name: /File Search/ }).first(),
-  ).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: /File Search/ }).first()).toBeVisible();
 };
 
 const closeToolsDropdownIfOpen = async (page: Page) => {

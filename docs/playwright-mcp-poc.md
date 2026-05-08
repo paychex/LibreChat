@@ -4,6 +4,8 @@
 
 **Status:** POC complete. Recommendation: **Adopt with caveats — use as an authoring/exploration tool, not as a runtime test executor.**
 
+> **Looking for setup instructions?** See [playwright-mcp-setup-guide.md](playwright-mcp-setup-guide.md) for an app-agnostic walkthrough other teams can follow.
+
 ---
 
 ## TL;DR
@@ -124,20 +126,3 @@ Playwright MCP is **not LibreChat-specific.** It is a generic browser-automation
 - **Apps tested on mobile viewports** — needs `--viewport-size` flag on the MCP server.
 - **Initial Chromium download behind Zscaler / corp proxy** — we hit a 404 on the headless-shell variant from a Microsoft CDN during install; full Chromium downloaded fine. Other teams may hit similar transient issues.
 
-### Open question for platform / DevEx
-Should Paychex offer a **shared internal Playwright MCP server** (centrally configured, centrally observed) instead of every team running their own via `npx`? This is outside the scope of this ticket but worth raising — pros: central auth handling, central upgrade cadence, usage telemetry; cons: a service to operate. Recommendation: bring this up with whoever owns developer-platform tooling.
-
-### Suggested next step (out of scope for this ticket)
-Write a short cross-team "How to use Playwright MCP at Paychex" doc covering the config snippet, the `.gitignore` entries, the auth caveat, and the proxy gotcha. Could live in Confluence with a copyable config block. Estimated effort: 30 minutes.
-
----
-
-## Follow-up stories
-
-Drafted separately as ticket-ready items. Three stories are proposed (any subset can be picked up):
-
-1. **MCP1** — Productionize the POC infrastructure (commit configs, document workflow)
-2. **MCP2** — Use Playwright MCP to expand E2E coverage to all major features (the actual coverage push)
-3. **MCP3** — Define a CI-gated review workflow for MCP-generated specs
-
-See [playwright-mcp-followup-stories.md](playwright-mcp-followup-stories.md).

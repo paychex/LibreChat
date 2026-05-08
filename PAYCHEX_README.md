@@ -190,7 +190,7 @@ All Paychex customizations are maintained on the `develop` branch and follow the
 
 ## Generating E2E Specs with Playwright MCP
 
-The repo includes a Playwright MCP setup that lets an LLM agent (via VS Code Copilot Chat in Agent mode) drive a real browser and generate Playwright spec files for us. See [docs/playwright-mcp-poc.md](docs/playwright-mcp-poc.md) for the full POC findings and recommendation.
+The repo includes a Playwright MCP setup that lets an LLM agent (via VS Code Copilot Chat in Agent mode) drive a real browser and generate Playwright spec files for us. See [docs/playwright-mcp-poc.md](docs/playwright-mcp-poc.md) for the full POC findings, and [docs/playwright-mcp-setup-guide.md](docs/playwright-mcp-setup-guide.md) for an app-agnostic setup walkthrough.
 
 ### Enable in VS Code
 
