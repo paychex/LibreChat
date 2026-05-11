@@ -9,6 +9,9 @@
  */
 import { chromium, FullConfig } from '@playwright/test';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const BASE_URL = process.env.POC_BASE_URL ?? 'http://localhost:3090';
 const EMAIL = process.env.POC_EMAIL ?? 'tmarkovic@email.com';

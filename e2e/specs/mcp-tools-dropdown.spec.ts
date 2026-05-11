@@ -31,10 +31,13 @@ test.describe('Tools dropdown', () => {
   test.beforeEach(async ({ page }) => {
     // Inline login — saved storageState is unreliable for this app (refresh
     // token rotation makes it stale across runs).
+    const email = process.env.POC_EMAIL ?? 'tmarkovic@email.com';
+    const password = process.env.POC_PASSWORD ?? 'test1234';
+
     await page.goto('/login');
-    await page.locator('input[name="email"]').fill('tmarkovic@email.com');
-    await page.locator('input[name="password"]').fill('test1234');
-    await page.locator('input[name="password"]').press('Enter');
+    await page.getByRole('textbox', { name: 'Email' }).fill(email);
+    await page.getByRole('textbox', { name: 'Password' }).fill(password);
+    await page.getByRole('textbox', { name: 'Password' }).press('Enter');
     await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15000 });
     await page.goto('/c/new');
     await expect(page.getByRole('button', { name: 'Tools Options' })).toBeVisible();
@@ -64,7 +67,7 @@ test.describe('Tools dropdown', () => {
   test('dropdown contains exactly File Search, Web Search, and Artifacts', async ({ page }) => {
     await openToolsDropdown(page);
 
-    const portal = page.locator('#portal\\/tools-dropdown-menu');
+    const portal = page.locator('#portal/tools-dropdown-menu');
     const items = portal.getByRole('menuitem');
     await expect(items).toHaveCount(TOOLS.length);
 
@@ -80,6 +83,8 @@ test.describe('Tools dropdown', () => {
     const expectations: Record<ToolName, RegExp> = {
       'File Search': /Analyze, compare, and contrast large documents/i,
       'Web Search': /search the web for up-to-date information/i,
+      // TODO: Weak assertion — Artifacts menu item is missing a description (product bug).
+      // Once fixed, replace with proper expectation like: /create and modify interactive content/i
       Artifacts: /\S/,
     };
 
