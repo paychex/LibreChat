@@ -250,11 +250,9 @@ describe('refreshOpenIDToken middleware', () => {
 
     await refreshOpenIDToken(req, makeRes(), next);
 
-    expect(openIdClient.refreshTokenGrant).toHaveBeenCalledWith(
-      expect.anything(),
-      'rt',
-      { scope: 'openid profile email' },
-    );
+    expect(openIdClient.refreshTokenGrant).toHaveBeenCalledWith(expect.anything(), 'rt', {
+      scope: 'openid profile email',
+    });
 
     delete process.env.OPENID_SCOPE;
     expect(next).toHaveBeenCalledTimes(1);
