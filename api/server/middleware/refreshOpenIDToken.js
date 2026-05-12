@@ -100,8 +100,7 @@ const refreshOpenIDToken = async (req, res, next) => {
     return next();
   }
 
-  const refreshToken =
-    req.session?.openidTokens?.refreshToken || parsedCookies.refreshToken;
+  const refreshToken = req.session?.openidTokens?.refreshToken || parsedCookies.refreshToken;
 
   if (!refreshToken) {
     logger.warn('[refreshOpenIDToken] Access token expired but no refresh token available');
@@ -145,9 +144,12 @@ const refreshOpenIDToken = async (req, res, next) => {
 
     logger.info('[refreshOpenIDToken] Access token refreshed successfully');
   } catch (err) {
-    logger.warn('[refreshOpenIDToken] Failed to refresh access token — proceeding with expired token', {
-      error: err.message,
-    });
+    logger.warn(
+      '[refreshOpenIDToken] Failed to refresh access token — proceeding with expired token',
+      {
+        error: err.message,
+      },
+    );
   }
 
   return next();
