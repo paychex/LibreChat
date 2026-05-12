@@ -259,4 +259,75 @@ describe('refreshOpenIDToken middleware', () => {
     delete process.env.OPENID_SCOPE;
     expect(next).toHaveBeenCalledTimes(1);
   });
+
+  it('deduplicates concurrent refresh grants for the same user', async () => {
+    const expiredToken = buildTestJwt({ exp: now - 60 });
+    const newTokenset = {
+      access_token: 'new-access-token',
+      id_token: 'new-id-token',
+      refresh_token: 'new-refresh-token',
+      expires_at: now + 3600,
+    };
+    openIdClient.refreshTokenGrant.mockResolvedValue(newTokenset);
+
+    const next1 = jest.fn();
+    const next2 = jest.fn();
+    const req1 = makeReq({
+      user: { id: 'concurrent-user', federatedTokens: { access_token: expiredToken } },
+      session: { openidTokens: { refreshToken: 'rt' } },
+    });
+    const req2 = makeReq({
+      user: { id: 'concurrent-user', federatedTokens: { access_token: expiredToken } },
+      session: { openidTokens: { refreshToken: 'rt' } },
+    });
+
+    await Promise.all([
+      refreshOpenIDToken(req1, makeRes(), next1),
+      refreshOpenIDToken(req2, makeRes(), next2),
+    ]);
+
+    // Only one grant issued despite two concurrent requests
+    expect(openIdClient.refreshTokenGrant).toHaveBeenCalledTimes(1);
+
+    // Both requests receive the fresh token
+    expect(req1.user.federatedTokens.access_token).toBe('new-access-token');
+    expect(req2.user.federatedTokens.access_token).toBe('new-access-token');
+
+    expect(next1).toHaveBeenCalledTimes(1);
+    expect(next2).toHaveBeenCalledTimes(1);
+  });
+
+  it('both concurrent requests fall through when the shared refresh grant fails', async () => {
+    const { logger } = require('@librechat/data-schemas');
+    const expiredToken = buildTestJwt({ exp: now - 60 });
+    openIdClient.refreshTokenGrant.mockRejectedValue(new Error('invalid_grant'));
+
+    const next1 = jest.fn();
+    const next2 = jest.fn();
+    const req1 = makeReq({
+      user: { id: 'concurrent-user-2', federatedTokens: { access_token: expiredToken } },
+      session: { openidTokens: { refreshToken: 'rt' } },
+    });
+    const req2 = makeReq({
+      user: { id: 'concurrent-user-2', federatedTokens: { access_token: expiredToken } },
+      session: { openidTokens: { refreshToken: 'rt' } },
+    });
+
+    await Promise.all([
+      refreshOpenIDToken(req1, makeRes(), next1),
+      refreshOpenIDToken(req2, makeRes(), next2),
+    ]);
+
+    // Only one grant attempt despite two concurrent requests
+    expect(openIdClient.refreshTokenGrant).toHaveBeenCalledTimes(1);
+
+    // Both fall through to next without throwing
+    expect(next1).toHaveBeenCalledTimes(1);
+    expect(next2).toHaveBeenCalledTimes(1);
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to refresh'),
+      expect.objectContaining({ error: 'invalid_grant' }),
+    );
+  });
 });

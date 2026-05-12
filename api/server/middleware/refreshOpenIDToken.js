@@ -8,6 +8,15 @@ const { getOpenIdConfig } = require('~/strategies');
 const { setOpenIDAuthTokens } = require('~/server/services/AuthService');
 
 /**
+ * Per-user in-flight refresh promise map.
+ * Prevents concurrent requests for the same user from each independently calling
+ * refreshTokenGrant and triggering a rotate-on-use invalidation race (invalid_grant).
+ *
+ * @type {Map<string, Promise<unknown>>}
+ */
+const _inflight = new Map();
+
+/**
  * Parse a JWT and return the decoded payload without signature verification.
  * Returns null for opaque tokens (non-JWT strings).
  *
@@ -99,18 +108,29 @@ const refreshOpenIDToken = async (req, res, next) => {
     return next();
   }
 
+  const userId = req.user?.id;
+
   try {
     logger.debug('[refreshOpenIDToken] Access token expired or expiring soon — refreshing');
 
-    const openIdConfig = getOpenIdConfig();
-    const refreshParams = process.env.OPENID_SCOPE ? { scope: process.env.OPENID_SCOPE } : {};
-    const tokenset = await openIdClient.refreshTokenGrant(
-      openIdConfig,
-      refreshToken,
-      refreshParams,
-    );
+    let refreshPromise = userId ? _inflight.get(userId) : null;
 
-    const userId = req.user?.id;
+    if (!refreshPromise) {
+      const openIdConfig = getOpenIdConfig();
+      const refreshParams = process.env.OPENID_SCOPE ? { scope: process.env.OPENID_SCOPE } : {};
+      refreshPromise = openIdClient
+        .refreshTokenGrant(openIdConfig, refreshToken, refreshParams)
+        .finally(() => {
+          if (userId) {
+            _inflight.delete(userId);
+          }
+        });
+      if (userId) {
+        _inflight.set(userId, refreshPromise);
+      }
+    }
+
+    const tokenset = await refreshPromise;
 
     /** Persist new tokens in session + update response cookies */
     setOpenIDAuthTokens(tokenset, req, res, userId, refreshToken);
