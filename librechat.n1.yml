@@ -96,10 +96,13 @@ endpoints:
       models:
         gpt-5.4:
           deploymentName: gpt-5.4
+          version: "2024-06-01"
         gpt-5.4-mini:
           deploymentName: gpt-5.4-mini
+          version: "2024-06-01"
         gpt-5.4-nano:
           deploymentName: gpt-5.4-nano
+          version: "2024-06-01"
   custom:
     - name: "Gemini 2.5 Pro"
       apiKey: "${GCP_VERTEXAI_API_KEY}"
