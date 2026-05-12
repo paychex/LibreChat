@@ -72,8 +72,7 @@ function isAccessTokenExpiredOrExpiringSoon(accessToken, bufferSeconds = 30) {
  * Only active when:
  *   - OPENID_REUSE_TOKENS is enabled (required for token forwarding to agents)
  *   - token_provider cookie is 'openid'
- *   - req.user.federatedTokens contains an access_token
- *   - The access_token is expired or expires within 30 seconds
+ *   - The session access_token is absent (session expired) OR expires within 30 seconds
  *   - A refresh_token is available in the session or refreshToken cookie
  *
  * On refresh failure the middleware logs a warning and proceeds so that the
@@ -95,8 +94,14 @@ const refreshOpenIDToken = async (req, res, next) => {
     return next();
   }
 
-  const accessToken = req.user?.federatedTokens?.access_token;
-  if (!accessToken || !isAccessTokenExpiredOrExpiringSoon(accessToken)) {
+  // Use the session's stored access_token for the expiry check.
+  // When the express session expires (SESSION_EXPIRY, default 15 min), openIdJwtStrategy falls
+  // back to using the id_token (Bearer token) as federatedTokens.access_token. The id_token
+  // has a longer lifetime so isAccessTokenExpiredOrExpiringSoon would return false — but the
+  // id_token is NOT a valid access_token for downstream services like Paxton.
+  // Refresh whenever the session access_token is absent (session expired) OR expiring soon.
+  const sessionAccessToken = req.session?.openidTokens?.accessToken;
+  if (sessionAccessToken && !isAccessTokenExpiredOrExpiringSoon(sessionAccessToken)) {
     return next();
   }
 
