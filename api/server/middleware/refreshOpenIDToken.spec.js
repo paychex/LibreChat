@@ -79,7 +79,7 @@ describe('refreshOpenIDToken middleware', () => {
     expect(openIdClient.refreshTokenGrant).not.toHaveBeenCalled();
   });
 
-  it('calls next immediately when user has no federatedTokens', async () => {
+  it('calls next when no refresh_token is available (no federatedTokens case)', async () => {
     const next = jest.fn();
     await refreshOpenIDToken(makeReq({ user: { id: 'u1' } }), makeRes(), next);
     expect(next).toHaveBeenCalledTimes(1);
