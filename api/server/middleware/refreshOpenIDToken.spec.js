@@ -143,7 +143,7 @@ describe('refreshOpenIDToken middleware', () => {
       session: { openidTokens: {} }, // session expired — no accessToken stored
     });
 
-    await refreshOpenIDToken(req, makeReq(), next);
+    await refreshOpenIDToken(req, makeRes(), next);
 
     expect(openIdClient.refreshTokenGrant).toHaveBeenCalledWith(
       expect.anything(),
