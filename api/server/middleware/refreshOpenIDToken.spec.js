@@ -79,17 +79,18 @@ describe('refreshOpenIDToken middleware', () => {
     expect(openIdClient.refreshTokenGrant).not.toHaveBeenCalled();
   });
 
-  it('calls next immediately when user has no federatedTokens', async () => {
+  it('calls next when no refresh_token is available (no federatedTokens case)', async () => {
     const next = jest.fn();
     await refreshOpenIDToken(makeReq({ user: { id: 'u1' } }), makeRes(), next);
     expect(next).toHaveBeenCalledTimes(1);
     expect(openIdClient.refreshTokenGrant).not.toHaveBeenCalled();
   });
 
-  it('calls next immediately when access_token is still valid', async () => {
+  it('calls next immediately when session access_token is still valid', async () => {
     const validToken = buildTestJwt({ exp: now + 3600 });
     const req = makeReq({
       user: { id: 'u1', federatedTokens: { access_token: validToken } },
+      session: { openidTokens: { accessToken: validToken } },
     });
     const next = jest.fn();
     await refreshOpenIDToken(req, makeRes(), next);
@@ -97,28 +98,60 @@ describe('refreshOpenIDToken middleware', () => {
     expect(openIdClient.refreshTokenGrant).not.toHaveBeenCalled();
   });
 
-  it('calls next without refresh when access_token is an opaque token (no exp)', async () => {
+  it('calls next without refresh when session access_token is an opaque token (no exp)', async () => {
     const next = jest.fn();
     const req = makeReq({
       user: { id: 'u1', federatedTokens: { access_token: 'opaque-token-string' } },
+      session: { openidTokens: { accessToken: 'opaque-token-string' } },
     });
     await refreshOpenIDToken(req, makeRes(), next);
     expect(next).toHaveBeenCalledTimes(1);
     expect(openIdClient.refreshTokenGrant).not.toHaveBeenCalled();
   });
 
-  it('calls next with warning when access_token is expired but no refresh_token available', async () => {
+  it('calls next with warning when session access_token is expired but no refresh_token available', async () => {
     const expiredToken = buildTestJwt({ exp: now - 60 });
     const next = jest.fn();
     cookieLib.parse.mockReturnValue({ token_provider: 'openid' }); // no refreshToken cookie
     const req = makeReq({
       cookieStr: 'token_provider=openid',
       user: { id: 'u1', federatedTokens: { access_token: expiredToken } },
-      session: { openidTokens: {} }, // no refreshToken in session
+      session: { openidTokens: { accessToken: expiredToken } }, // no refreshToken in session
     });
     await refreshOpenIDToken(req, makeRes(), next);
     expect(next).toHaveBeenCalledTimes(1);
     expect(openIdClient.refreshTokenGrant).not.toHaveBeenCalled();
+  });
+
+  it('refreshes when session has expired (no session accessToken) but OIDC refresh_token is available', async () => {
+    // Simulates the root cause: express session expires after ~15 min. openIdJwtStrategy falls
+    // back to using the id_token (Bearer) as access_token. Without a session access_token,
+    // the middleware must refresh to obtain a real access_token for downstream services.
+    const idToken = buildTestJwt({ exp: now + 3600 }); // still-valid id_token used as Bearer
+    const newTokenset = {
+      access_token: 'fresh-access-token',
+      id_token: 'new-id-token',
+      refresh_token: 'new-refresh-token',
+      expires_at: now + 900,
+    };
+    openIdClient.refreshTokenGrant.mockResolvedValue(newTokenset);
+    cookieLib.parse.mockReturnValue({ token_provider: 'openid', refreshToken: 'oidc-refresh' });
+
+    const next = jest.fn();
+    const req = makeReq({
+      user: { id: 'u1', federatedTokens: { access_token: idToken } }, // id_token masquerading as access_token
+      session: { openidTokens: {} }, // session expired — no accessToken stored
+    });
+
+    await refreshOpenIDToken(req, makeRes(), next);
+
+    expect(openIdClient.refreshTokenGrant).toHaveBeenCalledWith(
+      expect.anything(),
+      'oidc-refresh',
+      expect.anything(),
+    );
+    expect(req.user.federatedTokens.access_token).toBe('fresh-access-token');
+    expect(next).toHaveBeenCalledTimes(1);
   });
 
   it('refreshes expired access_token using session refresh_token', async () => {
@@ -134,7 +167,7 @@ describe('refreshOpenIDToken middleware', () => {
     const next = jest.fn();
     const req = makeReq({
       user: { id: 'u1', federatedTokens: { access_token: expiredToken } },
-      session: { openidTokens: { refreshToken: 'old-refresh-token' } },
+      session: { openidTokens: { accessToken: expiredToken, refreshToken: 'old-refresh-token' } },
     });
     const res = makeRes();
 
@@ -175,7 +208,7 @@ describe('refreshOpenIDToken middleware', () => {
     const next = jest.fn();
     const req = makeReq({
       user: { id: 'u1', federatedTokens: { access_token: expiredToken } },
-      session: { openidTokens: {} }, // no refreshToken in session
+      session: { openidTokens: { accessToken: expiredToken } }, // no refreshToken in session, falls back to cookie
     });
 
     await refreshOpenIDToken(req, makeRes(), next);
@@ -202,7 +235,7 @@ describe('refreshOpenIDToken middleware', () => {
     const next = jest.fn();
     const req = makeReq({
       user: { id: 'u1', federatedTokens: { access_token: soonExpiring } },
-      session: { openidTokens: { refreshToken: 'old-refresh-token' } },
+      session: { openidTokens: { accessToken: soonExpiring, refreshToken: 'old-refresh-token' } },
     });
 
     await refreshOpenIDToken(req, makeRes(), next);
@@ -219,7 +252,7 @@ describe('refreshOpenIDToken middleware', () => {
     const next = jest.fn();
     const req = makeReq({
       user: { id: 'u1', federatedTokens: { access_token: expiredToken } },
-      session: { openidTokens: { refreshToken: 'stale-refresh-token' } },
+      session: { openidTokens: { accessToken: expiredToken, refreshToken: 'stale-refresh-token' } },
     });
 
     await refreshOpenIDToken(req, makeRes(), next);
@@ -245,7 +278,7 @@ describe('refreshOpenIDToken middleware', () => {
     const next = jest.fn();
     const req = makeReq({
       user: { id: 'u1', federatedTokens: { access_token: expiredToken } },
-      session: { openidTokens: { refreshToken: 'rt' } },
+      session: { openidTokens: { accessToken: expiredToken, refreshToken: 'rt' } },
     });
 
     await refreshOpenIDToken(req, makeRes(), next);
@@ -272,11 +305,11 @@ describe('refreshOpenIDToken middleware', () => {
     const next2 = jest.fn();
     const req1 = makeReq({
       user: { id: 'concurrent-user', federatedTokens: { access_token: expiredToken } },
-      session: { openidTokens: { refreshToken: 'rt' } },
+      session: { openidTokens: { accessToken: expiredToken, refreshToken: 'rt' } },
     });
     const req2 = makeReq({
       user: { id: 'concurrent-user', federatedTokens: { access_token: expiredToken } },
-      session: { openidTokens: { refreshToken: 'rt' } },
+      session: { openidTokens: { accessToken: expiredToken, refreshToken: 'rt' } },
     });
 
     await Promise.all([
@@ -304,11 +337,11 @@ describe('refreshOpenIDToken middleware', () => {
     const next2 = jest.fn();
     const req1 = makeReq({
       user: { id: 'concurrent-user-2', federatedTokens: { access_token: expiredToken } },
-      session: { openidTokens: { refreshToken: 'rt' } },
+      session: { openidTokens: { accessToken: expiredToken, refreshToken: 'rt' } },
     });
     const req2 = makeReq({
       user: { id: 'concurrent-user-2', federatedTokens: { access_token: expiredToken } },
-      session: { openidTokens: { refreshToken: 'rt' } },
+      session: { openidTokens: { accessToken: expiredToken, refreshToken: 'rt' } },
     });
 
     await Promise.all([
