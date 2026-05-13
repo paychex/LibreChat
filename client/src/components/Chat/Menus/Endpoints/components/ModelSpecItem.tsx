@@ -46,7 +46,8 @@ export function ModelSpecItem({ spec, isSelected }: ModelSpecItemProps) {
                 aria-label={localize('com_ui_default_model_aria')}
                 title={localize('com_ui_default_model_aria')}
               >
-                ★ {localize('com_ui_default_model')}
+                {/* eslint-disable-next-line i18next/no-literal-string */}
+                <span aria-hidden="true">★</span> {localize('com_ui_default_model')}
               </span>
             )}
           </span>
