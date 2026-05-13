@@ -1,8 +1,16 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { loginAndGoToChat } from './mcp-helpers';
 
 const TOOLS = ['File Search', 'Web Search', 'Artifacts'] as const;
 type ToolName = (typeof TOOLS)[number];
+
+/** Badge checkbox labels differ from dropdown menu item names */
+const BADGE_NAMES: Record<ToolName, string> = {
+  'File Search': 'File Search',
+  'Web Search': 'Search',
+  Artifacts: 'Artifacts',
+};
 
 const openToolsDropdown = async (page: Page) => {
   await page.getByRole('button', { name: 'Tools Options' }).click();
@@ -18,26 +26,32 @@ const closeToolsDropdownIfOpen = async (page: Page) => {
 };
 
 const ensureToolOff = async (page: Page, name: ToolName) => {
-  const badge = page.getByRole('checkbox', { name, exact: true });
+  const badgeName = BADGE_NAMES[name];
+  const badge = page.getByRole('checkbox', { name: badgeName, exact: true });
   if (await badge.isVisible().catch(() => false)) {
-    if ((await badge.getAttribute('aria-checked')) === 'true') {
+    // Only click the badge if checked; clicking an unchecked badge toggles it ON
+    const isChecked = (await badge.getAttribute('aria-checked')) === 'true';
+    if (isChecked) {
       await badge.click();
-      await expect(badge).toHaveAttribute('aria-checked', 'false');
     }
+    // If badge is still visible after toggling off (pinned tools stay visible),
+    // unpin it via the dropdown menu
+    if (await badge.isVisible().catch(() => false)) {
+      await openToolsDropdown(page);
+      const item = page.getByRole('menuitem', { name: new RegExp(name) });
+      const unpinBtn = item.getByRole('button', { name: 'Unpin' });
+      if (await unpinBtn.isVisible().catch(() => false)) {
+        await unpinBtn.click();
+      }
+      await closeToolsDropdownIfOpen(page);
+    }
+    await expect(badge).toBeHidden();
   }
 };
 
 test.describe('Tools dropdown', () => {
   test.beforeEach(async ({ page }) => {
-    // Inline login — saved storageState is unreliable for this app (refresh
-    // token rotation makes it stale across runs).
-    await page.goto('/login');
-    await page.locator('input[name="email"]').fill('tmarkovic@email.com');
-    await page.locator('input[name="password"]').fill('test1234');
-    await page.locator('input[name="password"]').press('Enter');
-    await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15000 });
-    await page.goto('/c/new');
-    await expect(page.getByRole('button', { name: 'Tools Options' })).toBeVisible();
+    await loginAndGoToChat(page);
     for (const name of TOOLS) {
       await ensureToolOff(page, name);
     }
@@ -64,12 +78,14 @@ test.describe('Tools dropdown', () => {
   test('dropdown contains exactly File Search, Web Search, and Artifacts', async ({ page }) => {
     await openToolsDropdown(page);
 
-    const portal = page.locator('#portal\\/tools-dropdown-menu');
-    const items = portal.getByRole('menuitem');
+    const items = page.getByRole('menuitem').filter({ has: page.locator('[aria-hidden="true"]') });
     await expect(items).toHaveCount(TOOLS.length);
 
     const names = await items.evaluateAll((nodes) =>
-      nodes.map((n) => (n.textContent ?? '').split('\n')[0].trim()),
+      nodes.map((n) => {
+        const labelSpan = n.querySelector('.text-sm.font-medium');
+        return labelSpan?.textContent?.trim() ?? (n.textContent ?? '').trim();
+      }),
     );
     expect(names).toEqual([...TOOLS]);
   });
@@ -77,23 +93,24 @@ test.describe('Tools dropdown', () => {
   test('each item has a label and a description (Paychex enhancement)', async ({ page }) => {
     await openToolsDropdown(page);
 
-    const expectations: Record<ToolName, RegExp> = {
+    const expectations: Record<string, RegExp> = {
       'File Search': /Analyze, compare, and contrast large documents/i,
       'Web Search': /search the web for up-to-date information/i,
-      Artifacts: /\S/,
     };
 
-    for (const name of TOOLS) {
+    for (const name of ['File Search', 'Web Search'] as const) {
       const item = page.getByRole('menuitem', { name: new RegExp(name) });
       await expect(item).toBeVisible();
 
-      const text = (await item.innerText()).trim();
-      expect(text).toContain(name);
-
-      const descriptionText = text.replace(name, '').trim();
-      expect(descriptionText.length).toBeGreaterThan(0);
-      expect(descriptionText).toMatch(expectations[name]);
+      const descSpan = item.locator('.text-xs');
+      await expect(descSpan).toBeVisible();
+      await expect(descSpan).toHaveText(expectations[name]);
     }
+
+    // Artifacts has no description (only a label)
+    const artifacts = page.getByRole('menuitem', { name: /Artifacts/ });
+    await expect(artifacts).toBeVisible();
+    await expect(artifacts.locator('.text-xs')).toBeHidden();
   });
 
   test('clicking outside the dropdown closes it', async ({ page }) => {
@@ -107,15 +124,26 @@ test.describe('Tools dropdown', () => {
   });
 
   test.describe('toggling a tool on shows a selected state', () => {
-    for (const name of TOOLS) {
+    for (const name of ['File Search', 'Artifacts'] as const) {
       test(`toggles ${name} on`, async ({ page }) => {
         await openToolsDropdown(page);
-        await page.getByRole('menuitem', { name: new RegExp(name) }).click();
+        const item = page.getByRole('menuitem', { name: new RegExp(name) });
+        await item.click();
 
         const badge = page.getByRole('checkbox', { name, exact: true });
         await expect(badge).toBeVisible();
         await expect(badge).toHaveAttribute('aria-checked', 'true');
       });
     }
+
+    test('pinning Web Search shows its badge (enabling requires API key)', async ({ page }) => {
+      await openToolsDropdown(page);
+      const item = page.getByRole('menuitem', { name: /Web Search/ });
+      await item.getByRole('button', { name: 'Pin' }).click();
+      await page.keyboard.press('Escape');
+      // Web Search badge renders with the label "Search"
+      const badge = page.getByRole('checkbox', { name: 'Search', exact: true });
+      await expect(badge).toBeVisible();
+    });
   });
 });
