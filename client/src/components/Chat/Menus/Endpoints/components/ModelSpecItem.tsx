@@ -38,7 +38,19 @@ export function ModelSpecItem({ spec, isSelected }: ModelSpecItemProps) {
           </div>
         )}
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="truncate text-left">{spec.label}</span>
+          <span className="flex min-w-0 items-center gap-1.5 text-left">
+            <span className="truncate">{spec.label}</span>
+            {spec.default === true && (
+              <span
+                className="inline-flex items-center gap-0.5 rounded border border-yellow-500/60 bg-yellow-400/10 px-1 py-0.5 text-[10px] font-semibold leading-none text-yellow-600 dark:border-yellow-400/50 dark:text-yellow-400"
+                aria-label={localize('com_ui_default_model_aria')}
+                title={localize('com_ui_default_model_aria')}
+              >
+                {/* eslint-disable-next-line i18next/no-literal-string */}
+                <span aria-hidden="true">★</span> {localize('com_ui_default_model')}
+              </span>
+            )}
+          </span>
           {spec.description && (
             <span className="break-words text-xs font-normal">{spec.description}</span>
           )}

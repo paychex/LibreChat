@@ -905,6 +905,8 @@
   "com_ui_date_today": "Today",
   "com_ui_date_yesterday": "Yesterday",
   "com_ui_decline": "I do not accept",
+  "com_ui_default_model": "DEFAULT",
+  "com_ui_default_model_aria": "Default model",
   "com_ui_default_post_request": "Default (POST request)",
   "com_ui_delete": "Delete",
   "com_ui_delete_action": "Delete Action",
