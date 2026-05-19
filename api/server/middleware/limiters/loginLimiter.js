@@ -25,6 +25,7 @@ const limiterOptions = {
   windowMs,
   max,
   handler,
+  skipSuccessfulRequests: true,
   keyGenerator: removePorts,
   store: limiterCache('login_limiter'),
 };
