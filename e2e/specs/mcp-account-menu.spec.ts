@@ -13,7 +13,7 @@ test.describe('Account menu', () => {
 
   test('contains the expected items in order', async ({ page }) => {
     await page.getByTestId('nav-user').click();
-    const expected = ['My Files', 'Help & FAQ', 'Settings', 'Log out'];
+    const expected = ['My Files', 'Help & FAQ', 'Paychex Changelog', 'Settings', 'Log out'];
     for (const name of expected) {
       await expect(page.getByRole('menuitem', { name })).toBeVisible();
     }

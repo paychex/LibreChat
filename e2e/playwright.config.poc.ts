@@ -1,5 +1,4 @@
 import { defineConfig, devices } from '@playwright/test';
-import fs from 'fs';
 import path from 'path';
 
 /**
@@ -9,14 +8,13 @@ import path from 'path';
  *   npm run backend:dev
  *   npm run frontend:dev
  *
- * If storageState.poc.json exists (created by setup/login-poc.ts), it will be
- * loaded so tests start authenticated. Otherwise tests start unauthenticated.
+ * globalSetup creates storageState.poc.json before tests run, so all tests
+ * start authenticated.
  *
  * Run with:
  *   cd e2e && npx playwright test --config=playwright.config.poc.ts
  */
 const storageStatePath = path.resolve(__dirname, 'storageState.poc.json');
-const storageState = fs.existsSync(storageStatePath) ? storageStatePath : undefined;
 
 export default defineConfig({
   testDir: 'specs/',
@@ -25,7 +23,6 @@ export default defineConfig({
   globalSetup: require.resolve('./setup/global-setup-poc'),
   fullyParallel: false,
   retries: 0,
-  workers: 1,
   reporter: [['list']],
   use: {
     baseURL: 'http://localhost:3090',
@@ -33,7 +30,7 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
-    storageState,
+    storageState: storageStatePath,
   },
   expect: { timeout: 10000 },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
