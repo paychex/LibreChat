@@ -1,4 +1,5 @@
 import React, { useEffect, memo } from 'react';
+import { ExternalLink } from 'lucide-react';
 import TagManager from 'react-gtm-module';
 import ReactMarkdown from 'react-markdown';
 import { Constants } from 'librechat-data-provider';
@@ -71,6 +72,21 @@ function Footer({ className }: { className?: string }) {
     Boolean,
   );
 
+  const changelogURL = config?.changelogURL;
+  const changelogRender = changelogURL && changelogURL !== '/' && (
+    <a
+      href={changelogURL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-1 text-text-secondary underline hover:text-text-primary"
+    >
+      {localize('com_nav_changelog')}
+      <ExternalLink className="h-3 w-3" aria-hidden="true" />
+    </a>
+  );
+
+  const allFooterElements = [...footerElements, changelogRender].filter(Boolean);
+
   return (
     <div className="relative w-full">
       <div
@@ -80,8 +96,8 @@ function Footer({ className }: { className?: string }) {
         }
         role="contentinfo"
       >
-        {footerElements.map((contentRender, index) => {
-          const isLastElement = index === footerElements.length - 1;
+        {allFooterElements.map((contentRender, index) => {
+          const isLastElement = index === allFooterElements.length - 1;
           return (
             <React.Fragment key={`footer-element-${index}`}>
               {contentRender}
