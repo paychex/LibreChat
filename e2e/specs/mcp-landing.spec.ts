@@ -1,8 +1,10 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Landing page (login)', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:3090');
+    await page.goto('http://localhost:3080');
   });
 
   test('redirects to /login and renders the login UI', async ({ page }) => {
