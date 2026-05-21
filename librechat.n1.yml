@@ -108,6 +108,28 @@ mcpServers:
     startup: true
     chatMenu: true
     requiresOAuth: false
+  ServiceNow MCP:
+    type: streamable-http
+    url: https://10.3.65.16/mcp
+    headers:
+      Host: corp-intose-mcpservicenow-mcp-pyx.n2a-lb.paychex.com
+    tls:
+      pfx: "${MCP_CLIENTSSL_AIN2A_PFX}"
+      servername: corp-intose-mcpservicenow-mcp-pyx.n2a-lb.paychex.com
+    startup: true
+    chatMenu: true
+    requiresOAuth: false
+  Bitbucket MCP:
+    type: streamable-http
+    url: https://10.3.65.16/mcp
+    headers:
+      Host: corp-intose-mcpbitbucket-mcp-pyx.n2a-lb.paychex.com
+    tls:
+      pfx: "${MCP_CLIENTSSL_AIN2A_PFX}"
+      servername: corp-intose-mcpbitbucket-mcp-pyx.n2a-lb.paychex.com
+    startup: true
+    chatMenu: true
+    requiresOAuth: false
 endpoints:
   azureOpenAI:
     # Endpoint-level configuration
