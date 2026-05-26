@@ -205,15 +205,31 @@ The MCP server is pre-configured in [.vscode/mcp.json](.vscode/mcp.json). To act
 Generated specs live alongside the existing suite at [e2e/specs/](e2e/specs/) with an `mcp-` prefix. Run them with:
 
 ```bash
-npm run e2e:seed             # create test account (first time only)
+npm run e2e:seed             # create test account in local MongoDB (first time only)
 npm run e2e:ci:deployed      # runs all MCP + smoke specs (auto-starts server if localhost)
 ```
 
-Set `E2E_BASE_URL` in `.env` to target local (`http://localhost:3080`) or a deployed environment (`https://play.ain2a.paychex.com`).
+Set these in `.env`:
 
-### Authentication note
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `E2E_BASE_URL` | Target environment | `http://localhost:3080` or `https://play.ain2a.paychex.com` |
+| `E2E_USERNAME` | Test account email | `libre_playwright_np@paychex.com` |
+| `E2E_PASSWORD` | Test account password | *(see team vault)* |
 
-The CI config uses a global-setup that authenticates once and saves session state. For local testing, it uses the email/password form with credentials from `E2E_USERNAME`/`E2E_PASSWORD`. For deployed environments, it uses Azure AD + ADFS.
+### Authentication behavior
+
+The CI config (`e2e/playwright.config.ci.ts`) uses a global-setup that authenticates once and saves session state.
+
+- **Local (`localhost`):** Uses the email/password login form. Run `npm run e2e:seed` first to create the test account with ADMIN permissions in MongoDB.
+- **Deployed (non-localhost):** Uses Azure AD → Microsoft login → ADFS. On CI runners (not domain-joined), the ADFS form appears and the service account credentials are submitted. On domain-joined dev machines, Kerberos auto-authenticates as **your Windows identity** (not the service account) — this is expected and acceptable for local development.
+
+#### Service account requirements
+
+| Account | Environments | AD Group Required |
+|---------|-------------|-------------------|
+| `libre_playwright_np@paychex.com` | N2A, N1 | Yes — must be in the app's access group |
+| `libre_playwright_pr@paychex.com` | Prod | Yes — must be in the app's access group |
 
 ### Generating new specs
 
