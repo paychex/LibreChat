@@ -24,7 +24,7 @@ test.describe('Smoke Tests — Deployed Environment', () => {
 
     await page.getByTestId('nav-user').click();
     // User menu should show options like Settings, Log out
-    const settingsOption = page.getByText('Settings');
+    const settingsOption = page.getByRole('menuitem', { name: 'Settings' });
     await expect(settingsOption).toBeVisible({ timeout: 5000 });
   });
 
@@ -33,13 +33,14 @@ test.describe('Smoke Tests — Deployed Environment', () => {
     await page.waitForSelector('[data-testid="nav-user"]', { timeout: 15000 });
 
     await page.getByTestId('nav-user').click();
-    await page.getByText('Settings').click();
+    const settingsItem = page.getByRole('menuitem', { name: 'Settings' });
+    await expect(settingsItem).toBeVisible({ timeout: 5000 });
+    await settingsItem.click();
 
-    const modal = page.getByRole('dialog', { name: 'Settings' });
-    await expect(modal).toBeVisible({ timeout: 5000 });
-
-    const heading = page.getByRole('heading', { name: 'Settings' });
-    await expect(heading).toBeVisible();
+    // Headless UI dialog may report hidden to the accessibility tree;
+    // validate via the heading inside the modal (proven pattern from mcp-helpers)
+    const heading = page.getByRole('heading', { name: 'Settings', level: 2 });
+    await expect(heading).toBeVisible({ timeout: 5000 });
   });
 
   test('New chat input is available', async ({ page }) => {
