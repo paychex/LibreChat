@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test';
 
+// These tests exercise the local registration link — skip on deployed
+// environments where login is via OpenID only.
+const isLocal = (process.env.E2E_BASE_URL || '').includes('localhost');
+test.skip(!isLocal, 'Register link tests only apply to local environments');
+
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test.describe('Register link from login page', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/login');

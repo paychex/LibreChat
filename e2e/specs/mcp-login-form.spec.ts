@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test';
 
+// These tests exercise the local email/password login form — skip on deployed
+// environments where login is via OpenID only.
+const isLocal = (process.env.E2E_BASE_URL || '').includes('localhost');
+test.skip(!isLocal, 'Login form tests only apply to local environments');
+
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test.describe('Login form validation', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/login');

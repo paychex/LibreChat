@@ -3,7 +3,7 @@ import { expect } from '@playwright/test';
 
 /**
  * Navigate to a fresh chat. Relies on the storageState created by
- * `setup/global-setup-poc.ts` so every test run gets a single login,
+ * global-setup-ci.ts so every test run gets a single login,
  * avoiding rate-limit / token-rotation issues that plagued inline logins.
  *
  * If the storage state is missing or stale, the page will redirect to
@@ -18,14 +18,47 @@ export const loginAndGoToChat = async (page: Page): Promise<void> => {
   await expect(modelBtn.or(loginForm)).toBeVisible({ timeout: 15000 });
 
   if (await loginForm.isVisible().catch(() => false)) {
-    const POC_EMAIL = process.env.POC_EMAIL ?? 'tmarkovic@email.com';
-    const POC_PASSWORD = process.env.POC_PASSWORD ?? 'test1234';
+    const POC_EMAIL = process.env.POC_EMAIL ?? process.env.E2E_USERNAME ?? 'tmarkovic@email.com';
+    const POC_PASSWORD = process.env.POC_PASSWORD ?? process.env.E2E_PASSWORD ?? 'test1234';
     await page.getByRole('textbox', { name: 'Email' }).fill(POC_EMAIL);
     await page.getByRole('textbox', { name: 'Password' }).fill(POC_PASSWORD);
     await page.getByRole('button', { name: 'Continue' }).click();
     await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15000 });
     await page.goto('/c/new', { waitUntil: 'domcontentloaded' });
     await expect(modelBtn).toBeVisible({ timeout: 15000 });
+  }
+
+  // Dismiss onboarding modal if present (appears for fresh accounts)
+  await dismissOnboardingModal(page);
+};
+
+/**
+ * Dismiss the onboarding/tutorial modal that appears for new users.
+ * Clicks through all "Next" steps and then the final dismiss button.
+ * No-ops silently if the modal is not present.
+ */
+export const dismissOnboardingModal = async (page: Page): Promise<void> => {
+  const closeBtn = page.getByRole('button', { name: 'Close' });
+  const nextBtn = page.getByRole('button', { name: 'Next' });
+
+  // Give the modal a moment to appear (it may animate in)
+  const modalVisible = await nextBtn.isVisible({ timeout: 2000 }).catch(() => false)
+    || await closeBtn.isVisible({ timeout: 500 }).catch(() => false);
+  if (!modalVisible) return;
+
+  // Click through all "Next" steps until only "Close" remains
+  for (let i = 0; i < 10; i++) {
+    if (await nextBtn.isVisible().catch(() => false)) {
+      await nextBtn.click();
+      await page.waitForTimeout(300);
+    } else {
+      break;
+    }
+  }
+
+  // Dismiss the final step
+  if (await closeBtn.isVisible().catch(() => false)) {
+    await closeBtn.click();
   }
 };
 

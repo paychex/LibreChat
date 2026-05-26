@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test';
 
+// Theme toggle on the login page — skip on deployed environments where
+// the login page is OpenID-only and may not render the toggle.
+const isLocal = (process.env.E2E_BASE_URL || '').includes('localhost');
+test.skip(!isLocal, 'Theme toggle (login page) tests only apply to local environments');
+
+test.use({ storageState: { cookies: [], origins: [] } });
+
 const isDark = async (page: import('@playwright/test').Page): Promise<boolean> =>
   page.evaluate(() => document.documentElement.classList.contains('dark'));
 
