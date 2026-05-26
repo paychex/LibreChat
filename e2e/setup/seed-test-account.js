@@ -43,9 +43,9 @@ async function seedTestAccount() {
     if (existing) {
       await users.updateOne(
         { email },
-        { $set: { password: hashedPassword } },
+        { $set: { password: hashedPassword, role: 'ADMIN' } },
       );
-      console.log(`✓ Updated password for existing test account: ${email}`);
+      console.log(`✓ Updated password and role for existing test account: ${email} (role: ADMIN)`);
     } else {
       await users.insertOne({
         name: username,
@@ -54,7 +54,7 @@ async function seedTestAccount() {
         password: hashedPassword,
         provider: 'local',
         emailVerified: true,
-        role: 'USER',
+        role: 'ADMIN',
         avatar: null,
         createdAt: new Date(),
         updatedAt: new Date(),
