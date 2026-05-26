@@ -1,8 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Lightweight Playwright config for the Playwright MCP POC.
@@ -23,7 +20,7 @@ export default defineConfig({
   testDir: 'specs/',
   outputDir: 'specs/.test-results-poc',
   testMatch: /mcp-.*\.spec\.ts/,
-  globalSetup: path.resolve(__dirname, 'setup', 'global-setup-poc.ts'),
+  globalSetup: require.resolve('./setup/global-setup-poc'),
   fullyParallel: false,
   retries: 0,
   reporter: [['list']],

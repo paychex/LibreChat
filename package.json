@@ -53,6 +53,7 @@
     "frontend:ci": "npm run build:data-provider && npm run build:client-package && cd client && npm run build:ci",
     "frontend:dev": "cd client && npm run dev",
     "e2e": "playwright test --config=e2e/playwright.config.local.ts",
+    "e2e:playwright": "playwright test --config=e2e/playwright.config.poc.ts",
     "e2e:headed": "playwright test --config=e2e/playwright.config.local.ts --headed",
     "e2e:a11y": "playwright test --config=e2e/playwright.config.a11y.ts --headed",
     "e2e:ci": "playwright test --config=e2e/playwright.config.ts",
