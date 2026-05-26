@@ -1,10 +1,12 @@
 import { defineConfig, devices } from '@playwright/test';
 import path from 'path';
+import dotenv from 'dotenv';
+dotenv.config();
 
 /**
  * Playwright config for CI E2E tests against deployed environments.
  *
- * Required environment variables:
+ * Required environment variables (set in .env or export directly):
  *   E2E_BASE_URL  — The deployed LibreChat URL (e.g. https://play.ain2a.paychex.com)
  *   E2E_USERNAME  — Test account username (e.g. libre_playwright_np@paychex.com)
  *   E2E_PASSWORD  — Test account password
