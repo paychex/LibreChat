@@ -202,18 +202,18 @@ The MCP server is pre-configured in [.vscode/mcp.json](.vscode/mcp.json). To act
 
 ### Run generated specs
 
-Generated specs live alongside the existing suite at [e2e/specs/](e2e/specs/) with an `mcp-` prefix. They use a lightweight POC config that does not spin up its own backend — start the dev servers first, then run:
+Generated specs live alongside the existing suite at [e2e/specs/](e2e/specs/) with an `mcp-` prefix. Run them with:
 
 ```bash
-npm run backend:dev          # in one terminal
-npm run frontend:dev         # in another terminal
-cd e2e
-npx playwright test --config=playwright.config.poc.ts
+npm run e2e:seed             # create test account (first time only)
+npm run e2e:ci:deployed      # runs all MCP + smoke specs (auto-starts server if localhost)
 ```
+
+Set `E2E_BASE_URL` in `.env` to target local (`http://localhost:3080`) or a deployed environment (`https://play.ain2a.paychex.com`).
 
 ### Authentication note
 
-Saved `storageState` files go stale quickly because of how the app rotates refresh tokens. The simpler pattern (used by the POC specs) is to log in inline in `beforeEach` — see [e2e/specs/mcp-tools-dropdown.spec.ts](e2e/specs/mcp-tools-dropdown.spec.ts) for an example. A test user with email `tmarkovic@email.com` / password `test1234` exists in local dev.
+The CI config uses a global-setup that authenticates once and saves session state. For local testing, it uses the email/password form with credentials from `E2E_USERNAME`/`E2E_PASSWORD`. For deployed environments, it uses Azure AD + ADFS.
 
 ### Generating new specs
 
