@@ -60,6 +60,9 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
     await page.waitForURL(/adfs|sts/, { timeout: 15000 });
     console.log('  ✓ Redirected to ADFS');
 
+    // ADFS expects just the username (without @domain), not the full email
+    const adfsUsername = USERNAME.split('@')[0];
+
     // Fill the ADFS sign-in form
     // ADFS typically has a usernamemixed form with #userNameInput and #passwordInput
     const usernameInput = page.locator('#userNameInput, input[name="UserName"], input[name="username"]').first();
@@ -67,7 +70,7 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
     const submitButton = page.locator('#submitButton, input[type="submit"], button[type="submit"]').first();
 
     await usernameInput.waitFor({ state: 'visible', timeout: 10000 });
-    await usernameInput.fill(USERNAME);
+    await usernameInput.fill(adfsUsername);
     await passwordInput.fill(PASSWORD);
     await submitButton.click();
     console.log('  ✓ Submitted credentials on ADFS');
