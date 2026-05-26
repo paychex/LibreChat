@@ -63,13 +63,13 @@ async function loginAzureAD(page: Page, baseUrl: string, email: string, password
   console.log('  ✓ Submitted email on Microsoft login');
 
   // After Microsoft redirects, we may land on:
-  //   a) ADFS form (CI runners / non-domain-joined machines)
+  //   a) ADFS form (CI runners / non-domain-joined machines / incognito)
   //   b) Directly back to LibreChat (domain-joined machines via Kerberos/NTLM)
   const baseOrigin = new URL(baseUrl).origin;
   await page.waitForURL((url) => {
     const href = url.href.toLowerCase();
     return href.includes('adfs') || href.includes('sts') || url.origin === baseOrigin;
-  }, { timeout: 30000 });
+  }, { timeout: 30000, waitUntil: 'domcontentloaded' });
 
   const currentUrl = page.url();
   if (currentUrl.includes('adfs') || currentUrl.includes('sts')) {
@@ -114,14 +114,11 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
   const method = useLocal ? 'local email/password' : 'Azure AD';
   console.log(`🧪 Global Setup: authenticating ${USERNAME} against ${BASE_URL} (${method})`);
 
-  const browser = await chromium.launch({
-    headless: true,
-    args: useLocal ? [] : [
-      '--disable-features=IsolateOrigins,site-per-process',
-      '--auth-server-whitelist="_"',
-      '--auth-negotiate-delegate-whitelist="_"',
-    ],
-  });
+  // On domain-joined Windows machines, Chromium auto-negotiates Kerberos
+  // regardless of launch flags. Locally this authenticates as the developer;
+  // on CI runners (not domain-joined) the ADFS form will appear and the
+  // service account credentials will be used.
+  const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await context.newPage();
 
