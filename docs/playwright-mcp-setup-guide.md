@@ -4,6 +4,8 @@ A step-by-step guide for adding Playwright MCP to any repository so engineers ca
 
 This guide is **app-agnostic** — it works for any web application, not just LibreChat. For LibreChat-specific notes, see [PAYCHEX_README.md](../PAYCHEX_README.md#generating-e2e-specs-with-playwright-mcp). For the POC findings that motivated this setup, see [playwright-mcp-poc.md](playwright-mcp-poc.md).
 
+> **LibreChat engineers:** If you just want to run the existing E2E suite, skip to [Running the E2E Suite](#running-the-e2e-suite). The MCP setup below is only needed when generating new specs.
+
 ---
 
 ## Prerequisites
@@ -110,6 +112,65 @@ npx playwright test e2e/specs/mcp-landing.spec.ts
 
 ---
 
+## Running the E2E Suite
+
+LibreChat uses a unified Playwright config (`e2e/playwright.config.ci.ts`) that works against both local and deployed environments.
+
+### Environment variables
+
+Add these to your `.env` file:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `E2E_BASE_URL` | Target environment URL | `http://localhost:3080` or `https://play.ain2a.paychex.com` |
+| `E2E_USERNAME` | Test account email | `libre_playwright_np@paychex.com` |
+| `E2E_PASSWORD` | Test account password | *(see team vault)* |
+
+### Local development
+
+```bash
+# 1. Build the app (required — the backend serves the built frontend)
+npm run build
+
+# 2. Create the E2E test account in MongoDB (first time only)
+npm run e2e:seed
+
+# 3. Run all specs (auto-starts the backend server on port 3080)
+npm run e2e:ci:deployed
+```
+
+### Targeting a deployed environment
+
+```bash
+# Set in .env or inline:
+E2E_BASE_URL=https://play.ain2a.paychex.com npm run e2e:ci:deployed
+```
+
+| Environment | `E2E_BASE_URL` | Account |
+|-------------|----------------|---------|
+| Local | `http://localhost:3080` | email/password (seeded via `npm run e2e:seed`) |
+| N2A | `https://play.ain2a.paychex.com` | `libre_playwright_np@paychex.com` |
+| N1 | `https://play.ain1.paychex.com` | `libre_playwright_np@paychex.com` |
+| Prod | `https://play.ai.paychex.com` | `libre_playwright_pr@paychex.com` |
+
+### Authentication behavior
+
+The global-setup (`e2e/setup/global-setup-ci.ts`) authenticates once and saves the session to `storageState.ci.json`. All test specs then reuse that session.
+
+- **Local:** uses the LibreChat email/password login form
+- **Deployed:** uses Azure AD → Microsoft login → ADFS form (service account credentials)
+- **Domain-joined dev machines:** Chromium auto-negotiates Kerberos with your Windows identity instead of the service account — this is expected and acceptable for local development. CI runners are not domain-joined, so they always use the service account via the ADFS form.
+
+### Running a single spec
+
+```bash
+# Target a specific spec file
+$env:E2E_BASE_URL="https://play.ain2a.paychex.com"
+npx playwright test --config=e2e/playwright.config.ci.ts e2e/specs/ci/smoke.spec.ts
+```
+
+---
+
 ## Authentication
 
 If your app requires login, the agent's browser session won't be authenticated by default. Two patterns work:
@@ -119,6 +180,8 @@ If your app requires login, the agent's browser session won't be authenticated b
 **Option B (for apps with stable refresh tokens):** Save `storageState.json` once via a one-off script, configure your `playwright.config.ts` to load it. Note: some apps rotate refresh tokens, which makes saved sessions go stale quickly — if you see auth failures after a while, switch to Option A.
 
 For SSO-protected apps (Azure Entra, Okta, etc. with MFA): the agent can't autonomously get past corp MFA. You'll need a stored session file or a service account.
+
+**LibreChat uses Option B** — the global-setup script (`e2e/setup/global-setup-ci.ts`) authenticates once at the start of the test run, saves the session to `e2e/storageState.ci.json`, and all specs reuse it. See [Running the E2E Suite](#running-the-e2e-suite) above.
 
 ---
 
