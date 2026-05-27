@@ -130,6 +130,10 @@ mcpServers:
     startup: true
     chatMenu: true
     requiresOAuth: false
+mcpSettings:
+  allowedDomains:
+    - '*.n2a-lb.paychex.com'
+    - 'https://10.3.65.16'
 endpoints:
   azureOpenAI:
     # Endpoint-level configuration
