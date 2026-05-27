@@ -134,6 +134,7 @@ mcpSettings:
   allowedDomains:
     - '*.n2a-lb.paychex.com'
     - 'https://10.3.65.16'
+    - 'https://mcp.tavily.com'
 endpoints:
   azureOpenAI:
     # Endpoint-level configuration
