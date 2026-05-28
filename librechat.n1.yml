@@ -110,7 +110,7 @@ mcpServers:
     requiresOAuth: false
   ServiceNow MCP:
     type: streamable-http
-    url: https://10.3.65.16/mcp
+    url: https://10.3.70.194/mcp
     headers:
       Host: corp-intose-mcpservicenow-mcp-pyx.n2a-lb.paychex.com
     tls:
@@ -121,7 +121,7 @@ mcpServers:
     requiresOAuth: false
   Bitbucket MCP:
     type: streamable-http
-    url: https://10.3.65.16/mcp
+    url: https://10.3.70.191/mcp
     headers:
       Host: corp-intose-mcpbitbucket-mcp-pyx.n2a-lb.paychex.com
     tls:
@@ -134,6 +134,8 @@ mcpSettings:
   allowedDomains:
     - '*.n2a-lb.paychex.com'
     - 'https://10.3.65.16'
+    - 'https://10.3.70.194'
+    - 'https://10.3.70.191'
     - 'https://mcp.tavily.com'
 endpoints:
   azureOpenAI:
