@@ -11,6 +11,8 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { loginAndGoToChat } from './mcp-helpers';
 
+const isLocal = (process.env.E2E_BASE_URL || '').includes('localhost');
+
 const TOOLS = ['File Search', 'Web Search', 'Artifacts'] as const;
 type ToolName = (typeof TOOLS)[number];
 
@@ -84,6 +86,7 @@ test.describe('Tools dropdown', () => {
   });
 
   test('clicking the Tools button opens the dropdown', async ({ page }) => {
+    test.skip(!isLocal, 'File Search / Web Search / Artifacts tools are not enabled in deployed librechat.<env>.yml config');
     await openToolsDropdown(page);
     for (const name of TOOLS) {
       await expect(page.getByRole('menuitem', { name: new RegExp(name) })).toBeVisible();
@@ -91,6 +94,7 @@ test.describe('Tools dropdown', () => {
   });
 
   test('dropdown contains exactly File Search, Web Search, and Artifacts', async ({ page }) => {
+    test.skip(!isLocal, 'File Search / Web Search / Artifacts tools are not enabled in deployed librechat.<env>.yml config');
     await openToolsDropdown(page);
 
     // The portal element ID literally contains a '/', which is illegal in CSS
@@ -119,6 +123,7 @@ test.describe('Tools dropdown', () => {
   });
 
   test('each item has a label and a description (Paychex enhancement)', async ({ page }) => {
+    test.skip(!isLocal, 'File Search / Web Search / Artifacts tools are not enabled in deployed librechat.<env>.yml config');
     await openToolsDropdown(page);
 
     const expectations: Record<ToolName, RegExp> = {
