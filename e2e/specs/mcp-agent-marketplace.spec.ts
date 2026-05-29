@@ -1,7 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { loginAndGoToChat } from './mcp-helpers';
 
+const isLocal = (process.env.E2E_BASE_URL || '').includes('localhost');
+
 test.describe('Agent Marketplace entry', () => {
+  test.skip(!isLocal, 'Agent Marketplace is not enabled in deployed librechat.<env>.yml interface config');
   test.beforeEach(async ({ page }) => {
     await loginAndGoToChat(page);
   });

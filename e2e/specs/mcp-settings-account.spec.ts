@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { closeSettingsDialog, loginAndGoToChat, openSettingsDialog } from './mcp-helpers';
 
+const isLocal = (process.env.E2E_BASE_URL || '').includes('localhost');
+
 test.describe('Settings dialog: Account tab', () => {
   test.beforeEach(async ({ page }) => {
     await loginAndGoToChat(page);
@@ -13,6 +15,7 @@ test.describe('Settings dialog: Account tab', () => {
   });
 
   test('shows Profile Picture and Two-Factor controls', async ({ page }) => {
+    test.skip(!isLocal, 'Profile Picture and Two-Factor controls are hidden in deployed envs where identity is managed by Azure Entra');
     const panel = page.getByRole('tabpanel');
     await expect(panel).toContainText(/Profile Picture/i);
     await expect(panel).toContainText(/Two-Factor Authentication/i);
