@@ -1,8 +1,13 @@
 import { test, expect } from '@playwright/test';
 
+const isLocal = (process.env.E2E_BASE_URL || '').includes('localhost');
+
 test.describe('Landing page (login)', () => {
+  test.skip(!isLocal, 'Landing page tests assert the LibreChat login form; deployed envs use Azure Entra / OpenID');
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:3090');
+    await page.goto('/');
   });
 
   test('redirects to /login and renders the login UI', async ({ page }) => {

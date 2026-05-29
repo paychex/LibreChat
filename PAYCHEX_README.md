@@ -202,18 +202,34 @@ The MCP server is pre-configured in [.vscode/mcp.json](.vscode/mcp.json). To act
 
 ### Run generated specs
 
-Generated specs live alongside the existing suite at [e2e/specs/](e2e/specs/) with an `mcp-` prefix. They use a lightweight POC config that does not spin up its own backend — start the dev servers first, then run:
+Generated specs live alongside the existing suite at [e2e/specs/](e2e/specs/) with an `mcp-` prefix. Run them with:
 
 ```bash
-npm run backend:dev          # in one terminal
-npm run frontend:dev         # in another terminal
-cd e2e
-npx playwright test --config=playwright.config.poc.ts
+npm run e2e:seed             # create test account in local MongoDB (first time only)
+npm run e2e:ci:deployed      # runs all MCP + smoke specs (auto-starts server if localhost)
 ```
 
-### Authentication note
+Set these in `.env`:
 
-Saved `storageState` files go stale quickly because of how the app rotates refresh tokens. The simpler pattern (used by the POC specs) is to log in inline in `beforeEach` — see [e2e/specs/mcp-tools-dropdown.spec.ts](e2e/specs/mcp-tools-dropdown.spec.ts) for an example. A test user with email `tmarkovic@email.com` / password `test1234` exists in local dev.
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `E2E_BASE_URL` | Target environment | `http://localhost:3080` or `https://play.ain2a.paychex.com` |
+| `E2E_USERNAME` | Test account email | `libre_playwright_np@paychex.com` |
+| `E2E_PASSWORD` | Test account password | *(see team vault)* |
+
+### Authentication behavior
+
+The CI config (`e2e/playwright.config.ci.ts`) uses a global-setup that authenticates once and saves session state.
+
+- **Local (`localhost`):** Uses the email/password login form. Run `npm run e2e:seed` first to create the test account with ADMIN permissions in MongoDB.
+- **Deployed (non-localhost):** Uses Azure AD → Microsoft login → ADFS. On CI runners (not domain-joined), the ADFS form appears and the service account credentials are submitted. On domain-joined dev machines, Kerberos auto-authenticates as **your Windows identity** (not the service account) — this is expected and acceptable for local development.
+
+#### Service account requirements
+
+| Account | Environments | AD Group Required |
+|---------|-------------|-------------------|
+| `libre_playwright_np@paychex.com` | N2A, N1 | Yes — must be in the app's access group |
+| `libre_playwright_pr@paychex.com` | Prod | Yes — must be in the app's access group |
 
 ### Generating new specs
 

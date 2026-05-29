@@ -1,0 +1,91 @@
+name: E2E Tests
+
+on:
+  # Run after N2A deploy completes
+  workflow_run:
+    workflows: ["N2A - Build and Push"]
+    types: [completed]
+    branches: [develop]
+
+  # Run after N1 deploy completes
+  # workflow_run:
+  #   workflows: ["N1 - Build and Push"]
+  #   types: [completed]
+
+  # Nightly schedule (UTC) — 6 AM UTC = ~1-2 AM ET
+  schedule:
+    - cron: '0 6 * * *'
+
+  # Manual trigger for debugging
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to test against'
+        required: true
+        type: choice
+        options:
+          - n2a
+          - n1
+          - prod
+
+jobs:
+  e2e:
+    name: E2E Smoke Tests (${{ matrix.environment }})
+    runs-on: paychex-ai-platform-arc-nonprod
+    # Skip if the triggering workflow failed (workflow_run)
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(
+          github.event_name == 'workflow_dispatch' && format('["{0}"]', github.event.inputs.environment) ||
+          github.event_name == 'workflow_run' && '["n2a"]' ||
+          '["n2a", "n1"]'
+          ) }}
+
+    env:
+      E2E_BASE_URL: ${{ matrix.environment == 'prod' && 'https://play.ai.paychex.com' || matrix.environment == 'n1' && 'https://play.ain1.paychex.com' || 'https://play.ain2a.paychex.com' }}
+      E2E_USERNAME: ${{ matrix.environment == 'prod' && 'libre_playwright_pr@paychex.com' || 'libre_playwright_np@paychex.com' }}
+      E2E_PASSWORD: ${{ matrix.environment == 'prod' && secrets.LIBRE_PLAYWRIGHT_PR_PASSWORD || secrets.LIBRE_PLAYWRIGHT_NP_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E Tests
+        run: npx playwright test --config=e2e/playwright.config.ci.ts
+
+      - name: Upload Playwright Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.environment }}
+          path: |
+            e2e/playwright-report-ci/
+            e2e/auth-failure.png
+          retention-days: 14
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.environment }}
+          path: e2e/specs/.test-results-ci/
+          retention-days: 7
