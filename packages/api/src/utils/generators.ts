@@ -38,9 +38,10 @@ export function createFetch({
 
     const response = await fetch(url, init);
 
-    // TEMPORARY WORKAROUND for Kong SSE bug:
-    // Kong sends all parallel Claude tool call SSE chunks with index=0 (should increment per tool call).
-    // This breaks LangChain’s tool call grouping. We rewrite indices here to increment per tool call.
+    // TEMPORARY WORKAROUND for Kong SSE bugs:
+    // 1. Parallel Claude tool call SSE chunks can all arrive with index=0.
+    // 2. Some Claude SSE chunks now arrive without a choices array.
+    // LangChain's OpenAI-compatible parser assumes choices[0] exists, so normalize both here.
     if (url && typeof url === 'string' && url.includes('claude') && response.body) {
       const contentType = response.headers.get('content-type') || '';
       if (contentType.includes('text/event-stream')) {
@@ -66,6 +67,9 @@ export function createFetch({
               }
               try {
                 const data = JSON.parse(line.substring(6));
+                if (data != null && typeof data === 'object' && !Array.isArray(data.choices)) {
+                  data.choices = [];
+                }
                 const tcs = data?.choices?.[0]?.delta?.tool_calls;
                 if (Array.isArray(tcs) && tcs.length > 0) {
                   for (const tc of tcs) {
@@ -82,6 +86,10 @@ export function createFetch({
                       tc.index = toolCallCounter;
                     }
                   }
+                  output.push('data: ' + JSON.stringify(data));
+                  continue;
+                }
+                if (data?.choices != null) {
                   output.push('data: ' + JSON.stringify(data));
                   continue;
                 }
