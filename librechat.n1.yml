@@ -97,6 +97,12 @@ mcpServers:
     chatMenu: false
     serverInstructions: "TAVILY SEARCH PROTOCOL: (1) Never use tavily_research tool unless the user explicitly includes '/deep-research' in their prompt. For all other queries, use tavily_search which has higher rate limits. If /deep-research is requested, use 'mini' model first, and only escalate to 'pro' if the task clearly requires broader multi-topic coverage. (2) If a search fails or returns errors, analyze the error message, modify the query or parameters, and retry with adjustments. "
     requiresOAuth: false
+  Cortex MCP:
+    type: streamable-http
+    url: https://service-outbound-pyx-n2a.paychex.com/cortex-mcp
+    startup: true
+    chatMenu: true
+    requiresOAuth: false
   Example MCP (N1 Direct IP):
     type: streamable-http
     url: https://10.3.65.16/mcp
@@ -137,6 +143,7 @@ mcpSettings:
     - 'https://10.3.70.194'
     - 'https://10.3.70.191'
     - 'https://mcp.tavily.com'
+    - 'https://service-outbound-pyx-n2a.paychex.com'
 endpoints:
   azureOpenAI:
     # Endpoint-level configuration
