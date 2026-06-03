@@ -17,11 +17,18 @@
 
 ---
 
+## Switch to Integration Branch
+
+- [ ] Checked for existing branch: `git branch -a | grep "upstream/v${TARGET}-integration"`
+- [ ] On integration branch: `upstream/v${TARGET}-integration` (created from develop if it didn't exist)
+
+---
+
 ## Analysis Phase
 
-- [ ] Merge base identified: `git merge-base develop v${TARGET}`
-- [ ] Commit divergence counted: _____ develop commits, _____ upstream commits
-- [ ] Changed files previewed: `git diff --stat develop v${TARGET}`
+- [ ] Merge base identified: `git merge-base upstream/v${TARGET}-integration v${TARGET}`
+- [ ] Commit divergence counted: `git rev-list --left-right --count upstream/v${TARGET}-integration...v${TARGET}`
+- [ ] Changed files previewed: `git diff --stat upstream/v${TARGET}-integration v${TARGET}`
 - [ ] Upstream changelog reviewed
 - [ ] Breaking changes identified and documented
 - [ ] Merge complexity estimated: □ Low □ Medium □ High
@@ -30,7 +37,6 @@
 
 ## Merge Initiation
 
-- [ ] On integration branch: `upstream/v${TARGET}-integration` (created from develop if it didn't exist)
 - [ ] Attempted merge: `git merge --no-commit --no-ff v${TARGET}`
 - [ ] Conflict count recorded: _____ conflicts
 - [ ] Conflicts categorized by type:

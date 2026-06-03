@@ -32,9 +32,8 @@
 
 ## 🎯 Merge Workflow
 
-### Phase 1: Analysis & Planning
+### Phase 1: Fetch & Identify Target Version
 
-#### 1.1 Fetch and Identify Target Version
 ```bash
 # Fetch latest upstream data
 git fetch upstream --tags
@@ -46,7 +45,33 @@ git tag -l "v0.*" | tail -20
 TARGET_VERSION="v0.8.5"
 ```
 
-#### 1.2 Analyze Scope of Changes
+---
+
+### Phase 2: Switch to (or Create) the Integration Branch
+
+All merge work is done directly on `upstream/v${TARGET_VERSION}-integration`. This branch may already exist with Paychex prep commits that must be preserved — **do not discard them**. Switch to it before running any analysis so all subsequent steps operate on the correct branch state.
+
+```bash
+# Check if the integration branch already exists
+git branch -a | grep "upstream/v${TARGET_VERSION}-integration"
+
+# If it exists — use it
+git checkout upstream/v${TARGET_VERSION}-integration
+git pull origin upstream/v${TARGET_VERSION}-integration
+
+# If it does NOT exist — create it from develop
+git checkout develop
+git pull origin develop
+git checkout -b upstream/v${TARGET_VERSION}-integration
+```
+
+Confirm you are on `upstream/v${TARGET_VERSION}-integration` before proceeding.
+
+---
+
+### Phase 3: Analyze Scope & Planning
+
+#### 3.1 Analyze Scope of Changes
 ```bash
 # Check merge base (common ancestor)
 git merge-base upstream/v${TARGET_VERSION}-integration v${TARGET_VERSION}
@@ -61,7 +86,7 @@ git diff --stat upstream/v${TARGET_VERSION}-integration v${TARGET_VERSION} | tai
 git diff --name-status upstream/v${TARGET_VERSION}-integration v${TARGET_VERSION} | grep "^D"
 ```
 
-#### 1.3 Review Upstream Changelog
+#### 3.2 Review Upstream Changelog
 ```bash
 # Read what changed
 git show v${TARGET_VERSION}:CHANGELOG.md | head -200
@@ -80,23 +105,9 @@ Create a merge planning document with:
 
 ---
 
-### Phase 2: Switch to (or Create) the Integration Branch
-
-All merge work is done directly on `upstream/v${TARGET_VERSION}-integration`. This branch may already exist with Paychex prep commits that must be preserved.
+### Phase 4: Initiate Merge
 
 ```bash
-# Check if the integration branch already exists
-git branch -a | grep "upstream/v${TARGET_VERSION}-integration"
-
-# If it exists — use it
-git checkout upstream/v${TARGET_VERSION}-integration
-git pull origin upstream/v${TARGET_VERSION}-integration
-
-# If it does NOT exist — create it from develop
-git checkout develop
-git pull origin develop
-git checkout -b upstream/v${TARGET_VERSION}-integration
-
 # Attempt merge (don't commit yet)
 git merge --no-commit --no-ff v${TARGET_VERSION}
 
@@ -108,9 +119,9 @@ git status --short | grep "^UU\|^AA\|^DD\|^DU\|^UD" | wc -l
 
 ---
 
-### Phase 3: Systematic Conflict Resolution
+### Phase 5: Systematic Conflict Resolution
 
-#### 3.1 Categorize Conflicts
+#### 5.1 Categorize Conflicts
 
 Create a conflict inventory:
 ```bash
@@ -126,7 +137,7 @@ echo -e "\n=== Added by Both (AA) ===" >> conflict_analysis.txt
 git status --short | grep "^AA" >> conflict_analysis.txt
 ```
 
-#### 3.2 Prioritize Resolution Order
+#### 5.2 Prioritize Resolution Order
 
 Resolve in this order:
 1. ✅ **Low-Risk**: Documentation, workflow files, test files
@@ -139,7 +150,7 @@ Resolve in this order:
 
 ---
 
-### Phase 4: Paychex Customization Preservation Rules
+### Phase 6: Paychex Customization Preservation Rules
 
 #### 🔒 **CRITICAL PAYCHEX CUSTOMIZATIONS** (Must Always Preserve)
 
@@ -177,7 +188,7 @@ git log -p develop -- <file_path> | grep -B5 -A5 "<search_term>"
 
 ---
 
-### Phase 5: Conflict Resolution Decision Matrix
+### Phase 7: Conflict Resolution Decision Matrix
 
 Use this matrix for every conflicting file:
 
@@ -213,9 +224,9 @@ Use this matrix for every conflicting file:
 
 ---
 
-### Phase 6: File-Specific Handling
+### Phase 8: File-Specific Handling
 
-#### 6.1 Deleted Files (UD conflicts)
+#### 8.1 Deleted Files (UD conflicts)
 
 **Process:**
 1. Check if file contains Paychex customizations:
@@ -253,7 +264,7 @@ const {
 } = require('@librechat/api');
 ```
 
-#### 6.2 Modified Files (UU conflicts)
+#### 8.2 Modified Files (UU conflicts)
 
 **Critical Files Requiring Manual Review:**
 
@@ -296,7 +307,7 @@ git add <file>
 # - Document decision in commit message
 ```
 
-#### 6.3 Configuration Files
+#### 8.3 Configuration Files
 
 **package.json conflicts:**
 - ✅ Accept upstream dependency versions unless Paychex pinned for stability
@@ -315,9 +326,9 @@ git add <file>
 
 ---
 
-### Phase 7: Verification & Testing
+### Phase 9: Verification & Testing
 
-#### 7.1 Pre-Commit Verification
+#### 9.1 Pre-Commit Verification
 
 ```bash
 # Check for lingering conflict markers
@@ -378,7 +389,7 @@ grep -n "hasStoredModelSelection" client/src/routes/ChatRoute.tsx || echo "⚠�
 > This was the root cause of the v0.8.4 post-merge Tavily auto-select regression: the TypeScript
 > source was fixed but the dist was never rebuilt, so the backend continued serving the old response.
 
-#### 7.2 Build & Test
+#### 9.2 Build & Test
 
 ```bash
 # Clean build
@@ -394,7 +405,7 @@ grep -E "(Test Suites:|Tests:)" test-results.txt
 # Investigate: Any new failures compared to pre-merge develop
 ```
 
-#### 7.3 Manual Testing Checklist
+#### 9.3 Manual Testing Checklist
 
 Test these critical paths:
 
@@ -430,9 +441,9 @@ Test these critical paths:
 
 ---
 
-### Phase 8: Documentation & Commit
+### Phase 10: Documentation & Commit
 
-#### 8.1 Create Comprehensive Commit Message
+#### 10.1 Create Comprehensive Commit Message
 
 Template:
 ```
@@ -480,7 +491,7 @@ Merged LibreChat v${CURRENT_VERSION} → v${TARGET_VERSION}
 Co-authored-by: [Your Name] <your.email@paychex.com>
 ```
 
-#### 8.2 Commit Strategy
+#### 10.2 Commit Strategy
 
 ```bash
 # Stage all changes
@@ -496,7 +507,7 @@ git log -1 --stat
 git push origin upstream/v${TARGET_VERSION}-integration
 ```
 
-#### 8.3 Post-Merge Documentation
+#### 10.3 Post-Merge Documentation
 
 Update these files:
 1. **CHANGELOG.md** - Document the merge
@@ -536,8 +547,8 @@ Critical Paychex Customizations to Preserve:
 Merge Conflicts: ${CONFLICT_COUNT} files
 
 Your Task:
-- Follow UPSTREAM_MERGE_GUIDE.md Phase 3-8
-- For each conflict, use the Decision Matrix in Phase 5
+- Follow UPSTREAM_MERGE_GUIDE.md Phase 5-10
+- For each conflict, use the Decision Matrix in Phase 7
 - NEVER blindly accept upstream changes
 - ALWAYS check git history to identify Paychex customizations
 - PRESERVE all Paychex logic while integrating upstream improvements
