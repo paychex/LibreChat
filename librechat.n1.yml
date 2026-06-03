@@ -98,23 +98,13 @@ mcpServers:
     requiresOAuth: false
   ServiceNow MCP:
     type: streamable-http
-    url: https://10.3.70.194/mcp
-    headers:
-      Host: corp-intose-mcpservicenow-mcp-pyx.n2a-lb.paychex.com
-    tls:
-      pfx: "${MCP_CLIENTSSL_AIN2A_PFX}"
-      servername: corp-intose-mcpservicenow-mcp-pyx.n2a-lb.paychex.com
-    startup: true
+    url: https://corp-intose-mcpservicenow-mcp-pyx.n2a-lb.paychex.com/mcp
+    startup: false
     chatMenu: true
-    requiresOAuth: false
+    requiresOAuth: true
   Bitbucket MCP:
     type: streamable-http
-    url: https://10.3.70.191/mcp
-    headers:
-      Host: corp-intose-mcpbitbucket-mcp-pyx.n2a-lb.paychex.com
-    tls:
-      pfx: "${MCP_CLIENTSSL_AIN2A_PFX}"
-      servername: corp-intose-mcpbitbucket-mcp-pyx.n2a-lb.paychex.com
+    url: https://corp-intose-mcpbitbucket-mcp-pyx.n2a-lb.paychex.com/mcp
     startup: true
     chatMenu: true
     requiresOAuth: false
@@ -122,8 +112,6 @@ mcpSettings:
   allowedDomains:
     - '*.n2a-lb.paychex.com'
     - 'https://10.3.65.16'
-    - 'https://10.3.70.194'
-    - 'https://10.3.70.191'
     - 'https://mcp.tavily.com'
     - 'https://service-outbound-pyx-n2a.paychex.com'
 endpoints:
