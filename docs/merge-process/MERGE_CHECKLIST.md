@@ -98,6 +98,59 @@
   grep -n "hasStoredModelSelection" client/src/routes/ChatRoute.tsx
   ```
 
+- [ ] **Anthropic image encoding block order** in `encode.js` (block must appear before `VisionModes.agents` early-return)
+  ```bash
+  grep -n "includes('claude')\|includes('anthropic')\|VisionModes.agents" api/server/services/Files/images/encode.js
+  ```
+
+- [ ] **Prompt Catalog deep-link integration** (route mount, resolver, query-param exclusion, toast)
+  ```bash
+  grep -n "/api/prompthub" api/server/index.js api/server/experimental.js
+  grep -n "promptCatalogId" client/src/hooks/Input/useQueryParams.ts client/src/routes/ChatRoute.tsx
+  ```
+
+- [ ] **SSO rate limit fix** — `skipSuccessfulRequests: true` in `loginLimiter.js`
+  ```bash
+  grep -n "skipSuccessfulRequests" api/server/middleware/limiters/loginLimiter.js
+  ```
+
+- [ ] **OpenID token refresh middleware** wired in agents router
+  ```bash
+  grep -n "isAccessTokenExpiredOrExpiringSoon\|_inflight" api/server/middleware/refreshOpenIDToken.js
+  grep -n "refreshOpenIDToken" api/server/routes/agents/index.js
+  ```
+
+- [ ] **RAG context 404 graceful handling** uses `Promise.allSettled`
+  ```bash
+  grep -n "Promise.allSettled" api/app/clients/prompts/createContextHandlers.js
+  ```
+
+- [ ] **MCP stopReconnecting** in `MCPServerInspector.ts`
+  ```bash
+  grep -n "stopReconnecting" packages/api/src/mcp/registry/MCPServerInspector.ts
+  ```
+
+- [ ] **Claude SSE choices normalization for Kong** in `generators.ts`
+  ```bash
+  grep -n "data.choices = \[\]" packages/api/src/utils/generators.ts
+  ```
+
+- [ ] **Azure OpenAI custom icon** — `GPTIconDark` (not `AzureMinimalIcon`) in `Icons.tsx`
+  ```bash
+  grep -n "GPTIconDark" client/src/hooks/Endpoint/Icons.tsx
+  ```
+
+- [ ] **Paychex Changelog link** in Footer and AccountSettings
+  ```bash
+  grep -n "changelogURL" client/src/components/Chat/Footer.tsx
+  grep -n "startupConfig?.changelogURL" client/src/components/Nav/AccountSettings.tsx
+  ```
+
+- [ ] **Native DEFAULT badge** in `ModelSpecItem.tsx`
+  ```bash
+  grep -n "spec.default === true" client/src/components/Chat/Menus/Endpoints/components/ModelSpecItem.tsx
+  ```
+
 ---
 
 ## Conflict Resolution Tracking
@@ -160,13 +213,19 @@ For each non-trivial conflict, verify:
 ### Manual Testing
 - [ ] Application starts without errors
 - [ ] Login/authentication works (OpenID, Azure, etc.)
+- [ ] SSO multi-tab re-auth does not trigger rate limit
 - [ ] Custom endpoints connect (LangGraph, custom Gemini, etc.)
+- [ ] Claude custom endpoint streaming works without errors
 - [ ] MCP tools load and execute
 - [ ] Gemini with tools works (no "Proto field" errors)
 - [ ] Model selector shows correct models
+- [ ] Native DEFAULT badge displays for the default model spec
 - [ ] Pendo tracking fires (check browser console/network)
-- [ ] File uploads work
+- [ ] File uploads work (including to Claude/Anthropic custom endpoints)
+- [ ] RAG context retrieval handles unindexed files gracefully (no page freeze)
+- [ ] Changelog link appears in chat footer and account settings
 - [ ] UI components render correctly
+- [ ] Agent requests succeed after 15+ minutes (Paxton token refresh working)
 
 ---
 
@@ -181,6 +240,16 @@ Or manually verify each:
 - [ ] **Tool filtering**: Cross-provider tool calls handled correctly
 - [ ] **Schema sanitization**: Gemini tools work without schema errors
 - [ ] **Custom endpoints**: Custom Gemini endpoints recognized
+- [ ] **Anthropic image encoding**: Block appears before VisionModes.agents in encode.js
+- [ ] **Prompt Catalog deep-links**: `/api/prompthub` mounted, `promptCatalogId` excluded from model parsing
+- [ ] **SSO rate limit**: `skipSuccessfulRequests: true` present in loginLimiter
+- [ ] **OpenID refresh**: `refreshOpenIDToken` wired in agents router, `_inflight` dedup present
+- [ ] **RAG 404 handling**: `Promise.allSettled` used (not `Promise.all`) in createContextHandlers
+- [ ] **MCP stopReconnecting**: Called in MCPServerInspector before temp connection disconnect
+- [ ] **Claude SSE**: `data.choices = []` normalization in generators.ts
+- [ ] **Azure icon**: `GPTIconDark` used for Azure OpenAI endpoint (not `AzureMinimalIcon`)
+- [ ] **Changelog link**: Rendered in Footer and AccountSettings from `changelogURL`
+- [ ] **DEFAULT badge**: `spec.default === true` renders native badge in ModelSpecItem
 - [ ] **Analytics**: Pendo tracking elements present
 - [ ] **UI polish**: Menu descriptions display, transitions smooth
 - [ ] **Build**: Error handling works (build stops on failure)

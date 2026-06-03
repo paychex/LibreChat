@@ -24,6 +24,9 @@ These customizations MUST be preserved during upstream merges. Verify after ever
 | xlsx Package | `api/package.json`, `packages/api/package.json` | `"xlsx": "^0.18.5"` (npm registry, not CDN) | CDN returns 403 errors - builds fail without this |
 | Anthropic Image Encoding | `api/server/services/Files/images/encode.js` | `includes('claude') \|\| includes('anthropic')` (before `VisionModes.agents` block) | Custom Claude/Anthropic endpoints get 400 errors on image uploads without this; block order matters |
 | Prompt Catalog Insert Integration | `api/server/routes/prompthub.js`, `packages/api/src/promptCatalog/handlers.ts`, `client/src/hooks/Input/useQueryParams.ts`, `client/src/routes/ChatRoute.tsx` | `/api/prompthub/resolve-insert`, `promptCatalogId`, `PROMPT_CATALOG_API_URL`, `com_ui_prompt_catalog_insert_error` | Preserves AI Hub Prompt Catalog → LibreChat deep links with server-side resolution, query-param exclusion, visible failures, and no infinite polling |
+| SSO Rate Limit Fix | `api/server/middleware/limiters/loginLimiter.js` | `skipSuccessfulRequests: true` | Multi-tab SSO users get rate-limited when all tabs simultaneously re-authenticate after JWT expiry |
+| OpenID Token Refresh Middleware | `api/server/middleware/refreshOpenIDToken.js`, `api/server/routes/agents/index.js` | `isAccessTokenExpiredOrExpiringSoon`, `_inflight`, `refreshOpenIDToken` in agents router | Paxton agent calls fail with 401 after ~15 min without proactive refresh; `_inflight` prevents Azure AD `invalid_grant` race |
+| Claude SSE Parsing Fix (Kong) | `packages/api/src/utils/generators.ts` | `data.choices = []` | Kong omits `choices` array from some Claude SSE chunks; LangChain parser throws without normalization |
 
 ## Merge Conflict Decision Matrix
 
@@ -59,7 +62,11 @@ Apply this matrix when resolving each conflict:
 - `api/server/services/MCP.js`
 - `api/server/services/Files/images/encode.js`
 - `api/server/routes/prompthub.js`
+- `api/server/middleware/limiters/loginLimiter.js`
+- `api/server/middleware/refreshOpenIDToken.js`
+- `api/server/routes/agents/index.js`
 - `packages/api/src/promptCatalog/**/*.ts`
+- `packages/api/src/utils/generators.ts`
 - `client/src/hooks/Input/useQueryParams.ts`
 - `client/src/routes/ChatRoute.tsx`
 - `Dockerfile`
@@ -69,10 +76,11 @@ Apply this matrix when resolving each conflict:
 **Action:** Always check git history, manually merge, verify pattern preserved
 
 ### 🟡 Medium Priority (Review before accepting)
-- `client/src/components/**/*.tsx`
+- `client/src/components/**/*.tsx` — check for Changelog link, DEFAULT badge, Pendo element
 - `packages/client/src/components/*.tsx`
-- `api/server/middleware/*.js`
-- `client/src/hooks/**/*.ts`
+- `api/server/middleware/*.js` — check for refreshOpenIDToken, loginLimiter skipSuccessfulRequests
+- `client/src/hooks/**/*.ts` — check for GPTIconDark, MCP startup auto-select
+- `packages/api/src/mcp/**/*.ts` — check for stopReconnecting, MCPServerInspector
 - `librechat.*.yml`
 - `az_container_app_definitions/*.yml`
 
@@ -206,6 +214,18 @@ grep -n "createPromptHubResolveInsertHandler" api/server/routes/prompthub.js pac
 grep -n "PROMPT_CATALOG_API_URL" .env.example api/server/routes/prompthub.js packages/api/src/promptCatalog/handlers.ts
 grep -n "promptCatalogId\|prompt_catalog_id" client/src/hooks/Input/useQueryParams.ts client/src/routes/ChatRoute.tsx
 grep -n "com_ui_prompt_catalog_insert_error" client/src/hooks/Input/useQueryParams.ts client/src/locales/en/translation.json
+
+# Post-v0.8.4 customizations (SSO, OpenID refresh, RAG, MCP, SSE, icons, changelog, badge)
+grep -n "skipSuccessfulRequests" api/server/middleware/limiters/loginLimiter.js
+grep -n "isAccessTokenExpiredOrExpiringSoon\|_inflight" api/server/middleware/refreshOpenIDToken.js
+grep -n "refreshOpenIDToken" api/server/routes/agents/index.js
+grep -n "Promise.allSettled" api/app/clients/prompts/createContextHandlers.js
+grep -n "shouldStopReconnecting" packages/api/src/mcp/connection.ts
+grep -n "stopReconnecting" packages/api/src/mcp/registry/MCPServerInspector.ts
+grep -n "data.choices = \[\]" packages/api/src/utils/generators.ts
+grep -n "GPTIconDark" client/src/hooks/Endpoint/Icons.tsx
+grep -n "changelogURL" client/src/components/Chat/Footer.tsx
+grep -n "spec.default === true" client/src/components/Chat/Menus/Endpoints/components/ModelSpecItem.tsx
 ```
 
 ## Post-Merge Validation
@@ -230,6 +250,21 @@ Before considering merge complete:
 | Component prop changes | Paychex custom props may break | Adapt to new prop structure |
 | Query-param handling refactors in `ChatRoute` / `useQueryParams` | Prompt Catalog deep links regress | Preserve `promptCatalogId` exclusion, same-origin `/api/prompthub/resolve-insert` flow, and timeout/toast failure handling |
 
+## Known Paychex Customization Patterns to Preserve (v0.8.4 → v0.8.6)
+
+| Paychex Pattern | Risk if Upstream Refactors Area | Files at Risk |
+|-----------------|--------------------------------|---------------|
+| `skipSuccessfulRequests: true` in loginLimiter | Rate limiter refactor could remove this option | `api/server/middleware/limiters/loginLimiter.js` |
+| `refreshOpenIDToken` middleware wired after `requireJwtAuth` in agents router | Auth middleware refactor could reorder or drop it | `api/server/routes/agents/index.js` |
+| `isAccessTokenExpiredOrExpiringSoon` + `_inflight` logic | Any OpenID middleware rewrite | `api/server/middleware/refreshOpenIDToken.js` |
+| `Promise.allSettled` for RAG context queries | Upstream simplification of context handler | `api/app/clients/prompts/createContextHandlers.js` |
+| `shouldStopReconnecting` + transient error log levels | MCP connection management rewrite | `packages/api/src/mcp/connection.ts` |
+| `stopReconnecting()` before `disconnect()` in inspector | MCPServerInspector refactor | `packages/api/src/mcp/registry/MCPServerInspector.ts` |
+| `data.choices = []` normalization in SSE generator | LangChain SSE parser updates | `packages/api/src/utils/generators.ts` |
+| `GPTIconDark` component for Azure OpenAI endpoint | Icon system refactor | `client/src/hooks/Endpoint/Icons.tsx` |
+| `changelogURL` rendering in Footer and AccountSettings | UI component refactors | `client/src/components/Chat/Footer.tsx`, `client/src/components/Nav/AccountSettings.tsx` |
+| `spec.default === true` DEFAULT badge | ModelSpecItem upstream changes | `client/src/components/Chat/Menus/Endpoints/components/ModelSpecItem.tsx` |
+
 ## Troubleshooting Quick Reference
 
 | Problem | Quick Fix |
@@ -242,6 +277,11 @@ Before considering merge complete:
 | TypeScript duplicate identifier | Check `packages/data-provider/src/types/` for existing definition |
 | `createPromptHubResolveInsertHandler is not a function` at startup | Rebuild `@librechat/api` with `npm run build:api`; JS routes load the compiled package from `packages/api/dist` |
 | AI Hub deep link opens blank LibreChat chat | Verify `/api/prompthub` mounts, `PROMPT_CATALOG_API_URL`, `promptCatalogId` handling, and the Prompt Catalog error toast key |
+| Users rate-limited during SSO re-auth | Verify `skipSuccessfulRequests: true` in `loginLimiter.js` |
+| Paxton 401 after ~15 minutes | Verify `refreshOpenIDToken` middleware is wired in `agents/index.js` and `isAccessTokenExpiredOrExpiringSoon` logic is intact |
+| Conversation fails when a file has empty embeddings | Verify `Promise.allSettled` in `createContextHandlers.js` (not `Promise.all`) |
+| Claude streaming broken on custom endpoint | Verify `data.choices = []` normalization in `packages/api/src/utils/generators.ts` and rebuild `packages/api` |
+| MCP reconnection storm after server inspection | Verify `stopReconnecting()` called in `MCPServerInspector.ts` before `disconnect()` |
 
 ## Reference Documentation Paths
 

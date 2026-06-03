@@ -23,36 +23,67 @@ CRITICAL PAYCHEX CUSTOMIZATIONS (MUST PRESERVE):
 1. Tool Call Filtering (BaseClient.js)
    - Method: filterCrossProviderToolCalls
    - Purpose: Prevents Gemini "Proto field is not repeating" errors
-   - Commit: Multiple
-   
+
 2. Schema Sanitization (tools.js)
    - Method: sanitizeSchemaMetadata import and usage
    - Purpose: Required for Gemini tool compatibility
-   - Commit: c92c359
-   
+
 3. Gemini Custom Endpoint Support (MCP.js)
    - Logic: providerLower.includes('gemini') || providerLower.includes('google')
-   - Purpose: Enables custom Gemini endpoint detection
-   - Commit: c9ae3725
-   
-4. Pendo Analytics (ModelSelector.tsx)
-   - Element: <span id="agentUsers">
-   - Purpose: User behavior tracking for business metrics
-   
-5. Menu Descriptions (DropdownPopup.tsx)
-   - Property: item.description rendering
-   - Alignment: items-start for multi-line content
-   - Purpose: Enhanced developer UX
-   
-6. OpenID Passthrough
-   - Location: Header resolution (env.ts, resolveHeaders function)
-   - Purpose: LangGraph custom endpoint authentication
-   - Commit: 6d0e02ac
-   
-7. Dockerfile Build Error Handling
-   - Logic: Use && operators instead of ;
-   - Purpose: Stop build on first error
-   - Commit: d902674
+   - Purpose: Enables custom Gemini endpoint detection (2 locations)
+
+4. Anthropic Image Encoding (encode.js)
+   - Pattern: includes('claude') || includes('anthropic'), block BEFORE VisionModes.agents early-return
+   - Purpose: Converts image parts to Anthropic-native format for custom Claude/Anthropic endpoints
+
+5. Prompt Catalog Deep-Link Integration (prompthub.js, useQueryParams.ts, ChatRoute.tsx)
+   - Patterns: /api/prompthub/resolve-insert, promptCatalogId, PROMPT_CATALOG_API_URL, com_ui_prompt_catalog_insert_error
+   - Purpose: AI Hub Prompt Catalog → LibreChat deep links with server-side prompt resolution
+
+6. SSO Rate Limit Fix (loginLimiter.js)
+   - Pattern: skipSuccessfulRequests: true
+   - Purpose: Prevents multi-tab SSO users from being rate-limited on simultaneous re-auth
+
+7. OpenID Token Refresh Middleware (refreshOpenIDToken.js, agents/index.js)
+   - Patterns: isAccessTokenExpiredOrExpiringSoon, _inflight Map, refreshOpenIDToken in agents router
+   - Purpose: Proactively refreshes Azure AD access_token before Paxton agent calls; deduplicates concurrent refresh
+
+8. RAG Context 404 Graceful Handling (createContextHandlers.js)
+   - Pattern: Promise.allSettled (not Promise.all)
+   - Purpose: Isolates per-file 404 failures so unindexed files don't crash the entire generation
+
+9. MCP SSE Noise + stopReconnecting (connection.ts, MCPServerInspector.ts)
+   - Patterns: shouldStopReconnecting, stopReconnecting() called before disconnect for temp connections
+   - Purpose: Prevents reconnection storm after server inspection; reduces Splunk noise
+
+10. Claude SSE Choices Normalization for Kong (generators.ts)
+    - Pattern: data.choices = []
+    - Purpose: Normalizes missing choices array in Claude SSE chunks omitted by Kong gateway
+    - Build note: Requires npm run build -w packages/api after changes
+
+11. Pendo Analytics (ModelSelector.tsx)
+    - Element: <span id="agentUsers">
+    - Purpose: User behavior tracking for business metrics
+
+12. Menu Descriptions (DropdownPopup.tsx)
+    - Property: item.description rendering, items-start alignment
+    - Purpose: Enhanced UX for dropdown menus
+
+13. Azure OpenAI Custom Icon (Icons.tsx)
+    - Pattern: GPTIconDark component (not AzureMinimalIcon)
+    - Purpose: Visual consistency for Azure OpenAI endpoint icon
+
+14. Paychex Changelog Link (Footer.tsx, AccountSettings.tsx)
+    - Patterns: changelogURL in Footer, startupConfig?.changelogURL in AccountSettings
+    - Purpose: Exposes changelog URL configured in librechat.*.yml
+
+15. Native DEFAULT Badge (ModelSpecItem.tsx)
+    - Pattern: spec.default === true
+    - Purpose: React DEFAULT badge replacing Pendo-injected version
+
+16. Dockerfile Build Error Handling (Dockerfile)
+    - Logic: Use && operators instead of ;
+    - Purpose: Stop build on first error
 
 MERGE REQUIREMENTS:
 

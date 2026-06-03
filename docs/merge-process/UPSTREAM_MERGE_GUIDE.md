@@ -2,7 +2,7 @@
 
 **Purpose:** Standard operating procedure for merging upstream LibreChat releases into the Paychex develop branch while preserving all custom functionality.
 
-**Last Updated:** April 2026 (v0.8.1 → v0.8.4 merge)
+**Last Updated:** June 2026 (updated for v0.8.6 target; reflects post-v0.8.4 Paychex customizations)
 
 ---
 
@@ -440,9 +440,13 @@ Merged LibreChat v${CURRENT_VERSION} → v${TARGET_VERSION}
 - ✅ Tool call filtering (BaseClient.filterCrossProviderToolCalls)
 - ✅ Schema sanitization for Gemini (tools.js)
 - ✅ Custom Gemini endpoint support (MCP.js)
+- ✅ Anthropic image encoding block order (encode.js)
+- ✅ Prompt Catalog deep-link integration (prompthub.js, useQueryParams.ts)
+- ✅ SSO rate limit fix — skipSuccessfulRequests (loginLimiter.js)
+- ✅ OpenID token refresh middleware (refreshOpenIDToken.js, agents/index.js)
+- ✅ Claude SSE choices normalization for Kong (generators.ts)
 - ✅ Pendo analytics tracking (ModelSelector.tsx)
 - ✅ Menu descriptions (DropdownPopup.tsx)
-- ✅ OpenID passthrough for LangGraph
 - ✅ Dockerfile build error handling
 
 ## Migration Actions Taken:
@@ -510,10 +514,14 @@ Critical Paychex Customizations to Preserve:
 1. filterCrossProviderToolCalls in BaseClient.js (prevents Gemini errors)
 2. sanitizeSchemaMetadata in tools.js (Gemini tool compatibility)
 3. Custom Gemini endpoint detection in MCP.js
-4. Pendo analytics tracking elements
-5. OpenID passthrough for LangGraph agents
-6. Menu description support in UI components
-7. Dockerfile build error handling (using && not ;)
+4. Anthropic image encoding block order in encode.js (before VisionModes.agents check)
+5. Prompt Catalog deep-link integration (prompthub.js, useQueryParams.ts, ChatRoute.tsx)
+6. SSO rate limit fix — skipSuccessfulRequests: true in loginLimiter.js
+7. OpenID token refresh middleware (refreshOpenIDToken.js wired in agents/index.js)
+8. Claude SSE choices normalization for Kong in generators.ts
+9. Pendo analytics tracking elements (ModelSelector.tsx)
+10. Menu description support in UI components (DropdownPopup.tsx)
+11. Dockerfile build error handling (using && not ;)
 
 Merge Conflicts: ${CONFLICT_COUNT} files
 
@@ -721,6 +729,11 @@ git checkout --ours <file> && git checkout --theirs <file> # Manual merge needed
 grep -n "filterCrossProviderToolCalls" api/app/clients/BaseClient.js
 grep -n "sanitizeSchemaMetadata" api/server/services/start/tools.js
 grep -n "providerLower.includes('gemini')" api/server/services/MCP.js
+grep -n "skipSuccessfulRequests" api/server/middleware/limiters/loginLimiter.js
+grep -n "isAccessTokenExpiredOrExpiringSoon" api/server/middleware/refreshOpenIDToken.js
+grep -n "refreshOpenIDToken" api/server/routes/agents/index.js
+grep -n "data.choices = \[\]" packages/api/src/utils/generators.ts
+./scripts/verify-paychex-customizations.sh
 npm run build && npm test
 
 # Commit
@@ -739,7 +752,8 @@ If you encounter issues:
 
 ---
 
-**Document Version:** 1.0  
+**Document Version:** 1.1  
 **Last Successful Merge:** v0.8.1 → v0.8.4 (April 2026)  
+**Next Target Merge:** v0.8.4 → v0.8.6 (branch: `upstream/v0.8.6-integration`)  
 **Next Review:** After next upstream merge
 

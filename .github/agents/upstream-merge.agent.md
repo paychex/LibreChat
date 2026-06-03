@@ -74,18 +74,26 @@ For each conflicted file, determine its risk level:
 
 **Critical files (must preserve Paychex logic):**
 - `api/app/clients/BaseClient.js` — filterCrossProviderToolCalls
-- `api/server/services/start/tools.js` — sanitizeSchemaMetadata  
+- `api/server/services/start/tools.js` — sanitizeSchemaMetadata
 - `api/server/services/MCP.js` — Gemini custom endpoint detection
 - `api/server/services/Files/images/encode.js` — Anthropic image encoding; `includes('claude')||includes('anthropic')` block must appear before `VisionModes.agents` early-return
 - `api/server/routes/prompthub.js` — Prompt Catalog deep-link route; preserve `POST /api/prompthub/resolve-insert`
 - `packages/api/src/promptCatalog/handlers.ts`, `packages/api/src/index.ts` — Prompt Catalog resolver export loaded by `@librechat/api`
 - `client/src/hooks/Input/useQueryParams.ts`, `client/src/routes/ChatRoute.tsx` — `promptCatalogId` handling, timeout/toast behavior, and query-param exclusion
+- `api/server/middleware/limiters/loginLimiter.js` — `skipSuccessfulRequests: true` (SSO multi-tab rate limit fix)
+- `api/server/middleware/refreshOpenIDToken.js` — `isAccessTokenExpiredOrExpiringSoon`, `_inflight` deduplication (Paxton 401 fix)
+- `api/server/routes/agents/index.js` — `refreshOpenIDToken` middleware wired after `requireJwtAuth`
+- `packages/api/src/utils/generators.ts` — `data.choices = []` normalization for Kong SSE
 - `Dockerfile` — && error handling
 - `**/package.json` — xlsx must use npm registry
 
 **Medium risk (review carefully):**
-- `client/src/components/**/*.tsx` — May contain Pendo analytics
+- `client/src/components/**/*.tsx` — May contain Pendo analytics, Changelog link, DEFAULT badge
 - `packages/client/src/components/*.tsx` — May have UX customizations
+- `client/src/hooks/Endpoint/Icons.tsx` — GPTIconDark for Azure OpenAI endpoint
+- `packages/api/src/mcp/connection.ts` — shouldStopReconnecting flag and transient error log levels
+- `packages/api/src/mcp/registry/MCPServerInspector.ts` — stopReconnecting() before disconnect for temp connections
+- `api/app/clients/prompts/createContextHandlers.js` — Promise.allSettled for RAG 404 isolation
 - Configuration files — May have Paychex-specific settings
 
 **Low risk (usually safe to accept upstream):**
@@ -204,6 +212,26 @@ If the backend crashes with `createPromptHubResolveInsertHandler is not a functi
 npm run build:api
 ```
 
+**Post-v0.8.4 customizations:**
+Verify SSO fix, OpenID refresh middleware, RAG handler, MCP SSE fix, and icon:
+```bash
+grep -n "skipSuccessfulRequests" api/server/middleware/limiters/loginLimiter.js
+grep -n "isAccessTokenExpiredOrExpiringSoon\|_inflight" api/server/middleware/refreshOpenIDToken.js
+grep -n "refreshOpenIDToken" api/server/routes/agents/index.js
+grep -n "Promise.allSettled" api/app/clients/prompts/createContextHandlers.js
+grep -n "shouldStopReconnecting" packages/api/src/mcp/connection.ts
+grep -n "stopReconnecting" packages/api/src/mcp/registry/MCPServerInspector.ts
+grep -n "data.choices = \[\]" packages/api/src/utils/generators.ts
+grep -n "GPTIconDark" client/src/hooks/Endpoint/Icons.tsx
+grep -n "changelogURL" client/src/components/Chat/Footer.tsx
+grep -n "spec.default === true" client/src/components/Chat/Menus/Endpoints/components/ModelSpecItem.tsx
+```
+
+If Claude streaming is broken on custom endpoints, rebuild generators.ts:
+```bash
+npm run build -w packages/api
+```
+
 ### Step 11 — Build and test
 
 ```bash
@@ -242,7 +270,11 @@ Critical customizations verified:
 - filterCrossProviderToolCalls (BaseClient.js)
 - sanitizeSchemaMetadata (tools.js)
 - Gemini custom endpoint detection (MCP.js)
-- Prompt Catalog deep-link integration (`/api/prompthub/resolve-insert`, `promptCatalogId`, `PROMPT_CATALOG_API_URL`)
+- Anthropic image encoding block order (encode.js)
+- Prompt Catalog deep-link integration (prompthub.js, useQueryParams.ts)
+- SSO rate limit fix — skipSuccessfulRequests (loginLimiter.js)
+- OpenID token refresh middleware (refreshOpenIDToken.js, agents/index.js)
+- Claude SSE choices normalization for Kong (generators.ts)
 - Dockerfile error handling
 - All other Paychex-specific features preserved
 
@@ -285,6 +317,9 @@ Also suggest:
 ❌ **Don't** commit without building and testing  
 ❌ **Don't** forget to fix broken import paths after file moves  
 ❌ **Don't** drop the Prompt Catalog route mount, `promptCatalogId` flow, or `@librechat/api` export during refactors  
+❌ **Don't** remove `skipSuccessfulRequests: true` from loginLimiter — SSO users will be rate-limited  
+❌ **Don't** remove `refreshOpenIDToken` from agents router — Paxton calls will 401 after ~15 min  
+❌ **Don't** revert `data.choices = []` normalization in generators.ts — Claude streaming breaks on Kong  
 
 ✅ **Do** check git history before resolving conflicts  
 ✅ **Do** verify customizations are present after each major step  

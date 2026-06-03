@@ -416,6 +416,116 @@ else
 fi
 
 echo ""
+
+# 17. SSO Rate Limit Fix
+echo "17. SSO Rate Limit Fix (loginLimiter.js)"
+check_pattern \
+    "api/server/middleware/limiters/loginLimiter.js" \
+    "skipSuccessfulRequests: true" \
+    "skipSuccessfulRequests prevents SSO redirect 302s from counting against login rate limit" \
+    "critical"
+
+echo ""
+
+# 18. OpenID Token Refresh Middleware
+echo "18. OpenID Token Refresh Middleware (refreshOpenIDToken.js)"
+check_pattern \
+    "api/server/middleware/refreshOpenIDToken.js" \
+    "isAccessTokenExpiredOrExpiringSoon" \
+    "Proactive access_token expiry detection before agent requests" \
+    "critical"
+
+check_pattern \
+    "api/server/middleware/refreshOpenIDToken.js" \
+    "_inflight" \
+    "Concurrent refresh deduplication map prevents invalid_grant race on Azure AD" \
+    "critical"
+
+check_pattern \
+    "api/server/routes/agents/index.js" \
+    "refreshOpenIDToken" \
+    "refreshOpenIDToken middleware wired into agents router" \
+    "critical"
+
+echo ""
+
+# 19. RAG Context 404 Graceful Handling
+echo "19. RAG Context 404 Graceful Handling (createContextHandlers.js)"
+check_pattern \
+    "api/app/clients/prompts/createContextHandlers.js" \
+    "Promise.allSettled" \
+    "Promise.allSettled isolates per-file 404 failures instead of crashing entire generation" \
+    "warning"
+
+echo ""
+
+# 20. MCP SSE Noise Reduction + stopReconnecting
+echo "20. MCP SSE Noise Reduction + stopReconnecting (connection.ts, MCPServerInspector.ts)"
+check_pattern \
+    "packages/api/src/mcp/connection.ts" \
+    "shouldStopReconnecting" \
+    "shouldStopReconnecting flag prevents reconnection storm after inspection disconnect" \
+    "warning"
+
+check_pattern \
+    "packages/api/src/mcp/registry/MCPServerInspector.ts" \
+    "stopReconnecting" \
+    "MCPServerInspector calls stopReconnecting() before disconnect for temp connections" \
+    "warning"
+
+echo ""
+
+# 21. Azure OpenAI Custom Icon (GPTIconDark)
+echo "21. Azure OpenAI Custom Icon (Icons.tsx)"
+check_pattern \
+    "client/src/hooks/Endpoint/Icons.tsx" \
+    "GPTIconDark" \
+    "Azure OpenAI uses GPTIconDark instead of AzureMinimalIcon for visual consistency" \
+    "warning"
+
+echo ""
+
+# 22. Paychex Changelog Link
+echo "22. Paychex Changelog Link (Footer.tsx, AccountSettings.tsx)"
+check_pattern \
+    "client/src/components/Chat/Footer.tsx" \
+    "changelogURL" \
+    "Changelog link rendered in chat footer from config.changelogURL" \
+    "warning"
+
+check_pattern \
+    "client/src/components/Nav/AccountSettings.tsx" \
+    "startupConfig?.changelogURL" \
+    "Changelog link rendered in account settings menu" \
+    "warning"
+
+echo ""
+
+# 23. Native DEFAULT Badge on ModelSpecItem
+echo "23. Native DEFAULT Badge (ModelSpecItem.tsx)"
+check_pattern \
+    "client/src/components/Chat/Menus/Endpoints/components/ModelSpecItem.tsx" \
+    "spec.default === true" \
+    "Native DEFAULT badge renders when spec.default is true (replaces Pendo-injected badge)" \
+    "warning"
+
+echo ""
+
+# 24. Claude SSE Parsing Fix for Kong
+echo "24. Claude SSE Parsing Fix for Kong (generators.ts)"
+check_pattern \
+    "packages/api/src/utils/generators.ts" \
+    "data.choices = \[\]" \
+    "Normalize missing choices array in Claude SSE chunks when Kong omits it" \
+    "critical"
+
+check_pattern \
+    "packages/api/src/utils/generators.ts" \
+    "Kong SSE" \
+    "Comment documenting Kong SSE workaround for parallel tool call and missing choices bugs" \
+    "warning"
+
+echo ""
 echo "======================================"
 echo "Verification Summary"
 echo "======================================"
