@@ -16,36 +16,9 @@ Follow these steps in order when invoked with a target version (e.g., v0.8.5):
 
 Confirm the argument is a valid LibreChat version tag (format: `v0.x.x`). If not provided or invalid, ask the user to specify the target upstream version they want to merge.
 
-### Step 2 — Pre-merge verification
+### Step 2 — Switch to (or create) the integration branch
 
-Run baseline verification to document current state:
-```bash
-./scripts/verify-paychex-customizations.sh > /tmp/pre_merge_verification.txt
-```
-
-Confirm all critical customizations are present. If any fail, stop and ask the user to fix them before proceeding.
-
-### Step 3 — Analyze scope of changes
-
-Fetch upstream and analyze what's changing:
-```bash
-git remote add upstream https://github.com/danny-avila/LibreChat.git 2>/dev/null || true
-git fetch upstream --tags
-CURRENT_VERSION=$(git describe --tags --abbrev=0 $(git merge-base upstream/v{TARGET_VERSION}-integration upstream/main))
-git log $CURRENT_VERSION..v{TARGET_VERSION} --oneline | wc -l
-git diff --stat $CURRENT_VERSION..v{TARGET_VERSION}
-```
-
-Summarize for the user:
-- Number of commits being merged
-- Files most heavily modified
-- Major categories of changes (features, fixes, refactors)
-
-Ask: "Review the changes above. Ready to proceed with the merge? (yes/no)"
-
-### Step 4 — Switch to (or create) the integration branch
-
-All merge work is done directly on `upstream/v{TARGET_VERSION}-integration`. This branch may already exist with Paychex prep commits (docs updates, verification script changes, etc.) that must be included in the merged result — **do not discard them**.
+All merge work is done directly on `upstream/v{TARGET_VERSION}-integration`. This branch may already exist with Paychex prep commits (docs updates, verification script changes, etc.) that must be included in the merged result — **do not discard them**. Switch to it before running any verification or analysis so all subsequent steps operate on the correct branch state.
 
 Check whether the branch already exists locally or on origin:
 
@@ -69,6 +42,33 @@ git checkout -b upstream/v{TARGET_VERSION}-integration
 ```
 
 Confirm you are on `upstream/v{TARGET_VERSION}-integration` before proceeding.
+
+### Step 3 — Pre-merge verification
+
+Run baseline verification to document current state of the integration branch:
+```bash
+./scripts/verify-paychex-customizations.sh > /tmp/pre_merge_verification.txt
+```
+
+Confirm all critical customizations are present. If any fail, stop and ask the user to fix them before proceeding.
+
+### Step 4 — Analyze scope of changes
+
+Fetch upstream and analyze what's changing:
+```bash
+git remote add upstream https://github.com/danny-avila/LibreChat.git 2>/dev/null || true
+git fetch upstream --tags
+CURRENT_VERSION=$(git describe --tags --abbrev=0 $(git merge-base upstream/v{TARGET_VERSION}-integration upstream/main))
+git log $CURRENT_VERSION..v{TARGET_VERSION} --oneline | wc -l
+git diff --stat $CURRENT_VERSION..v{TARGET_VERSION}
+```
+
+Summarize for the user:
+- Number of commits being merged
+- Files most heavily modified
+- Major categories of changes (features, fixes, refactors)
+
+Ask: "Review the changes above. Ready to proceed with the merge? (yes/no)"
 
 ### Step 5 — Initiate merge
 
