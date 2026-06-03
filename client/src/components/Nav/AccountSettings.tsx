@@ -1,6 +1,6 @@
 import { useState, memo, useRef } from 'react';
 import * as Menu from '@ariakit/react/menu';
-import { FileText, LogOut } from 'lucide-react';
+import { ExternalLink, FileText, LogOut } from 'lucide-react';
 import { LinkIcon, GearIcon, DropdownMenuSeparator, Avatar } from '@librechat/client';
 import { MyFilesModal } from '~/components/Chat/Input/Files/MyFilesModal';
 import { useGetStartupConfig, useGetUserBalance } from '~/data-provider';
@@ -70,6 +70,15 @@ function AccountSettings() {
           >
             <LinkIcon aria-hidden="true" />
             {localize('com_nav_help_faq')}
+          </Menu.MenuItem>
+        )}
+        {startupConfig?.changelogURL && startupConfig.changelogURL !== '/' && (
+          <Menu.MenuItem
+            onClick={() => window.open(startupConfig?.changelogURL, '_blank')}
+            className="select-item text-sm"
+          >
+            <ExternalLink className="icon-md" aria-hidden="true" />
+            {localize('com_nav_changelog')}
           </Menu.MenuItem>
         )}
         <Menu.MenuItem onClick={() => setShowSettings(true)} className="select-item text-sm">

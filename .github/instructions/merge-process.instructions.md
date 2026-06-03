@@ -23,6 +23,7 @@ These customizations MUST be preserved during upstream merges. Verify after ever
 | Dockerfile Error Handling | `Dockerfile` | `&&` operators (not `;`) | Prevents masked build failures - critical for CI/CD |
 | xlsx Package | `api/package.json`, `packages/api/package.json` | `"xlsx": "^0.18.5"` (npm registry, not CDN) | CDN returns 403 errors - builds fail without this |
 | Anthropic Image Encoding | `api/server/services/Files/images/encode.js` | `includes('claude') \|\| includes('anthropic')` (before `VisionModes.agents` block) | Custom Claude/Anthropic endpoints get 400 errors on image uploads without this; block order matters |
+| Prompt Catalog Insert Integration | `api/server/routes/prompthub.js`, `packages/api/src/promptCatalog/handlers.ts`, `client/src/hooks/Input/useQueryParams.ts`, `client/src/routes/ChatRoute.tsx` | `/api/prompthub/resolve-insert`, `promptCatalogId`, `PROMPT_CATALOG_API_URL`, `com_ui_prompt_catalog_insert_error` | Preserves AI Hub Prompt Catalog → LibreChat deep links with server-side resolution, query-param exclusion, visible failures, and no infinite polling |
 
 ## Merge Conflict Decision Matrix
 
@@ -57,6 +58,10 @@ Apply this matrix when resolving each conflict:
 - `api/server/services/start/tools.js`
 - `api/server/services/MCP.js`
 - `api/server/services/Files/images/encode.js`
+- `api/server/routes/prompthub.js`
+- `packages/api/src/promptCatalog/**/*.ts`
+- `client/src/hooks/Input/useQueryParams.ts`
+- `client/src/routes/ChatRoute.tsx`
 - `Dockerfile`
 - `api/package.json`
 - `packages/api/package.json`
@@ -194,6 +199,13 @@ grep '"xlsx"' api/package.json packages/api/package.json
 # Check Dockerfile error handling
 grep -A1 "npm run frontend" Dockerfile | grep "&&"
 # Should use && (not ;)
+
+# Check Prompt Catalog deep-link integration
+grep -n "/api/prompthub" api/server/index.js api/server/experimental.js api/server/routes/index.js
+grep -n "createPromptHubResolveInsertHandler" api/server/routes/prompthub.js packages/api/src/index.ts packages/api/src/promptCatalog/handlers.ts
+grep -n "PROMPT_CATALOG_API_URL" .env.example api/server/routes/prompthub.js packages/api/src/promptCatalog/handlers.ts
+grep -n "promptCatalogId\|prompt_catalog_id" client/src/hooks/Input/useQueryParams.ts client/src/routes/ChatRoute.tsx
+grep -n "com_ui_prompt_catalog_insert_error" client/src/hooks/Input/useQueryParams.ts client/src/locales/en/translation.json
 ```
 
 ## Post-Merge Validation
@@ -216,6 +228,7 @@ Before considering merge complete:
 | Consolidating tool definitions | Paychex sanitization may be lost | Manually re-apply in new location |
 | TypeScript migration | Type conflicts | Use types from `packages/data-provider` |
 | Component prop changes | Paychex custom props may break | Adapt to new prop structure |
+| Query-param handling refactors in `ChatRoute` / `useQueryParams` | Prompt Catalog deep links regress | Preserve `promptCatalogId` exclusion, same-origin `/api/prompthub/resolve-insert` flow, and timeout/toast failure handling |
 
 ## Troubleshooting Quick Reference
 
@@ -227,6 +240,8 @@ Before considering merge complete:
 | xlsx 403 error | Change to `"xlsx": "^0.18.5"` in package.json files |
 | Dockerfile build masks errors | Change `;` to `&&` in command chains |
 | TypeScript duplicate identifier | Check `packages/data-provider/src/types/` for existing definition |
+| `createPromptHubResolveInsertHandler is not a function` at startup | Rebuild `@librechat/api` with `npm run build:api`; JS routes load the compiled package from `packages/api/dist` |
+| AI Hub deep link opens blank LibreChat chat | Verify `/api/prompthub` mounts, `PROMPT_CATALOG_API_URL`, `promptCatalogId` handling, and the Prompt Catalog error toast key |
 
 ## Reference Documentation Paths
 

@@ -187,3 +187,56 @@ All Paychex customizations are maintained on the `develop` branch and follow the
    git branch -d upstream/vX.X.X-integration
    git push origin --delete upstream/vX.X.X-integration
    ```
+
+## Generating E2E Specs with Playwright MCP
+
+The repo includes a Playwright MCP setup that lets an LLM agent (via VS Code Copilot Chat in Agent mode) drive a real browser and generate Playwright spec files for us. See [docs/playwright-mcp-poc.md](docs/playwright-mcp-poc.md) for the full POC findings, and [docs/playwright-mcp-setup-guide.md](docs/playwright-mcp-setup-guide.md) for an app-agnostic setup walkthrough.
+
+### Enable in VS Code
+
+The MCP server is pre-configured in [.vscode/mcp.json](.vscode/mcp.json). To activate it:
+
+1. Open [.vscode/mcp.json](.vscode/mcp.json), click the `▷ Start` codelens above the `"playwright"` entry (or run **MCP: List Servers** from the command palette and start it from there).
+2. Open Copilot Chat in **Agent** mode (dropdown at the bottom of the chat input).
+3. Open the tool picker (Command Palette → **Chat: Configure Tools…**) and confirm the `playwright` tools are enabled.
+
+### Run generated specs
+
+Generated specs live alongside the existing suite at [e2e/specs/](e2e/specs/) with an `mcp-` prefix. Run them with:
+
+```bash
+npm run e2e:seed             # create test account in local MongoDB (first time only)
+npm run e2e:ci:deployed      # runs all MCP + smoke specs (auto-starts server if localhost)
+```
+
+Set these in `.env`:
+
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `E2E_BASE_URL` | Target environment | `http://localhost:3080` or `https://play.ain2a.paychex.com` |
+| `E2E_USERNAME` | Test account email | `libre_playwright_np@paychex.com` |
+| `E2E_PASSWORD` | Test account password | *(see team vault)* |
+
+### Authentication behavior
+
+The CI config (`e2e/playwright.config.ci.ts`) uses a global-setup that authenticates once and saves session state.
+
+- **Local (`localhost`):** Uses the email/password login form. Run `npm run e2e:seed` first to create the test account with ADMIN permissions in MongoDB.
+- **Deployed (non-localhost):** Uses Azure AD → Microsoft login → ADFS. On CI runners (not domain-joined), the ADFS form appears and the service account credentials are submitted. On domain-joined dev machines, Kerberos auto-authenticates as **your Windows identity** (not the service account) — this is expected and acceptable for local development.
+
+#### Service account requirements
+
+| Account | Environments | AD Group Required |
+|---------|-------------|-------------------|
+| `libre_playwright_np@paychex.com` | N2A, N1 | Yes — must be in the app's access group |
+| `libre_playwright_pr@paychex.com` | Prod | Yes — must be in the app's access group |
+
+### Generating new specs
+
+In Copilot Chat (Agent mode) with the playwright tools enabled, prompt the agent to:
+
+1. Log in to http://localhost:3090
+2. Explore the feature you want covered
+3. Save a new spec to `e2e/specs/mcp-<feature-name>.spec.ts`
+
+Then review the generated spec like any other PR — the agent can over-assert from a single observation, so a human pass is required before committing.

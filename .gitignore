@@ -99,9 +99,18 @@ monospace.json
 *.pem
 config.local.ts
 **/storageState.json
+**/storageState.*.json
 junit.xml
 **/.venv/
 **/venv/
+
+# Playwright MCP local runtime artifacts
+.playwright-mcp/
+.playwright-mcp-profile/
+e2e/specs/.test-results-poc/
+e2e/specs/.test-results-ci/
+e2e/playwright-report-ci/
+e2e/auth-failure.png
 
 # docker override file
 docker-compose.override.yaml

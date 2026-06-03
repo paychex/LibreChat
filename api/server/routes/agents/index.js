@@ -5,6 +5,7 @@ const {
   uaParser,
   checkBan,
   requireJwtAuth,
+  refreshOpenIDToken,
   messageIpLimiter,
   configMiddleware,
   messageUserLimiter,
@@ -34,6 +35,7 @@ router.use('/v1/responses', responses);
 router.use('/v1', openai);
 
 router.use(requireJwtAuth);
+router.use(refreshOpenIDToken);
 router.use(checkBan);
 router.use(uaParser);
 

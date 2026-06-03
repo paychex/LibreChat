@@ -18,13 +18,19 @@ jest.mock('~/store', () => ({
 }));
 
 import { renderHook, act } from '@testing-library/react';
+import { useToastContext } from '@librechat/client';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRecoilValue } from 'recoil';
 import useQueryParams from './useQueryParams';
+import {
+  useAuthContext,
+  useAgentsMap,
+  useDefaultConvo,
+  useLocalize,
+  useSubmitMessage,
+} from '~/hooks';
 import { useChatContext, useChatFormContext } from '~/Providers';
-import useSubmitMessage from '~/hooks/Messages/useSubmitMessage';
-import useDefaultConvo from '~/hooks/Conversations/useDefaultConvo';
 import store from '~/store';
 
 // Other mocks
@@ -37,32 +43,21 @@ jest.mock('@tanstack/react-query', () => ({
   useQuery: jest.fn(),
 }));
 
+jest.mock('@librechat/client', () => ({
+  useToastContext: jest.fn(),
+}));
+
 jest.mock('~/Providers', () => ({
   useChatContext: jest.fn(),
   useChatFormContext: jest.fn(),
 }));
 
-jest.mock('~/hooks/Messages/useSubmitMessage', () => ({
-  __esModule: true,
-  default: jest.fn(),
-}));
-
-jest.mock('~/hooks/Conversations/useDefaultConvo', () => ({
-  __esModule: true,
-  default: jest.fn(),
-}));
-
-jest.mock('~/hooks/AuthContext', () => ({
+jest.mock('~/hooks', () => ({
   useAuthContext: jest.fn(),
-}));
-
-jest.mock('~/hooks/Agents/useAgentsMap', () => ({
-  __esModule: true,
-  default: jest.fn(() => ({})),
-}));
-jest.mock('~/hooks/Agents/useAgentDefaultPermissionLevel', () => ({
-  __esModule: true,
-  default: jest.fn(() => ({})),
+  useAgentsMap: jest.fn(() => ({})),
+  useDefaultConvo: jest.fn(),
+  useLocalize: jest.fn(),
+  useSubmitMessage: jest.fn(),
 }));
 
 jest.mock('~/utils', () => {
@@ -124,6 +119,7 @@ describe('useQueryParams', () => {
   // Setup common mocks before each test
   beforeEach(() => {
     jest.useFakeTimers();
+    global.fetch = jest.fn();
 
     // Reset mock for window.history.replaceState
     jest.spyOn(window.history, 'replaceState').mockClear();
@@ -181,11 +177,15 @@ describe('useQueryParams', () => {
     const mockGetDefaultConversation = jest.fn().mockReturnValue({});
     (useDefaultConvo as jest.Mock).mockReturnValue(mockGetDefaultConversation);
 
-    // Mock useAuthContext
-    const { useAuthContext } = jest.requireMock('~/hooks/AuthContext');
     (useAuthContext as jest.Mock).mockReturnValue({
       user: { id: 'test-user-id' },
+      token: 'test-token',
       isAuthenticated: true,
+    });
+    (useAgentsMap as jest.Mock).mockReturnValue({});
+    (useLocalize as jest.Mock).mockReturnValue((key: string) => key);
+    (useToastContext as jest.Mock).mockReturnValue({
+      showToast: jest.fn(),
     });
   });
 
@@ -303,6 +303,188 @@ describe('useQueryParams', () => {
     );
     expect(mockHandleSubmit).toHaveBeenCalled();
     expect(mockSubmitMessage).toHaveBeenCalled();
+  });
+
+  it('should resolve PromptHub-style Prompt Catalog inserts before filling the textarea', async () => {
+    const mockSetValue = jest.fn();
+    const mockSetSearchParams = jest.fn();
+    const mockTextAreaRef = {
+      current: {
+        focus: jest.fn(),
+        setSelectionRange: jest.fn(),
+      } as unknown as HTMLTextAreaElement,
+    };
+
+    (useChatFormContext as jest.Mock).mockReturnValue({
+      setValue: mockSetValue,
+      getValues: jest.fn().mockReturnValue(''),
+      handleSubmit: jest.fn((callback) => () => callback({ text: 'test message' })),
+    });
+
+    (useSearchParams as jest.Mock).mockReturnValue([
+      new URLSearchParams({ promptCatalogId: '123' }),
+      mockSetSearchParams,
+    ]);
+
+    (useQueryClient as jest.Mock).mockReturnValue({
+      getQueryData: jest.fn().mockImplementation((key) => {
+        const k = Array.isArray(key) ? key[0] : key;
+        if (k === 'startupConfig') {
+          return { modelSpecs: { list: [] } };
+        }
+        if (k === 'endpoints') {
+          return {};
+        }
+        return null;
+      }),
+    });
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ content: 'Prompt from catalog' }),
+    });
+
+    renderHook(() => useQueryParams({ textAreaRef: mockTextAreaRef }));
+
+    await act(async () => {
+      jest.advanceTimersByTime(100);
+      await Promise.resolve();
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith('/api/prompthub/resolve-insert', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test-token',
+      },
+      body: JSON.stringify({ promptCatalogId: '123' }),
+    });
+    expect(mockSetValue).not.toHaveBeenCalled();
+
+    await act(async () => {
+      jest.advanceTimersByTime(100);
+      await Promise.resolve();
+    });
+
+    expect(mockSetValue).toHaveBeenCalledWith(
+      'text',
+      'Prompt from catalog',
+      expect.objectContaining({ shouldValidate: true }),
+    );
+    expect(mockSetSearchParams).toHaveBeenCalledWith(
+      expect.any(URLSearchParams),
+      expect.objectContaining({ replace: true }),
+    );
+  });
+
+  it('should show a toast when resolving a Prompt Catalog insert fails', async () => {
+    const mockSetSearchParams = jest.fn();
+    const mockTextAreaRef = {
+      current: {
+        focus: jest.fn(),
+        setSelectionRange: jest.fn(),
+      } as unknown as HTMLTextAreaElement,
+    };
+    const showToast = jest.fn();
+
+    (useToastContext as jest.Mock).mockReturnValue({ showToast });
+    (useSearchParams as jest.Mock).mockReturnValue([
+      new URLSearchParams({ promptCatalogId: '123' }),
+      mockSetSearchParams,
+    ]);
+
+    (useQueryClient as jest.Mock).mockReturnValue({
+      getQueryData: jest.fn().mockImplementation((key) => {
+        const k = Array.isArray(key) ? key[0] : key;
+        if (k === 'startupConfig') {
+          return { modelSpecs: { list: [] } };
+        }
+        if (k === 'endpoints') {
+          return {};
+        }
+        return null;
+      }),
+    });
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      json: jest.fn().mockResolvedValue({ message: 'Prompt not found' }),
+    });
+
+    renderHook(() => useQueryParams({ textAreaRef: mockTextAreaRef }));
+
+    await act(async () => {
+      jest.advanceTimersByTime(100);
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(100);
+      await Promise.resolve();
+    });
+
+    expect(showToast).toHaveBeenCalledWith({
+      message: 'com_ui_prompt_catalog_insert_error',
+      severity: 'error',
+    });
+    expect(mockSetSearchParams).toHaveBeenCalledWith(
+      expect.any(URLSearchParams),
+      expect.objectContaining({ replace: true }),
+    );
+  });
+
+  it('should time out and show a toast when auth is ready but token never becomes available', async () => {
+    const mockSetSearchParams = jest.fn();
+    const mockTextAreaRef = {
+      current: {
+        focus: jest.fn(),
+        setSelectionRange: jest.fn(),
+      } as unknown as HTMLTextAreaElement,
+    };
+    const showToast = jest.fn();
+
+    (useToastContext as jest.Mock).mockReturnValue({ showToast });
+    (useAuthContext as jest.Mock).mockReturnValue({
+      user: { id: 'test-user-id' },
+      token: '',
+      isAuthenticated: true,
+    });
+    (useSearchParams as jest.Mock).mockReturnValue([
+      new URLSearchParams({ promptCatalogId: '123' }),
+      mockSetSearchParams,
+    ]);
+
+    (useQueryClient as jest.Mock).mockReturnValue({
+      getQueryData: jest.fn().mockImplementation((key) => {
+        const k = Array.isArray(key) ? key[0] : key;
+        if (k === 'startupConfig') {
+          return { modelSpecs: { list: [] } };
+        }
+        if (k === 'endpoints') {
+          return {};
+        }
+        return null;
+      }),
+    });
+
+    renderHook(() => useQueryParams({ textAreaRef: mockTextAreaRef }));
+
+    await act(async () => {
+      jest.advanceTimersByTime(5100);
+      await Promise.resolve();
+    });
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(showToast).toHaveBeenCalledWith({
+      message: 'com_ui_prompt_catalog_insert_error',
+      severity: 'error',
+    });
+    expect(mockSetSearchParams).toHaveBeenCalledWith(
+      expect.any(URLSearchParams),
+      expect.objectContaining({ replace: true }),
+    );
   });
 
   it('should defer submission when settings need to be applied first', () => {
