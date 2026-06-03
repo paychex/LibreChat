@@ -30,7 +30,7 @@
 
 ## Merge Initiation
 
-- [ ] Created merge branch: `merge-upstream-v${TARGET}`
+- [ ] On integration branch: `upstream/v${TARGET}-integration` (created from develop if it didn't exist)
 - [ ] Attempted merge: `git merge --no-commit --no-ff v${TARGET}`
 - [ ] Conflict count recorded: _____ conflicts
 - [ ] Conflicts categorized by type:
@@ -280,9 +280,9 @@ Or manually verify each:
 - [ ] All changes staged: `git add -A`
 - [ ] Commit created with comprehensive message
 - [ ] Commit verified: `git log -1 --stat`
-- [ ] Pushed to remote: `git push origin merge-upstream-v${TARGET}`
-- [ ] Pull request created (if required)
-- [ ] Code review requested (if required)
+- [ ] Pushed to remote: `git push origin upstream/v${TARGET}-integration`
+- [ ] Pull request created targeting `develop`
+- [ ] Code review requested
 
 ---
 
@@ -291,7 +291,7 @@ Or manually verify each:
 - [ ] Merge branch tested in development environment
 - [ ] Integration tests pass in dev environment
 - [ ] QA signoff obtained (if required)
-- [ ] Merged to develop: `git checkout develop && git merge merge-upstream-v${TARGET}`
+- [ ] PR merged to develop via GitHub
 - [ ] Tags updated (if applicable)
 - [ ] Deployment pipeline triggered
 - [ ] Production deployment successful
@@ -301,8 +301,8 @@ Or manually verify each:
 
 ## Cleanup
 
-- [ ] Merge branch deleted locally: `git branch -d merge-upstream-v${TARGET}`
-- [ ] Merge branch deleted remotely: `git push origin -d merge-upstream-v${TARGET}`
+- [ ] Integration branch deleted locally after PR merge: `git branch -d upstream/v${TARGET}-integration`
+- [ ] Integration branch deleted remotely after PR merge: `git push origin -d upstream/v${TARGET}-integration`
 - [ ] Working directory clean
 - [ ] Documentation updated with lessons learned
 

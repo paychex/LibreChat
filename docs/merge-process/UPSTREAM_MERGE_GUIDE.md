@@ -49,16 +49,16 @@ TARGET_VERSION="v0.8.5"
 #### 1.2 Analyze Scope of Changes
 ```bash
 # Check merge base (common ancestor)
-git merge-base develop v${TARGET_VERSION}
+git merge-base upstream/v${TARGET_VERSION}-integration v${TARGET_VERSION}
 
 # Count commits to merge
-git rev-list --left-right --count develop...v${TARGET_VERSION}
+git rev-list --left-right --count upstream/v${TARGET_VERSION}-integration...v${TARGET_VERSION}
 
 # Preview changed files
-git diff --stat develop v${TARGET_VERSION} | tail -30
+git diff --stat upstream/v${TARGET_VERSION}-integration v${TARGET_VERSION} | tail -30
 
 # Check for deletion conflicts
-git diff --name-status develop v${TARGET_VERSION} | grep "^D"
+git diff --name-status upstream/v${TARGET_VERSION}-integration v${TARGET_VERSION} | grep "^D"
 ```
 
 #### 1.3 Review Upstream Changelog
@@ -80,12 +80,22 @@ Create a merge planning document with:
 
 ---
 
-### Phase 2: Create Merge Branch
+### Phase 2: Switch to (or Create) the Integration Branch
+
+All merge work is done directly on `upstream/v${TARGET_VERSION}-integration`. This branch may already exist with Paychex prep commits that must be preserved.
 
 ```bash
-# Create new branch from develop
+# Check if the integration branch already exists
+git branch -a | grep "upstream/v${TARGET_VERSION}-integration"
+
+# If it exists — use it
+git checkout upstream/v${TARGET_VERSION}-integration
+git pull origin upstream/v${TARGET_VERSION}-integration
+
+# If it does NOT exist — create it from develop
 git checkout develop
-git checkout -b merge-upstream-v${TARGET_VERSION}
+git pull origin develop
+git checkout -b upstream/v${TARGET_VERSION}-integration
 
 # Attempt merge (don't commit yet)
 git merge --no-commit --no-ff v${TARGET_VERSION}
@@ -148,10 +158,10 @@ Resolve in this order:
 For each conflicting file:
 ```bash
 # Check what Paychex added since last merge
-git log develop --oneline -- <file_path> | grep -v "Merge"
+git log upstream/v${TARGET_VERSION}-integration --oneline -- <file_path> | grep -v "Merge"
 
 # See detailed changes
-git diff <LAST_UPSTREAM_VERSION> develop -- <file_path>
+git diff <LAST_UPSTREAM_VERSION> upstream/v${TARGET_VERSION}-integration -- <file_path>
 
 # Find commit that introduced key logic
 git log -p develop -- <file_path> | grep -B5 -A5 "<search_term>"
@@ -272,8 +282,8 @@ git show v${TARGET_VERSION}:<file> > /tmp/upstream_version.txt
 diff -u /tmp/develop_version.txt /tmp/upstream_version.txt
 
 # 2. Check for Paychex customizations
-git log develop --oneline -- <file> | head -10
-git diff <LAST_UPSTREAM_VERSION> develop -- <file>
+git log upstream/v${TARGET_VERSION}-integration --oneline -- <file> | head -10
+git diff <LAST_UPSTREAM_VERSION> upstream/v${TARGET_VERSION}-integration -- <file>
 
 # 3a. If NO Paychex customizations:
 git checkout --theirs <file>
@@ -483,7 +493,7 @@ git commit -F commit-message.txt
 git log -1 --stat
 
 # Push to remote
-git push origin merge-upstream-v${TARGET_VERSION}
+git push origin upstream/v${TARGET_VERSION}-integration
 ```
 
 #### 8.3 Post-Merge Documentation
@@ -534,8 +544,8 @@ Your Task:
 - ASK CLARIFYING QUESTIONS when uncertain
 
 Before resolving ANY conflict:
-1. Check: `git log develop -- <file>` for Paychex changes
-2. Check: `git diff v${CURRENT_VERSION} develop -- <file>` for what Paychex added
+1. Check: `git log upstream/v${TARGET_VERSION}-integration -- <file>` for Paychex changes
+2. Check: `git diff v${CURRENT_VERSION} upstream/v${TARGET_VERSION}-integration -- <file>` for what Paychex added
 3. Verify: Is this Paychex logic or pure upstream code?
 4. If Paychex logic found: Explain what will be preserved and why
 5. If uncertain: ASK before proceeding
@@ -595,7 +605,7 @@ The AI should demonstrate:
 ### Common Pitfalls to Avoid
 
 1. ❌ **Blindly accepting upstream** - Always check for Paychex customizations first
-2. ❌ **Forgetting to check git history** - Use `git log develop -- <file>` religiously
+2. ❌ **Forgetting to check git history** - Use `git log upstream/v${TARGET_VERSION}-integration -- <file>` religiously
 3. ❌ **Not verifying deleted file migrations** - Find where functionality moved
 4. ❌ **Skipping tests** - Always run the test suite before committing
 5. ❌ **Poor commit messages** - Document what was preserved and why
@@ -716,8 +726,8 @@ git status --short | grep "^UD"                    # Deleted upstream, modified 
 git status --short | grep "^DU"                    # Modified upstream, deleted local
 
 # Identify Paychex Changes
-git log develop --oneline -- <file>                # See commit history
-git diff v${CURRENT_VERSION} develop -- <file>     # See what Paychex added
+git log upstream/v${TARGET_VERSION}-integration --oneline -- <file>                # See commit history
+git diff v${CURRENT_VERSION} upstream/v${TARGET_VERSION}-integration -- <file>     # See what Paychex added
 git log -p develop -- <file> | grep -A5 <term>     # Find specific logic
 
 # Resolve Conflicts

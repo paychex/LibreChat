@@ -91,8 +91,8 @@ MERGE REQUIREMENTS:
 - Follow UPSTREAM_MERGE_GUIDE.md Phase 3-8 systematically
 - Use Decision Matrix (Phase 5) for EVERY conflict
 - Check git history before resolving ANY conflict:
-  * git log develop -- <file>
-  * git diff ${CURRENT_VERSION} develop -- <file>
+  * git log upstream/v${TARGET_VERSION}-integration -- <file>
+  * git diff ${CURRENT_VERSION} upstream/v${TARGET_VERSION}-integration -- <file>
 - NEVER blindly accept upstream changes
 - Preserve ALL Paychex customizations listed above
 - Manually merge when both sides have valuable changes
@@ -191,12 +191,12 @@ Before using the prompt, replace these placeholders:
 ## 🎯 Example Usage
 
 ```
-I need to merge LibreChat upstream version v0.8.5 into our Paychex develop branch.
+I need to merge LibreChat upstream version v0.8.5 into the upstream/v0.8.5-integration branch.
 
 CONTEXT:
 - Current Paychex version: v0.8.4
 - Target upstream version: v0.8.5
-- Merge branch: merge-upstream-v0.8.5
+- Integration branch: upstream/v0.8.5-integration
 - Conflicts detected: 18 files
 - Complete process documented in: UPSTREAM_MERGE_GUIDE.md
 

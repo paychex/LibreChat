@@ -1,6 +1,6 @@
 ````chatagent
 ---
-description: "Guide through merging upstream LibreChat releases into Paychex develop branch while preserving all Paychex customizations"
+description: "Guide through merging upstream LibreChat releases into the upstream/v{VERSION}-integration branch while preserving all Paychex customizations"
 tools: [read, search, execute, edit]
 argument-hint: "Target upstream version (e.g., v0.8.5)"
 model: "Claude Sonnet 4.6"
@@ -31,7 +31,7 @@ Fetch upstream and analyze what's changing:
 ```bash
 git remote add upstream https://github.com/danny-avila/LibreChat.git 2>/dev/null || true
 git fetch upstream --tags
-CURRENT_VERSION=$(git describe --tags --abbrev=0 $(git merge-base develop upstream/main))
+CURRENT_VERSION=$(git describe --tags --abbrev=0 $(git merge-base upstream/v{TARGET_VERSION}-integration upstream/main))
 git log $CURRENT_VERSION..v{TARGET_VERSION} --oneline | wc -l
 git diff --stat $CURRENT_VERSION..v{TARGET_VERSION}
 ```
@@ -43,15 +43,32 @@ Summarize for the user:
 
 Ask: "Review the changes above. Ready to proceed with the merge? (yes/no)"
 
-### Step 4 — Create merge branch
+### Step 4 — Switch to (or create) the integration branch
+
+All merge work is done directly on `upstream/v{TARGET_VERSION}-integration`. This branch may already exist with Paychex prep commits (docs updates, verification script changes, etc.) that must be included in the merged result — **do not discard them**.
+
+Check whether the branch already exists locally or on origin:
+
+```bash
+git branch -a | grep "upstream/v{TARGET_VERSION}-integration"
+```
+
+**If it exists** (local or remote), switch to it and pull latest:
+
+```bash
+git checkout upstream/v{TARGET_VERSION}-integration
+git pull origin upstream/v{TARGET_VERSION}-integration
+```
+
+**If it does not exist**, create it from `develop`:
 
 ```bash
 git checkout develop
 git pull origin develop
-git checkout -b feature/merge-upstream-v{TARGET_VERSION}
+git checkout -b upstream/v{TARGET_VERSION}-integration
 ```
 
-Confirm branch created successfully.
+Confirm you are on `upstream/v{TARGET_VERSION}-integration` before proceeding.
 
 ### Step 5 — Initiate merge
 
@@ -75,7 +92,8 @@ For each conflicted file, determine its risk level:
 **Critical files (must preserve Paychex logic):**
 - `api/app/clients/BaseClient.js` — filterCrossProviderToolCalls
 - `api/server/services/start/tools.js` — sanitizeSchemaMetadata
-- `api/server/services/MCP.js` — Gemini custom endpoint detection
+- `api/server/services/MCP.js` — Gemini custom endpoint detection; `normalizeServerName(serverName)` in all toolKey construction (prevents 400 errors for server names with spaces/special chars)
+- `packages/api/src/mcp/registry/MCPServerInspector.ts` — `normalizeServerName` imported from `~/mcp/utils` and applied in `getToolFunctions` toolKey; `stopReconnecting()` before disconnect for temp connections
 - `api/server/services/Files/images/encode.js` — Anthropic image encoding; `includes('claude')||includes('anthropic')` block must appear before `VisionModes.agents` early-return
 - `api/server/routes/prompthub.js` — Prompt Catalog deep-link route; preserve `POST /api/prompthub/resolve-insert`
 - `packages/api/src/promptCatalog/handlers.ts`, `packages/api/src/index.ts` — Prompt Catalog resolver export loaded by `@librechat/api`
@@ -92,7 +110,6 @@ For each conflicted file, determine its risk level:
 - `packages/client/src/components/*.tsx` — May have UX customizations
 - `client/src/hooks/Endpoint/Icons.tsx` — GPTIconDark for Azure OpenAI endpoint
 - `packages/api/src/mcp/connection.ts` — shouldStopReconnecting flag and transient error log levels
-- `packages/api/src/mcp/registry/MCPServerInspector.ts` — stopReconnecting() before disconnect for temp connections
 - `api/app/clients/prompts/createContextHandlers.js` — Promise.allSettled for RAG 404 isolation
 - Configuration files — May have Paychex-specific settings
 
@@ -108,13 +125,13 @@ For each conflict, apply this decision matrix:
 
 **If file is CRITICAL:**
 1. Read both versions (ours vs theirs)
-2. Check for Paychex customizations: `git log develop -- <file>`
+2. Check for Paychex customizations: `git log upstream/v{TARGET_VERSION}-integration -- <file>`
 3. If customization present: **Merge manually**, preserving Paychex logic
 4. If no customization: Accept upstream (theirs)
 5. **Never blindly accept upstream for critical files**
 
 **If file is MEDIUM risk:**
-1. Check git history for Paychex changes
+1. Check git history for Paychex changes: `git log upstream/v{TARGET_VERSION}-integration -- <file>`
 2. Review the customization's purpose
 3. Merge manually if Paychex logic exists
 4. Accept upstream if only upstream changes
@@ -262,14 +279,15 @@ git status
 If all pass, guide user to commit:
 ```bash
 git add -A
-git commit -m "Merge upstream v{TARGET_VERSION} into develop
+git commit -m "Merge upstream v{TARGET_VERSION} into upstream/v{TARGET_VERSION}-integration
 
 Merged {N} upstream commits preserving Paychex customizations.
 
 Critical customizations verified:
 - filterCrossProviderToolCalls (BaseClient.js)
 - sanitizeSchemaMetadata (tools.js)
-- Gemini custom endpoint detection (MCP.js)
+- Gemini custom endpoint detection + normalizeServerName toolKey (MCP.js)
+- normalizeServerName in getToolFunctions toolKey (MCPServerInspector.ts)
 - Anthropic image encoding block order (encode.js)
 - Prompt Catalog deep-link integration (prompthub.js, useQueryParams.ts)
 - SSO rate limit fix — skipSuccessfulRequests (loginLimiter.js)
@@ -290,8 +308,8 @@ Fixes applied:
 ### Step 13 — Post-merge recommendations
 
 Remind the user:
-1. **Push branch:** `git push origin feature/merge-upstream-v{TARGET_VERSION}`
-2. **Create PR** for team review
+1. **Push branch:** `git push origin upstream/v{TARGET_VERSION}-integration`
+2. **Create PR** targeting `develop` for team review
 3. **Update verification script** if new customizations were added
 4. **Document** any new patterns discovered
 
@@ -304,8 +322,8 @@ Also suggest:
 
 - **Preservation first:** When in doubt, preserve Paychex customizations
 - **Verify constantly:** Run verification script after major resolution steps
-- **Use git archaeology:** Always check `git log develop -- <file>` to understand changes
-- **Three-way comparison:** Compare develop vs upstream vs merge-base to understand conflicts
+- **Use git archaeology:** Always check `git log upstream/v{TARGET_VERSION}-integration -- <file>` to understand changes
+- **Three-way comparison:** Compare `upstream/v{TARGET_VERSION}-integration` vs upstream tag vs merge-base to understand conflicts
 - **Test thoroughly:** Build and test before considering merge complete
 - **Document everything:** Clear commit messages and process documentation
 

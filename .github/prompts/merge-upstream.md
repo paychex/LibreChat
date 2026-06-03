@@ -7,12 +7,12 @@
 ## Copy-Paste Ready Prompt
 
 ```
-I need to merge LibreChat upstream version [TARGET_VERSION] into Paychex develop branch.
+I need to merge LibreChat upstream version [TARGET_VERSION] into the upstream/v[TARGET_VERSION]-integration branch.
 
 **Context:**
 - Current version: [CURRENT_VERSION] 
 - Target version: [TARGET_VERSION]
-- Merge branch: feature/merge-upstream-[TARGET_VERSION]
+- Integration branch: upstream/v[TARGET_VERSION]-integration
 - Repository: Paychex LibreChat fork
 - Documentation: docs/merge-process/UPSTREAM_MERGE_GUIDE.md
 
@@ -26,9 +26,9 @@ I need to merge LibreChat upstream version [TARGET_VERSION] into Paychex develop
    - Import and usage of `sanitizeSchemaMetadata`
    - Required for Gemini tool compatibility
 
-3. **Gemini Endpoint Detection** (api/server/services/MCP.js)
-   - Pattern: `providerLower.includes('gemini') || providerLower.includes('google')`
-   - Appears in 2 locations
+3. **Gemini Endpoint Detection + MCP Server Name Normalization** (api/server/services/MCP.js, packages/api/src/mcp/registry/MCPServerInspector.ts)
+   - Pattern: `providerLower.includes('gemini') || providerLower.includes('google')` — appears in 2 locations in MCP.js
+   - Pattern: `normalizeServerName(serverName)` in ALL toolKey construction in both MCP.js and MCPServerInspector.ts (prevents 400 errors for server names with spaces/special chars)
 
 4. **Pendo Analytics** (client/src/components/Chat/Menus/Endpoints/ModelSelector.tsx)
    - Element: `<span id="agentUsers" />`
@@ -92,7 +92,7 @@ I need to merge LibreChat upstream version [TARGET_VERSION] into Paychex develop
 **Requirements:**
 
 ✅ **Must Do:**
-- Check git history before resolving conflicts: `git log develop -- <file>`
+- Check git history before resolving conflicts: `git log upstream/v[TARGET_VERSION]-integration -- <file>`
 - Use Decision Matrix from docs/merge-process/UPSTREAM_MERGE_GUIDE.md
 - Preserve ALL customizations listed above
 - Verify after resolution: `./scripts/verify-paychex-customizations.sh`
