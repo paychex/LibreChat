@@ -80,7 +80,12 @@ const base64Only = new Set([
   EModelEndpoint.bedrock,
 ]);
 
-const blobStorageSources = new Set([FileSources.azure_blob, FileSources.s3, FileSources.firebase]);
+const blobStorageSources = new Set([
+  FileSources.azure_blob,
+  FileSources.s3,
+  FileSources.firebase,
+  FileSources.cloudfront,
+]);
 
 /**
  * Encodes and formats the given files.
@@ -215,14 +220,10 @@ async function encodeAndFormat(req, files, params, mode) {
       },
     };
 
-    const endpointLower =
-      typeof effectiveEndpoint === 'string' ? effectiveEndpoint.toLowerCase() : '';
-    if (
-      effectiveEndpoint &&
-      (effectiveEndpoint === EModelEndpoint.anthropic ||
-        endpointLower.includes('claude') ||
-        endpointLower.includes('anthropic'))
-    ) {
+    const endpointLower = effectiveEndpoint?.toLowerCase?.() ?? '';
+    const isCustomAnthropicEndpoint =
+      endpointLower.includes('claude') || endpointLower.includes('anthropic');
+    if (isCustomAnthropicEndpoint && !Object.values(EModelEndpoint).includes(effectiveEndpoint)) {
       imagePart.type = 'image';
       imagePart.source = {
         type: 'base64',
@@ -250,6 +251,14 @@ async function encodeAndFormat(req, files, params, mode) {
       };
     } else if (effectiveEndpoint && effectiveEndpoint === EModelEndpoint.google) {
       imagePart.image_url = imagePart.image_url.url;
+    } else if (effectiveEndpoint && effectiveEndpoint === EModelEndpoint.anthropic) {
+      imagePart.type = 'image';
+      imagePart.source = {
+        type: 'base64',
+        media_type: file.type,
+        data: imageContent,
+      };
+      delete imagePart.image_url;
     }
 
     result.image_urls.push({ ...imagePart });

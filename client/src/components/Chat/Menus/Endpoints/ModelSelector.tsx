@@ -2,13 +2,20 @@ import React, { useMemo } from 'react';
 import { TooltipAnchor } from '@librechat/client';
 import { getConfigDefaults } from 'librechat-data-provider';
 import type { ModelSelectorProps } from '~/common';
-import { renderEndpoints, renderSearchResults } from './components';
+import {
+  renderModelSpecs,
+  renderEndpoints,
+  renderSearchResults,
+  renderCustomGroups,
+} from './components';
 import { ModelSelectorProvider, useModelSelectorContext } from './ModelSelectorContext';
 import { ModelSelectorChatProvider } from './ModelSelectorChatContext';
 import { getSelectedIcon, getDisplayValue } from './utils';
 import { CustomMenu as Menu } from './CustomMenu';
 import DialogManager from './DialogManager';
 import { useLocalize } from '~/hooks';
+
+const defaultInterface = getConfigDefaults().interface;
 
 function ModelSelectorContent() {
   const localize = useLocalize();
@@ -60,12 +67,9 @@ function ModelSelectorContent() {
       description={localize('com_ui_select_model')}
       render={
         <button
-          className="my-1 flex h-10 w-full max-w-[70vw] items-center justify-center gap-2 rounded-xl border border-border-light bg-presentation px-3 py-2 text-sm text-text-primary hover:bg-surface-active-alt"
+          className="my-1 flex h-9 w-full max-w-[70vw] items-center justify-center gap-2 rounded-xl border border-border-light bg-presentation px-3 py-2 text-sm text-text-primary hover:bg-surface-active-alt"
           aria-label={localize('com_ui_select_model')}
         >
-          {agentsMap && Object.keys(agentsMap).length > 0 && (
-            <span id="agentUsers" className="sr-only" aria-hidden="true" />
-          )}
           {selectedIcon && React.isValidElement(selectedIcon) && (
             <div className="flex flex-shrink-0 items-center justify-center overflow-hidden">
               {selectedIcon}
@@ -93,9 +97,21 @@ function ModelSelectorContent() {
         comboboxLabel={localize('com_endpoint_search_models')}
         trigger={trigger}
       >
-        {searchResults
-          ? renderSearchResults(searchResults, localize, searchValue)
-          : renderEndpoints(mappedEndpoints ?? [])}
+        {searchResults ? (
+          renderSearchResults(searchResults, localize, searchValue)
+        ) : (
+          <>
+            {/* Render ungrouped modelSpecs (no group field) */}
+            {renderModelSpecs(
+              modelSpecs?.filter((spec) => !spec.group) || [],
+              selectedValues.modelSpec || '',
+            )}
+            {/* Render endpoints (will include grouped specs matching endpoint names) */}
+            {renderEndpoints(mappedEndpoints ?? [])}
+            {/* Render custom groups (specs with group field not matching any endpoint) */}
+            {renderCustomGroups(modelSpecs || [], mappedEndpoints ?? [])}
+          </>
+        )}
       </Menu>
       <DialogManager
         keyDialogOpen={keyDialogOpen}
@@ -103,12 +119,17 @@ function ModelSelectorContent() {
         endpointsConfig={endpointsConfig || {}}
         keyDialogEndpoint={keyDialogEndpoint || undefined}
       />
+      <div
+        id="agentUsers"
+        style={{ position: 'absolute', bottom: 0, left: '50%', width: 1, height: 1, overflow: 'hidden' }}
+        aria-hidden="true"
+      />
     </div>
   );
 }
 
 export default function ModelSelector({ startupConfig }: ModelSelectorProps) {
-  const interfaceConfig = startupConfig?.interface ?? getConfigDefaults().interface;
+  const interfaceConfig = startupConfig?.interface ?? defaultInterface;
   const modelSpecs = startupConfig?.modelSpecs?.list ?? [];
 
   // Hide the selector when modelSelect is false and there are no model specs to show

@@ -6,6 +6,7 @@ export interface IConversation extends Document {
   title?: string;
   user?: string;
   messages?: Types.ObjectId[];
+  isTemporary?: boolean;
   // Fields provided by conversationPreset (adjust types as needed)
   endpoint?: string;
   endpointType?: string;
@@ -56,4 +57,5 @@ export interface IConversation extends Document {
   expiredAt?: Date;
   createdAt?: Date;
   updatedAt?: Date;
+  tenantId?: string;
 }

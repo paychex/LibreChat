@@ -12,7 +12,7 @@ const {
 const { disposeClient, clientRegistry, requestDataMap } = require('~/server/cleanup');
 const { handleAbortError } = require('~/server/middleware');
 const { logViolation } = require('~/cache');
-const { saveMessage } = require('~/models');
+const { saveMessage, getConvo } = require('~/models');
 
 function createCloseHandler(abortController) {
   return function (manual) {
@@ -30,6 +30,48 @@ function createCloseHandler(abortController) {
     abortController.abort();
     logger.debug('[AgentController] Request aborted on close');
   };
+}
+
+function toValidISOString(value) {
+  if (value == null) {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+async function resolveConversationCreatedAt({ userId, conversationId, isNewConvo }) {
+  if (isNewConvo) {
+    return { createdAt: new Date().toISOString(), conversation: undefined };
+  }
+
+  try {
+    const conversation = await getConvo(userId, conversationId);
+    return {
+      conversation,
+      createdAt: toValidISOString(conversation?.createdAt) ?? new Date().toISOString(),
+    };
+  } catch (error) {
+    logger.warn('[AgentController] Failed to resolve conversation timestamp anchor', {
+      conversationId,
+      error: error?.message ?? error,
+    });
+    return { createdAt: new Date().toISOString(), conversation: undefined };
+  }
+}
+
+async function attachConversationCreatedAt(req, { userId, conversationId, isNewConvo }) {
+  req.body.conversationId = conversationId;
+  const resolved = await resolveConversationCreatedAt({
+    userId,
+    conversationId,
+    isNewConvo,
+  });
+  req.conversationCreatedAt = resolved.createdAt;
+  if (!isNewConvo && resolved.conversation !== undefined) {
+    req.resolvedConversation = resolved.conversation ?? null;
+  }
 }
 
 /**
@@ -60,9 +102,10 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
 
   // Generate conversationId upfront if not provided - streamId === conversationId always
   // Treat "new" as a placeholder that needs a real UUID (frontend may send "new" for new convos)
-  const conversationId =
-    !reqConversationId || reqConversationId === 'new' ? crypto.randomUUID() : reqConversationId;
+  const isNewConvo = !reqConversationId || reqConversationId === 'new';
+  const conversationId = isNewConvo ? crypto.randomUUID() : reqConversationId;
   const streamId = conversationId;
+  req.body.conversationId = conversationId;
 
   let client = null;
 
@@ -81,6 +124,8 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
     // Send JSON response IMMEDIATELY so client can connect to SSE stream
     // This is critical: tool loading (MCP OAuth) may emit events that the client needs to receive
     res.json({ streamId, conversationId, status: 'started' });
+
+    await attachConversationCreatedAt(req, { userId, conversationId, isNewConvo });
 
     // Note: We no longer use res.on('close') to abort since we send JSON immediately.
     // The response closes normally after res.json(), which is not an abort condition.
@@ -131,9 +176,15 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
           partialMessage.agent_id = req.body.agent_id;
         }
 
-        await saveMessage(req, partialMessage, {
-          context: 'api/server/controllers/agents/request.js - partial response on disconnect',
-        });
+        await saveMessage(
+          {
+            userId: req?.user?.id,
+            isTemporary: req?.body?.isTemporary,
+            interfaceConfig: req?.config?.interfaceConfig,
+          },
+          partialMessage,
+          { context: 'api/server/controllers/agents/request.js - partial response on disconnect' },
+        );
 
         logger.debug(
           `[ResumableAgentController] Saved partial response for ${streamId}, content parts: ${aggregatedContent.length}`,
@@ -262,7 +313,6 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
 
         // Check abort state BEFORE calling completeJob (which triggers abort signal for cleanup)
         const wasAbortedBeforeComplete = job.abortController.signal.aborted;
-        const isNewConvo = !reqConversationId || reqConversationId === 'new';
         const shouldGenerateTitle =
           addTitle &&
           parentMessageId === Constants.NO_PARENT &&
@@ -271,8 +321,14 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
 
         // Save user message BEFORE sending final event to avoid race condition
         // where client refetch happens before database is updated
+        const reqCtx = {
+          userId: req?.user?.id,
+          isTemporary: req?.body?.isTemporary,
+          interfaceConfig: req?.config?.interfaceConfig,
+        };
+
         if (!client.skipSaveUserMessage && userMessage) {
-          await saveMessage(req, userMessage, {
+          await saveMessage(reqCtx, userMessage, {
             context: 'api/server/controllers/agents/request.js - resumable user message',
           });
         }
@@ -282,7 +338,7 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
         // before the response is saved to the database, causing orphaned parentMessageIds.
         if (client.savedMessageIds && !client.savedMessageIds.has(messageId)) {
           await saveMessage(
-            req,
+            reqCtx,
             { ...response, user: userId, unfinished: wasAbortedBeforeComplete },
             { context: 'api/server/controllers/agents/request.js - resumable response end' },
           );
@@ -441,8 +497,8 @@ const _LegacyAgentController = async (req, res, next, initializeClient, addTitle
 
   // Generate conversationId upfront if not provided - streamId === conversationId always
   // Treat "new" as a placeholder that needs a real UUID (frontend may send "new" for new convos)
-  const conversationId =
-    !reqConversationId || reqConversationId === 'new' ? crypto.randomUUID() : reqConversationId;
+  const isNewConvo = !reqConversationId || reqConversationId === 'new';
+  const conversationId = isNewConvo ? crypto.randomUUID() : reqConversationId;
   const streamId = conversationId;
 
   let userMessage;
@@ -452,8 +508,9 @@ const _LegacyAgentController = async (req, res, next, initializeClient, addTitle
   let cleanupHandlers = [];
 
   // Match the same logic used for conversationId generation above
-  const isNewConvo = !reqConversationId || reqConversationId === 'new';
   const userId = req.user.id;
+
+  await attachConversationCreatedAt(req, { userId, conversationId, isNewConvo });
 
   // Create handler to avoid capturing the entire parent scope
   let getReqData = (data = {}) => {
@@ -661,7 +718,11 @@ const _LegacyAgentController = async (req, res, next, initializeClient, addTitle
       // Save the message if needed
       if (client.savedMessageIds && !client.savedMessageIds.has(messageId)) {
         await saveMessage(
-          req,
+          {
+            userId: req?.user?.id,
+            isTemporary: req?.body?.isTemporary,
+            interfaceConfig: req?.config?.interfaceConfig,
+          },
           { ...finalResponse, user: userId },
           { context: 'api/server/controllers/agents/request.js - response end' },
         );
@@ -690,9 +751,15 @@ const _LegacyAgentController = async (req, res, next, initializeClient, addTitle
 
     // Save user message if needed
     if (!client.skipSaveUserMessage) {
-      await saveMessage(req, userMessage, {
-        context: "api/server/controllers/agents/request.js - don't skip saving user message",
-      });
+      await saveMessage(
+        {
+          userId: req?.user?.id,
+          isTemporary: req?.body?.isTemporary,
+          interfaceConfig: req?.config?.interfaceConfig,
+        },
+        userMessage,
+        { context: "api/server/controllers/agents/request.js - don't skip saving user message" },
+      );
     }
 
     // Add title if needed - extract minimal data

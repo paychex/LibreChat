@@ -4,23 +4,20 @@ const { ImportBatchBuilder } = require('./importBatchBuilder');
 const { getImporter } = require('./importers');
 
 // Mock the database methods
-jest.mock('~/models/Conversation', () => ({
+jest.mock('~/models', () => ({
   bulkSaveConvos: jest.fn(),
-}));
-jest.mock('~/models/Message', () => ({
   bulkSaveMessages: jest.fn(),
 }));
-jest.mock('~/cache/getLogStores');
-const getLogStores = require('~/cache/getLogStores');
-const mockedCacheGet = jest.fn();
-getLogStores.mockImplementation(() => ({
-  get: mockedCacheGet,
+
+const mockGetEndpointsConfig = jest.fn().mockResolvedValue(null);
+jest.mock('~/server/services/Config', () => ({
+  getEndpointsConfig: (...args) => mockGetEndpointsConfig(...args),
 }));
 
 describe('Import Timestamp Ordering', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedCacheGet.mockResolvedValue(null);
+    mockGetEndpointsConfig.mockResolvedValue(null);
   });
 
   describe('LibreChat Import - Timestamp Issues', () => {

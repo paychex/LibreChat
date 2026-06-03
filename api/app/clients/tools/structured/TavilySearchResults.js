@@ -1,6 +1,74 @@
 const { ProxyAgent, fetch } = require('undici');
-const { Tool } = require('@langchain/core/tools');
-const { getEnvironmentVariable } = require('@langchain/core/utils/env');
+const { Tool } = require('@librechat/agents/langchain/tools');
+const { getEnvironmentVariable } = require('@librechat/agents/langchain/utils/env');
+
+const tavilySearchJsonSchema = {
+  type: 'object',
+  properties: {
+    query: {
+      type: 'string',
+      minLength: 1,
+      description: 'The search query string.',
+    },
+    max_results: {
+      type: 'number',
+      minimum: 1,
+      maximum: 10,
+      description: 'The maximum number of search results to return. Defaults to 5.',
+    },
+    search_depth: {
+      type: 'string',
+      enum: ['basic', 'advanced'],
+      description:
+        'The depth of the search, affecting result quality and response time (`basic` or `advanced`). Default is basic for quick results and advanced for indepth high quality results but longer response time. Advanced calls equals 2 requests.',
+    },
+    include_images: {
+      type: 'boolean',
+      description:
+        'Whether to include a list of query-related images in the response. Default is False.',
+    },
+    include_answer: {
+      type: 'boolean',
+      description: 'Whether to include answers in the search results. Default is False.',
+    },
+    include_raw_content: {
+      type: 'boolean',
+      description: 'Whether to include raw content in the search results. Default is False.',
+    },
+    include_domains: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'A list of domains to specifically include in the search results.',
+    },
+    exclude_domains: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'A list of domains to specifically exclude from the search results.',
+    },
+    topic: {
+      type: 'string',
+      enum: ['general', 'news', 'finance'],
+      description:
+        'The category of the search. Use news ONLY if query SPECIFCALLY mentions the word "news".',
+    },
+    time_range: {
+      type: 'string',
+      enum: ['day', 'week', 'month', 'year', 'd', 'w', 'm', 'y'],
+      description: 'The time range back from the current date to filter results.',
+    },
+    days: {
+      type: 'number',
+      minimum: 1,
+      description: 'Number of days back from the current date to include. Only if topic is news.',
+    },
+    include_image_descriptions: {
+      type: 'boolean',
+      description:
+        'When include_images is true, also add a descriptive text for each image. Default is false.',
+    },
+  },
+  required: ['query'],
+};
 
 const tavilySearchJsonSchema = {
   type: 'object',

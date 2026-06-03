@@ -1,7 +1,18 @@
 /* eslint-disable no-useless-escape */
 const axios = require('axios');
-const { Tool } = require('@langchain/core/tools');
 const { logger } = require('@librechat/data-schemas');
+const { Tool } = require('@librechat/agents/langchain/tools');
+
+const wolframJsonSchema = {
+  type: 'object',
+  properties: {
+    input: {
+      type: 'string',
+      description: 'Natural language query to WolframAlpha following the guidelines',
+    },
+  },
+  required: ['input'],
+};
 
 const wolframJsonSchema = {
   type: 'object',

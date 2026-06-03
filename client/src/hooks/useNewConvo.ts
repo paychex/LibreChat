@@ -52,7 +52,6 @@ const useNewConvo = (index = 0) => {
   const { setConversation } = store.useSetConversationAtom(index);
   const [files, setFiles] = useRecoilState(store.filesByIndex(index));
   const saveBadgesState = useRecoilValue<boolean>(store.saveBadgesState);
-  const clearAllLatestMessages = store.useClearLatestMessages(`useNewConvo ${index}`);
   const setSubmission = useSetRecoilState<TSubmission | null>(store.submissionByIndex(index));
   const { data: endpointsConfig = {} as TEndpointsConfig } = useGetEndpointsQuery();
 
@@ -83,7 +82,6 @@ const useNewConvo = (index = 0) => {
         preset: Partial<TPreset> | null = null,
         modelsData?: TModelsConfig,
         buildDefault?: boolean,
-        keepLatestMessage?: boolean,
         keepAddedConvos?: boolean,
         disableFocus?: boolean,
         _disableParams?: boolean,
@@ -250,10 +248,6 @@ const useNewConvo = (index = 0) => {
           setConversation(conversation);
         }
         setSubmission({} as TSubmission);
-        if (!(keepLatestMessage ?? false)) {
-          logger.log('latest_message', 'Clearing all latest messages');
-          clearAllLatestMessages();
-        }
         if (isCancelled) {
           return;
         }
@@ -287,7 +281,6 @@ const useNewConvo = (index = 0) => {
       modelsData,
       disableFocus,
       buildDefault = true,
-      keepLatestMessage = false,
       keepAddedConvos = false,
       disableParams,
     }: {
@@ -296,7 +289,6 @@ const useNewConvo = (index = 0) => {
       modelsData?: TModelsConfig;
       buildDefault?: boolean;
       disableFocus?: boolean;
-      keepLatestMessage?: boolean;
       keepAddedConvos?: boolean;
       disableParams?: boolean;
     } = {}) {
@@ -373,7 +365,6 @@ const useNewConvo = (index = 0) => {
         preset,
         modelsData,
         buildDefault,
-        keepLatestMessage,
         keepAddedConvos,
         disableFocus,
         disableParams,

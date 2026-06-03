@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { Constants, ErrorTypes, LocalStorageKeys } from 'librechat-data-provider';
+import { Constants, LocalStorageKeys, QueryKeys } from 'librechat-data-provider';
 import type { TSubmission } from 'librechat-data-provider';
 
 type SSEEventListener = (e: Partial<MessageEvent> & { responseCode?: number }) => void;
@@ -34,7 +34,19 @@ jest.mock('sse.js', () => ({
 }));
 
 const mockSetQueryData = jest.fn();
-const mockQueryClient = { setQueryData: mockSetQueryData };
+const mockGetQueryData = jest.fn();
+const mockInvalidateQueries = jest.fn();
+const mockRemoveQueries = jest.fn();
+const mockFindAll = jest.fn((): Array<{ queryKey: unknown[] }> => []);
+const mockQueryClient = {
+  setQueryData: mockSetQueryData,
+  getQueryData: mockGetQueryData,
+  invalidateQueries: mockInvalidateQueries,
+  removeQueries: mockRemoveQueries,
+  getQueryCache: () => ({
+    findAll: mockFindAll,
+  }),
+};
 
 jest.mock('@tanstack/react-query', () => ({
   ...jest.requireActual('@tanstack/react-query'),
@@ -63,9 +75,11 @@ jest.mock('~/data-provider', () => ({
   useGetStartupConfig: () => ({ data: { balance: { enabled: false } } }),
   useGetUserBalance: () => ({ refetch: jest.fn() }),
   queueTitleGeneration: jest.fn(),
+  streamStatusQueryKey: (conversationId: string) => ['streamStatus', conversationId],
 }));
 
 const mockErrorHandler = jest.fn();
+const mockCreatedHandler = jest.fn();
 const mockSetIsSubmitting = jest.fn();
 const mockClearStepMaps = jest.fn();
 
@@ -73,7 +87,7 @@ jest.mock('~/hooks/SSE/useEventHandlers', () =>
   jest.fn(() => ({
     errorHandler: mockErrorHandler,
     finalHandler: jest.fn(),
-    createdHandler: jest.fn(),
+    createdHandler: mockCreatedHandler,
     attachmentHandler: jest.fn(),
     stepHandler: jest.fn(),
     contentHandler: jest.fn(),
@@ -149,7 +163,6 @@ const buildChatHelpers = () => ({
   setConversation: jest.fn(),
   setIsSubmitting: mockSetIsSubmitting,
   newConversation: jest.fn(),
-  resetLatestMessage: jest.fn(),
 });
 
 const getLastSSE = (): MockSSEInstance => {
@@ -162,6 +175,15 @@ describe('useResumableSSE - 404 error path', () => {
   beforeEach(() => {
     mockSSEInstances.length = 0;
     localStorage.clear();
+    mockErrorHandler.mockClear();
+    mockCreatedHandler.mockClear();
+    mockClearStepMaps.mockClear();
+    mockSetIsSubmitting.mockClear();
+    mockSetQueryData.mockClear();
+    mockGetQueryData.mockClear();
+    mockInvalidateQueries.mockClear();
+    mockRemoveQueries.mockClear();
+    mockFindAll.mockClear();
   });
 
   const seedDraft = (conversationId: string) => {
@@ -200,19 +222,18 @@ describe('useResumableSSE - 404 error path', () => {
     unmount();
   });
 
-  it('calls errorHandler with STREAM_EXPIRED error type on 404', async () => {
+  it('invalidates message cache and clears stream status on 404 instead of showing error', async () => {
     const { unmount } = await render404Scenario(CONV_ID);
 
-    expect(mockErrorHandler).toHaveBeenCalledTimes(1);
-    const call = mockErrorHandler.mock.calls[0][0];
-    expect(call.data).toBeDefined();
-    const parsed = JSON.parse(call.data.text);
-    expect(parsed.type).toBe(ErrorTypes.STREAM_EXPIRED);
-    expect(call.submission).toEqual(
-      expect.objectContaining({
-        conversation: expect.objectContaining({ conversationId: CONV_ID }),
-      }),
-    );
+    expect(mockErrorHandler).not.toHaveBeenCalled();
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['messages', CONV_ID],
+    });
+    expect(mockRemoveQueries).toHaveBeenCalledWith({
+      queryKey: ['streamStatus', CONV_ID],
+    });
+    expect(mockClearStepMaps).toHaveBeenCalled();
+    expect(mockSetIsSubmitting).toHaveBeenCalledWith(false);
     unmount();
   });
 
@@ -241,10 +262,171 @@ describe('useResumableSSE - 404 error path', () => {
     unmount();
   });
 
+  it('invalidates the stream conversation id on 404 for a new conversation', async () => {
+    mockFindAll.mockReturnValue([{ queryKey: [QueryKeys.allConversations] }]);
+    const submission = buildSubmission({
+      conversation: {},
+      userMessage: {
+        messageId: 'msg-1',
+        conversationId: null,
+        text: 'Hello',
+        isCreatedByUser: true,
+        sender: 'User',
+        parentMessageId: Constants.NO_PARENT,
+      },
+      initialResponse: {
+        messageId: 'msg-1_',
+        conversationId: null,
+        text: '',
+        isCreatedByUser: false,
+        sender: 'Assistant',
+      },
+    });
+    const chatHelpers = buildChatHelpers();
+
+    const { unmount } = renderHook(() => useResumableSSE(submission, chatHelpers));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const sse = getLastSSE();
+    await act(async () => {
+      sse._emit('error', { responseCode: 404 });
+    });
+
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: [QueryKeys.messages, 'stream-123'],
+    });
+    expect(mockRemoveQueries).toHaveBeenCalledWith({
+      queryKey: ['streamStatus', 'stream-123'],
+    });
+
+    const allConversationWrites = mockSetQueryData.mock.calls.filter(
+      ([queryKey]) => Array.isArray(queryKey) && queryKey[0] === QueryKeys.allConversations,
+    );
+    expect(allConversationWrites).toHaveLength(2);
+
+    const removeUpdater = allConversationWrites[1][1] as (data: {
+      pages: { conversations: { conversationId: string }[]; nextCursor: null }[];
+      pageParams: never[];
+    }) => { pages: { conversations: { conversationId: string }[] }[] };
+    const result = removeUpdater({
+      pages: [
+        {
+          conversations: [{ conversationId: 'stream-123' }, { conversationId: 'other' }],
+          nextCursor: null,
+        },
+      ],
+      pageParams: [],
+    });
+    expect(result.pages[0].conversations).toEqual([{ conversationId: 'other' }]);
+    unmount();
+  });
+
   it('closes the SSE connection on 404', async () => {
     const { sse, unmount } = await render404Scenario();
 
     expect(sse.close).toHaveBeenCalled();
+    unmount();
+  });
+
+  it('seeds sidebar and message caches for a new conversation once the stream id is known', async () => {
+    const submission = buildSubmission({
+      conversation: {},
+      userMessage: {
+        messageId: 'msg-1',
+        conversationId: null,
+        text: 'Hello',
+        isCreatedByUser: true,
+        sender: 'User',
+        parentMessageId: Constants.NO_PARENT,
+      },
+      initialResponse: {
+        messageId: 'msg-1_',
+        conversationId: null,
+        text: '',
+        isCreatedByUser: false,
+        sender: 'Assistant',
+      },
+    });
+    const chatHelpers = buildChatHelpers();
+
+    const { unmount } = renderHook(() => useResumableSSE(submission, chatHelpers));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockSetQueryData).toHaveBeenCalledWith(
+      [QueryKeys.conversation, 'stream-123'],
+      expect.any(Function),
+    );
+    expect(mockSetQueryData).toHaveBeenCalledWith(
+      [QueryKeys.messages, 'stream-123'],
+      expect.arrayContaining([
+        expect.objectContaining({ messageId: 'msg-1', conversationId: 'stream-123' }),
+        expect.objectContaining({ messageId: 'msg-1_', conversationId: 'stream-123' }),
+      ]),
+    );
+    expect(mockSetQueryData).toHaveBeenCalledWith(
+      [QueryKeys.messages, Constants.NEW_CONVO],
+      expect.arrayContaining([
+        expect.objectContaining({ messageId: 'msg-1', conversationId: 'stream-123' }),
+      ]),
+    );
+    expect(mockFindAll).toHaveBeenCalledWith([QueryKeys.allConversations], { exact: false });
+
+    unmount();
+  });
+
+  it('hydrates the submission conversation id before created handlers run', async () => {
+    const submission = buildSubmission({
+      conversation: {},
+      userMessage: {
+        messageId: 'msg-1',
+        conversationId: null,
+        text: 'Hello',
+        isCreatedByUser: true,
+        sender: 'User',
+        parentMessageId: Constants.NO_PARENT,
+      },
+      initialResponse: {
+        messageId: 'msg-1_',
+        conversationId: null,
+        text: '',
+        isCreatedByUser: false,
+        sender: 'Assistant',
+      },
+    });
+    const chatHelpers = buildChatHelpers();
+
+    const { unmount } = renderHook(() => useResumableSSE(submission, chatHelpers));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const sse = getLastSSE();
+    await act(async () => {
+      sse._emit('message', {
+        data: JSON.stringify({
+          created: true,
+          message: {
+            messageId: 'msg-1',
+            conversationId: 'stream-123',
+          },
+        }),
+      });
+    });
+
+    expect(mockCreatedHandler).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        conversation: expect.objectContaining({ conversationId: 'stream-123' }),
+        userMessage: expect.objectContaining({ conversationId: 'stream-123' }),
+      }),
+    );
     unmount();
   });
 
@@ -270,4 +452,113 @@ describe('useResumableSSE - 404 error path', () => {
       unmount();
     },
   );
+
+  it('treats responseCode === 0 with raw SSE buffer data as transport failure (reconnect path)', async () => {
+    const submission = buildSubmission();
+    const chatHelpers = buildChatHelpers();
+
+    const { unmount } = renderHook(() => useResumableSSE(submission, chatHelpers));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const sse = getLastSSE();
+
+    await act(async () => {
+      sse._emit('error', {
+        responseCode: 0,
+        data: 'event: message\ndata: {"created":true,"message":{}}\n\n',
+      });
+    });
+
+    expect(mockErrorHandler).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('parses and surfaces server-sent error events (no responseCode, JSON data)', async () => {
+    const submission = buildSubmission();
+    const chatHelpers = buildChatHelpers();
+
+    const { unmount } = renderHook(() => useResumableSSE(submission, chatHelpers));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const sse = getLastSSE();
+
+    const errorPayload = JSON.stringify({
+      error: JSON.stringify({ type: 'token_limit' }),
+    });
+
+    await act(async () => {
+      sse._emit('error', { data: errorPayload });
+    });
+
+    expect(mockErrorHandler).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it('removes the optimistic sidebar row when a new conversation errors before created', async () => {
+    mockFindAll.mockReturnValue([{ queryKey: [QueryKeys.allConversations] }]);
+    const submission = buildSubmission({
+      conversation: {},
+      userMessage: {
+        messageId: 'msg-1',
+        conversationId: null,
+        text: 'Hello',
+        isCreatedByUser: true,
+        sender: 'User',
+        parentMessageId: Constants.NO_PARENT,
+      },
+      initialResponse: {
+        messageId: 'msg-1_',
+        conversationId: null,
+        text: '',
+        isCreatedByUser: false,
+        sender: 'Assistant',
+      },
+    });
+    const chatHelpers = buildChatHelpers();
+
+    const { unmount } = renderHook(() => useResumableSSE(submission, chatHelpers));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const sse = getLastSSE();
+    await act(async () => {
+      sse._emit('error', { data: JSON.stringify({ error: 'failed before created' }) });
+    });
+
+    const allConversationWrites = mockSetQueryData.mock.calls.filter(
+      ([queryKey]) => Array.isArray(queryKey) && queryKey[0] === QueryKeys.allConversations,
+    );
+    expect(allConversationWrites).toHaveLength(2);
+
+    const removeUpdater = allConversationWrites[1][1] as (data: {
+      pages: { conversations: { conversationId: string }[]; nextCursor: null }[];
+      pageParams: never[];
+    }) => { pages: { conversations: { conversationId: string }[] }[] };
+    const result = removeUpdater({
+      pages: [
+        {
+          conversations: [{ conversationId: 'stream-123' }, { conversationId: 'other' }],
+          nextCursor: null,
+        },
+      ],
+      pageParams: [],
+    });
+    expect(result.pages[0].conversations).toEqual([{ conversationId: 'other' }]);
+    expect(mockErrorHandler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        submission: expect.objectContaining({
+          conversation: expect.objectContaining({ conversationId: 'stream-123' }),
+        }),
+      }),
+    );
+    unmount();
+  });
 });

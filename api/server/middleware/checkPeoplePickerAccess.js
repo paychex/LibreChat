@@ -1,6 +1,12 @@
 const { logger } = require('@librechat/data-schemas');
 const { PrincipalType, PermissionTypes, Permissions } = require('librechat-data-provider');
-const { getRoleByName } = require('~/models/Role');
+const { getRoleByName } = require('~/models');
+
+const VALID_PRINCIPAL_TYPES = new Set([
+  PrincipalType.USER,
+  PrincipalType.GROUP,
+  PrincipalType.ROLE,
+]);
 
 const VALID_PRINCIPAL_TYPES = new Set([
   PrincipalType.USER,
