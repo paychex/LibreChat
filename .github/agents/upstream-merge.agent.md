@@ -237,7 +237,21 @@ for(const p of PKGS){if(!used[p])continue;const e=require(p);for(const[n,fs]of O
 ```
 Must return **empty** (no `MISSING` lines). Catches the class of runtime failure where upstream moves a function between packages (e.g., `createTempChatExpirationDate` moved from `@librechat/api` → `@librechat/data-schemas` in v0.8.6). Unlike syntax or type errors, these are invisible to `node --check` and `tsc` in CommonJS files because `require()` is resolved at runtime, not statically.
 
-1e. **`dbModels` completeness check — after any upgrade that touches `@librechat/data-schemas`:**
+1e. **Intra-repo require() export validation:**
+```bash
+# Check that names imported from PermissionService.js in api/models/*.js are still exported there.
+# Catches intra-repo function moves (e.g. getSoleOwnedResourceIds moved PermissionService →
+# api/models/index.js in v0.8.6 commit 87a3b82) that check 0d misses because 0d only covers
+# @librechat/ packages. The try-catch in model functions silently swallows the TypeError,
+# making the entire operation a no-op until CI exposes it.
+grep "require('~/server/services/PermissionService')" api/models/*.js \
+  | grep -oP "(?<=\{)[^}]+" | tr ',' '\n' | sed 's/\s//g' | sort -u
+# For each name listed, verify it appears in api/server/services/PermissionService.js module.exports.
+# If absent, the function is now exported from api/models/index.js (via createMethods).
+```
+Run via `./scripts/verify-paychex-customizations.sh` (check 0e automates this).
+
+1f. **`dbModels` completeness check — after any upgrade that touches `@librechat/data-schemas`:**
 ```bash
 # Which models do Paychex spec files expect from dbModels?
 grep -rh "dbModels\." api/ --include="*.spec.js" | grep -oP 'dbModels\.\K[A-Z][a-zA-Z]+' | sort -u
@@ -417,6 +431,7 @@ Also suggest:
 ❌ **Don't** skip `tsc --noEmit` — wrong import paths (e.g., `~/types` instead of `~/tools/classification`) won't surface until CI type-check runs  
 ❌ **Don't** skip the package API export validation (check 0d / step 1d) — `require('@librechat/api').missingFn` silently returns `undefined` in CommonJS; `node --check` and `tsc` cannot detect this because `require()` is resolved at runtime  
 ❌ **Don't** assume `dbModels.ModelName` still exists after a major version bump — upstream may have removed the model from `createModels()` in `@librechat/data-schemas`, making `dbModels.ModelName` silently `undefined` and crashing every spec that calls `.create()` on it  
+❌ **Don't** assume intra-repo `require()` targets still export the same names — upstream may consolidate functions between internal modules (e.g. `getSoleOwnedResourceIds` moved from `PermissionService.js` to `api/models/index.js`) without updating all callers; the try-catch in model functions silently swallows the TypeError, turning entire operations into no-ops  
 
 ✅ **Do** check git history before resolving conflicts  
 ✅ **Do** verify customizations are present after each major step  
@@ -428,6 +443,7 @@ Also suggest:
 ✅ **Do** run `git grep -rn "^<<<<<<< " -- "*.js" "*.ts" "*.tsx" "*.json"` as the very first post-resolution check before anything else  
 ✅ **Do** run `node --check` on all modified `.js` files and `tsc --noEmit` in TypeScript packages — these two commands catch the class of error that causes mass test suite failures  
 ✅ **Do** run check 0d (package API export validation) — catches functions silently moved between `@librechat/api` and `@librechat/data-schemas` that node --check and tsc cannot detect  
+✅ **Do** run check 0e (intra-repo require validation) — catches functions moved between internal api/ modules (e.g. `PermissionService.js` → `api/models/index.js`) that 0d misses  
 ✅ **Do** grep for `dbModels.X` patterns in Paychex spec files and verify each model is still exported from `api/db/models.js` after the merge  
 
 ## Reference Documentation

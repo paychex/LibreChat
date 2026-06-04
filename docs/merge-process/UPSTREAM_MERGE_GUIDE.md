@@ -184,6 +184,8 @@ These failure modes were discovered during the v0.8.6 merge and are now guarded 
 
 6. **`dbModels` model removal**: Upstream may remove a model from `createModels()` in `@librechat/data-schemas` (e.g., `Project` in v0.8.6). Since `api/db/models.js` spreads `...createModels(mongoose)`, the model silently disappears from `dbModels` exports. Any Paychex spec file that does `Project = dbModels.Project` and then calls `Project.create()` throws `TypeError: Cannot read properties of undefined (reading 'create')`. After each version bump, grep for `dbModels.X` patterns in Paychex spec files and verify each model is still exported from `api/db/models.js`.
 
+7. **Intra-repo function moves (silent no-op via try-catch)**: Upstream may consolidate functions between internal `api/` modules without updating all callers (e.g., `getSoleOwnedResourceIds` moved from `PermissionService.js` → `api/models/index.js` in v0.8.6 commit `87a3b82`). Unlike `@librechat/` package moves, this is NOT caught by check 0d. The caller destructures `undefined`, but model functions like `deleteUserPrompts` wrap everything in `try { ... } catch (error) { logger.error(...) }` — so the TypeError is swallowed and the entire operation silently becomes a no-op. Use check 0e (intra-repo require validation) or manually grep `PermissionService.js` exports after the merge.
+
 #### 🔍 **How to Identify Paychex Customizations**
 
 For each conflicting file:

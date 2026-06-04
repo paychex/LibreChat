@@ -203,6 +203,66 @@ fi
 
 echo ""
 
+# ─── 0e. Intra-repo Require Export Validation ───────────────────────────────
+echo "0e. Intra-repo Require Export Validation (key internal modules)"
+# When upstream moves a function between internal api/ files (e.g., getSoleOwnedResourceIds
+# moved from PermissionService.js to api/models/index.js in v0.8.6 commit 87a3b82),
+# the importing file silently gets `undefined`. Unlike 0d (which covers @librechat/ packages),
+# this check uses a static grep to confirm that names destructured from key internal modules
+# are still present in those modules' module.exports blocks.
+INTERNAL_FAIL=0
+
+# Usage: check_internal_require FILE_IMPORTING ALIAS_USED MODULE_FILE
+# Greps FILE_IMPORTING for destructured require(ALIAS_USED) imports, then checks each
+# name exists in MODULE_FILE (either in module.exports block or as a named export pattern).
+check_internal_require() {
+  local importer_glob="$1"   # glob of files that import from the module, e.g. "api/models/*.js"
+  local require_alias="$2"   # alias used in require(), e.g. "~/server/services/PermissionService"
+  local module_file="$3"     # path to the module being imported
+
+  if [ ! -f "$module_file" ]; then
+    echo -e "${YELLOW}⚠ WARN${NC}: Module file not found: $module_file"
+    WARN_COUNT=$((WARN_COUNT + 1))
+    return
+  fi
+
+  # Extract what module_file exports (names that appear in or near module.exports)
+  local exports_block
+  exports_block=$(awk '/module\.exports\s*=\s*\{/,/^\}/' "$module_file" 2>/dev/null)
+
+  for importer in $importer_glob; do
+    [ -f "$importer" ] || continue
+    # Get all destructured names from require(alias) in this file
+    local names
+    names=$(grep "require('$require_alias')\|require(\"$require_alias\")" "$importer" 2>/dev/null \
+      | grep -oP "(?<=\{)[^}]+" \
+      | tr ',' '\n' \
+      | sed 's/[[:space:]]//g; s|//.*||' \
+      | grep -v '^$')
+    while IFS= read -r name; do
+      [ -z "$name" ] && continue
+      # Check if name appears in the exports block OR is spread-exported (module exports ...methods)
+      if ! echo "$exports_block" | grep -qw "$name" && \
+         ! grep -qP "^\s+$name[,\s]" "$module_file"; then
+        echo -e "${RED}✗ FAIL${NC}: '$name' imported from '$require_alias' in $importer — not found in $module_file exports"
+        INTERNAL_FAIL=$((INTERNAL_FAIL + 1))
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+      fi
+    done <<< "$names"
+  done
+}
+
+# PermissionService.js: Paychex model files import from here; functions move upstream frequently
+check_internal_require "api/models/*.js" "~/server/services/PermissionService" \
+  "api/server/services/PermissionService.js"
+
+if [ $INTERNAL_FAIL -eq 0 ]; then
+  echo -e "${GREEN}✓ PASS${NC}: All destructured imports from key internal modules are present in their exports"
+  PASS_COUNT=$((PASS_COUNT + 1))
+fi
+
+echo ""
+
 echo "======================================"
 echo "Checking Critical Paychex Customizations..."
 echo ""
