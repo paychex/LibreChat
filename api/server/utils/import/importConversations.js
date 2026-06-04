@@ -6,8 +6,6 @@ const { createImportBatchBuilder } = require('./importBatchBuilder');
 
 const maxFileSize = resolveImportMaxFileSize();
 
-const maxFileSize = resolveImportMaxFileSize();
-
 /**
  * Job definition for importing a conversation.
  * @param {{ filepath: string, requestUserId: string, userRole?: string, interfaceConfig?: object }} job

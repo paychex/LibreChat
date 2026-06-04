@@ -214,7 +214,7 @@ Must return **empty**. Any output means an unresolved conflict marker is still i
 ```bash
 find api/ -name "*.js" -not -path "*/node_modules/*" | xargs -I{} node --check {}
 ```
-Must complete with **no errors**. A duplicate `const` declaration or stray merge token in one file crashes every Jest test suite that transitively imports it — causing 20+ suites to fail simultaneously in CI with a misleading `SyntaxError` rather than a clear merge error.
+Must complete with **no errors**. A duplicate `const` declaration or stray merge token in one file crashes every Jest test suite that transitively imports it — causing 20+ suites to fail simultaneously in CI with a misleading `SyntaxError` rather than a clear merge error. This also catches the same class of error that the `rollup:api` circular-dependency CI step reports as `Identifier "X" has already been declared`.
 
 1c. **TypeScript type check:**
 ```bash

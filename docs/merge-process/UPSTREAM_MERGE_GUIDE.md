@@ -357,7 +357,9 @@ git grep -rn "^<<<<<<< " -- "*.js" "*.ts" "*.tsx" "*.json" "*.yaml" "*.yml" "*.m
 # node --check parses each file without executing it — fast (seconds, not minutes).
 # A single duplicate `const` or stray merge token crashes every Jest test suite
 # that transitively imports the affected file (20+ suites failed in v0.8.6 from
-# one duplicated declaration in checkPeoplePickerAccess.js).
+# one duplicated declaration in checkPeoplePickerAccess.js). This also catches
+# the "Identifier X has already been declared" error that the rollup:api
+# circular-dependency CI step reports (found in importConversations.js in v0.8.6).
 find api/ -name "*.js" -not -path "*/node_modules/*" | xargs -I{} node --check {}
 # Must complete with no output (errors print to stderr).
 
