@@ -1,13 +1,4 @@
 # Dockerfile.multi
-<<<<<<< HEAD
-# v0.8.4
-
-# Set configurable max-old-space-size with default
-ARG NODE_MAX_OLD_SPACE_SIZE=6144
-
-# Base for all builds
-FROM node:20-alpine AS base-min
-=======
 # v0.8.6
 
 # Set configurable max-old-space-size with default
@@ -22,7 +13,6 @@ ARG BUILD_DATE=
 FROM node:20-alpine AS base-min
 ARG NPM_CI_TIMEOUT_SECONDS=1500
 ARG NPM_CI_ATTEMPTS=2
->>>>>>> v0.8.6
 RUN apk upgrade --no-cache
 RUN apk add --no-cache jemalloc
 # Set environment variable to use jemalloc

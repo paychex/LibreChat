@@ -77,7 +77,10 @@ export const genAzureChatCompletion = (
     deploymentSegment = '';
   }
 
-  return `https://${azureOpenAIApiInstanceName}/openai/deployments/${deploymentSegment}/chat/completions?api-version=${azureOpenAIApiVersion}`;
+  const baseUrl = azureOpenAIApiInstanceName.includes('.azure.com')
+    ? `https://${azureOpenAIApiInstanceName}`
+    : `https://${azureOpenAIApiInstanceName}.openai.azure.com`;
+  return `${baseUrl}/openai/deployments/${deploymentSegment}/chat/completions?api-version=${azureOpenAIApiVersion}`;
 };
 
 /**

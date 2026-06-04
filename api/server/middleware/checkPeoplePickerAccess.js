@@ -8,12 +8,6 @@ const VALID_PRINCIPAL_TYPES = new Set([
   PrincipalType.ROLE,
 ]);
 
-const VALID_PRINCIPAL_TYPES = new Set([
-  PrincipalType.USER,
-  PrincipalType.GROUP,
-  PrincipalType.ROLE,
-]);
-
 /**
  * Middleware to check if user has permission to access people picker functionality.
  * Validates requested principal types via `type` (singular) and `types` (comma-separated or array)
