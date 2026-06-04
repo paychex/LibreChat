@@ -204,7 +204,25 @@ Common scenario: Files moved from `/api/app/clients/` to `/packages/api/src/`
 
 After resolving all conflicts:
 
-1. **Verify critical customizations:**
+1. **Scan for leftover conflict markers (run first — fast and catches critical merge artifacts):**
+```bash
+git grep -rn "^<<<<<<< " -- "*.js" "*.ts" "*.tsx" "*.json" "*.yaml" "*.yml" "*.md"
+```
+Must return **empty**. Any output means an unresolved conflict marker is still in the codebase. `git diff --check` catches most of these, but `git grep` is more thorough and also catches markers inside files that are already staged.
+
+1b. **JavaScript syntax validation:**
+```bash
+find api/ -name "*.js" -not -path "*/node_modules/*" | xargs -I{} node --check {}
+```
+Must complete with **no errors**. A duplicate `const` declaration or stray merge token in one file crashes every Jest test suite that transitively imports it — causing 20+ suites to fail simultaneously in CI with a misleading `SyntaxError` rather than a clear merge error.
+
+1c. **TypeScript type check:**
+```bash
+cd packages/api && npx tsc --noEmit 2>&1 | grep "error TS"
+```
+Must return **empty**. Catches broken import paths, missing exports, and wrong type aliases that won't surface until CI runs — and which are otherwise invisible during the merge process.
+
+2. **Verify critical customizations:**
 ```bash
 ./scripts/verify-paychex-customizations.sh
 ```
@@ -215,7 +233,7 @@ All critical checks MUST pass. If any fail:
 - Guide user to restore it
 - Re-verify before proceeding
 
-2. **Check for broken imports:**
+3. **Check for broken imports:**
 ```bash
 grep -r "require('.*OpenAIClient')" api/ | grep -v node_modules
 grep -r "require('.*custom/initialize')" api/server/services/Endpoints/
@@ -372,6 +390,9 @@ Also suggest:
 ❌ **Don't** accept upstream's `translation.json` wholesale — Paychex i18n keys are interleaved and will be silently dropped  
 ❌ **Don't** assume a route file being present means it's wired — check `routes/index.js`, `server/index.js`, AND `experimental.js`  
 ❌ **Don't** only verify the call site without checking the called method/import exists (cross-file contracts break silently)  
+❌ **Don't** commit without running the conflict marker scan — `git diff --check` misses markers inside already-staged files; `git grep` is required  
+❌ **Don't** skip JS syntax validation — a duplicate `const` or stray merge token silently breaks every test suite that imports the file (20+ suites failed in v0.8.6 from one duplicated declaration in `checkPeoplePickerAccess.js`)  
+❌ **Don't** skip `tsc --noEmit` — wrong import paths (e.g., `~/types` instead of `~/tools/classification`) won't surface until CI type-check runs  
 
 ✅ **Do** check git history before resolving conflicts  
 ✅ **Do** verify customizations are present after each major step  
@@ -380,6 +401,8 @@ Also suggest:
 ✅ **Do** ask for user input when uncertain  
 ✅ **Do** verify import blocks weren't truncated when upstream rewrote them (e.g., `ContentTypes` in MCP.js)  
 ✅ **Do** cross-reference `develop` branch for any Paychex i18n keys after resolving `translation.json` conflicts  
+✅ **Do** run `git grep -rn "^<<<<<<< " -- "*.js" "*.ts" "*.tsx" "*.json"` as the very first post-resolution check before anything else  
+✅ **Do** run `node --check` on all modified `.js` files and `tsc --noEmit` in TypeScript packages — these two commands catch the class of error that causes mass test suite failures  
 
 ## Reference Documentation
 

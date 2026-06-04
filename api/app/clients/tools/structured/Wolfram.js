@@ -14,17 +14,6 @@ const wolframJsonSchema = {
   required: ['input'],
 };
 
-const wolframJsonSchema = {
-  type: 'object',
-  properties: {
-    input: {
-      type: 'string',
-      description: 'Natural language query to WolframAlpha following the guidelines',
-    },
-  },
-  required: ['input'],
-};
-
 class WolframAlphaAPI extends Tool {
   constructor(fields) {
     super();

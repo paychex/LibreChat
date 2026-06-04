@@ -347,14 +347,33 @@ git add <file>
 #### 9.1 Pre-Commit Verification
 
 ```bash
-# Check for lingering conflict markers
-git diff --check
+# ── STEP 1: Conflict marker scan (run this first — fast and critical) ────────
+# git diff --check is good but misses markers inside already-staged files.
+# git grep is exhaustive across all tracked source files.
+git grep -rn "^<<<<<<< " -- "*.js" "*.ts" "*.tsx" "*.json" "*.yaml" "*.yml" "*.md"
+# Must return EMPTY. Any output means an unresolved conflict marker remains.
 
-# Verify no unresolved conflicts
+# ── STEP 2: JavaScript syntax validation ─────────────────────────────────────
+# node --check parses each file without executing it — fast (seconds, not minutes).
+# A single duplicate `const` or stray merge token crashes every Jest test suite
+# that transitively imports the affected file (20+ suites failed in v0.8.6 from
+# one duplicated declaration in checkPeoplePickerAccess.js).
+find api/ -name "*.js" -not -path "*/node_modules/*" | xargs -I{} node --check {}
+# Must complete with no output (errors print to stderr).
+
+# ── STEP 3: TypeScript type check ────────────────────────────────────────────
+# Catches broken import paths and missing exports that won't surface until CI.
+# (A wrong ~/types import in schema.spec.ts caused a TS2305 error in v0.8.6.)
+cd packages/api && npx tsc --noEmit 2>&1 | grep "error TS"
+cd ../..
+# Must return EMPTY.
+
+# ── STEP 4: Unresolved conflict status ───────────────────────────────────────
+git diff --check
 git status --short | grep "^UU\|^AA\|^DD\|^DU\|^UD" | wc -l
 # Should output: 0
 
-# Check for syntax errors
+# Check for syntax errors in build
 npm run build 2>&1 | grep -i "error"
 
 # Verify critical Paychex customizations
@@ -642,6 +661,8 @@ The AI should demonstrate:
 9. ❌ **Assuming a file's existence means it's wired** - Barrel/index files and route mounts can be dropped while the implementation file survives (happened with `prompthub.js` in v0.8.6)
 10. ❌ **Only verifying one side of a cross-file contract** - A method call can survive while the method definition is dropped (happened with `stopReconnecting()` in v0.8.6)
 11. ❌ **Not checking import blocks after upstream rewrites them** - Paychex-added imports (e.g., `ContentTypes`) can be lost even though the code using them survives (happened in `MCP.js` in v0.8.6)
+12. ❌ **Relying solely on `git diff --check` for conflict detection** - It misses markers inside already-staged files; always also run `git grep -rn "^<<<<<<< "` (a leftover marker in `Dockerfile.multi` caused a Docker build failure in v0.8.6)
+13. ❌ **Skipping JS syntax validation and TypeScript type checks** - A duplicate `const` declaration caused 20 test suites to fail at parse time in v0.8.6; a wrong import path (`~/types` vs `~/tools/classification`) caused a TS type-check CI failure. Running `node --check` and `tsc --noEmit` takes seconds and catches both classes of error before CI
 
 ### Success Metrics
 
@@ -766,7 +787,12 @@ git checkout --ours <file>                         # Keep develop version
 git checkout --theirs <file>                       # Keep upstream version
 git checkout --ours <file> && git checkout --theirs <file> # Manual merge needed
 
-# Verification
+# Post-Resolution Structural Checks (run BEFORE customization verification)
+git grep -rn "^<<<<<<< " -- "*.js" "*.ts" "*.tsx" "*.json" "*.yaml" "*.md"  # conflict markers
+find api/ -name "*.js" -not -path "*/node_modules/*" | xargs -I{} node --check {}  # JS syntax
+cd packages/api && npx tsc --noEmit 2>&1 | grep "error TS"; cd ../..             # TS types
+
+# Customization Verification
 grep -n "filterCrossProviderToolCalls" api/app/clients/BaseClient.js
 grep -n "sanitizeSchemaMetadata" api/server/services/start/tools.js
 grep -n "providerLower.includes('gemini')" api/server/services/MCP.js

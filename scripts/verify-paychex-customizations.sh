@@ -56,6 +56,82 @@ check_pattern() {
     fi
 }
 
+echo "======================================"
+echo "POST-MERGE STRUCTURAL CHECKS"
+echo "======================================"
+echo ""
+
+# ─── 0a. Conflict Marker Scan ────────────────────────────────────────────────
+echo "0a. Conflict Marker Scan"
+# Searches all tracked source files for unresolved git conflict markers.
+# git grep respects .gitignore so node_modules are automatically excluded.
+CONFLICT_FILES=$(git grep -rl "^<<<<<<< " -- "*.js" "*.ts" "*.tsx" "*.json" "*.yaml" "*.yml" "*.md" 2>/dev/null)
+if [ -n "$CONFLICT_FILES" ]; then
+    echo -e "${RED}✗ FAIL${NC}: Unresolved git conflict markers found in the following files:"
+    echo "$CONFLICT_FILES" | while IFS= read -r f; do
+        echo "         $f"
+        git grep -n "^<<<<<<< " -- "$f" | head -3 | while IFS= read -r line; do echo "           $line"; done
+    done
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+else
+    echo -e "${GREEN}✓ PASS${NC}: No unresolved conflict markers found in tracked source files"
+    PASS_COUNT=$((PASS_COUNT + 1))
+fi
+
+echo ""
+
+# ─── 0b. JavaScript Syntax Validation ───────────────────────────────────────
+echo "0b. JavaScript Syntax Validation (node --check on api/**/*.js)"
+# Runs Node.js parser-only check on every JS file under api/.
+# A duplicate const, stray token, or merge artifact in one file will crash
+# every test suite that transitively imports it — catching this early prevents
+# 20+ test suites from failing simultaneously in CI.
+JS_ERROR_COUNT=0
+while IFS= read -r -d '' jsfile; do
+    ERROR_OUTPUT=$(node --check "$jsfile" 2>&1)
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}✗ FAIL${NC}: Syntax error in $jsfile"
+        echo "$ERROR_OUTPUT" | head -5 | while IFS= read -r line; do echo "         $line"; done
+        JS_ERROR_COUNT=$((JS_ERROR_COUNT + 1))
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+done < <(find api/ -name "*.js" -not -path "*/node_modules/*" -print0 2>/dev/null)
+
+if [ $JS_ERROR_COUNT -eq 0 ]; then
+    echo -e "${GREEN}✓ PASS${NC}: All api/**/*.js files pass Node.js syntax check"
+    PASS_COUNT=$((PASS_COUNT + 1))
+fi
+
+echo ""
+
+# ─── 0c. TypeScript Type Check ──────────────────────────────────────────────
+echo "0c. TypeScript Type Check (packages/api tsc --noEmit)"
+# Catches broken imports, missing exports, and wrong type paths that surface
+# as CI failures but are invisible without running the compiler.
+# Requires: npm install already run and sibling packages built.
+if [ -f "packages/api/tsconfig.json" ]; then
+    TS_OUTPUT=$(cd packages/api && npx tsc --noEmit 2>&1)
+    TS_EXIT=$?
+    TS_ERROR_COUNT=$(echo "$TS_OUTPUT" | grep -c "error TS" || true)
+    if [ $TS_EXIT -eq 0 ]; then
+        echo -e "${GREEN}✓ PASS${NC}: packages/api TypeScript type check passed (0 errors)"
+        PASS_COUNT=$((PASS_COUNT + 1))
+    else
+        echo -e "${RED}✗ FAIL${NC}: packages/api TypeScript type check found $TS_ERROR_COUNT error(s)"
+        echo "$TS_OUTPUT" | grep "error TS" | head -10 | while IFS= read -r line; do echo "         $line"; done
+        if [ "$TS_ERROR_COUNT" -gt 10 ]; then
+            echo "         ... ($(( TS_ERROR_COUNT - 10 )) more errors — run: cd packages/api && npx tsc --noEmit)"
+        fi
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+else
+    echo -e "${YELLOW}⚠ WARN${NC}: packages/api/tsconfig.json not found — skipping TS check"
+    WARN_COUNT=$((WARN_COUNT + 1))
+fi
+
+echo ""
+
+echo "======================================"
 echo "Checking Critical Paychex Customizations..."
 echo ""
 
