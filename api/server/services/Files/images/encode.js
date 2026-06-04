@@ -223,7 +223,10 @@ async function encodeAndFormat(req, files, params, mode) {
     const endpointLower = effectiveEndpoint?.toLowerCase?.() ?? '';
     const isCustomAnthropicEndpoint =
       endpointLower.includes('claude') || endpointLower.includes('anthropic');
-    if (isCustomAnthropicEndpoint && !Object.values(EModelEndpoint).includes(effectiveEndpoint)) {
+    if (
+      effectiveEndpoint === EModelEndpoint.anthropic ||
+      (isCustomAnthropicEndpoint && !Object.values(EModelEndpoint).includes(effectiveEndpoint))
+    ) {
       imagePart.type = 'image';
       imagePart.source = {
         type: 'base64',

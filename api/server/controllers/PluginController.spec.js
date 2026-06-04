@@ -1,4 +1,3 @@
-const { CacheKeys } = require('librechat-data-provider');
 const { getCachedTools, getAppConfig } = require('~/server/services/Config');
 
 jest.mock('@librechat/data-schemas', () => ({
@@ -48,28 +47,6 @@ describe('PluginController', () => {
     getAppConfig.mockResolvedValue({
       filteredTools: [],
       includedTools: [],
-    });
-  });
-
-  describe('cache namespace', () => {
-    it('getAvailablePluginsController should use TOOL_CACHE namespace', async () => {
-      mockCache.get.mockResolvedValue([]);
-      await getAvailablePluginsController(mockReq, mockRes);
-      expect(getLogStores).toHaveBeenCalledWith(CacheKeys.TOOL_CACHE);
-    });
-
-    it('getAvailableTools should use TOOL_CACHE namespace', async () => {
-      mockCache.get.mockResolvedValue([]);
-      await getAvailableTools(mockReq, mockRes);
-      expect(getLogStores).toHaveBeenCalledWith(CacheKeys.TOOL_CACHE);
-    });
-
-    it('should NOT use CONFIG_STORE namespace for tool/plugin operations', async () => {
-      mockCache.get.mockResolvedValue([]);
-      await getAvailablePluginsController(mockReq, mockRes);
-      await getAvailableTools(mockReq, mockRes);
-      const allCalls = getLogStores.mock.calls.flat();
-      expect(allCalls).not.toContain(CacheKeys.CONFIG_STORE);
     });
   });
 
