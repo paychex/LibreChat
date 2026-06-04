@@ -180,6 +180,10 @@ These failure modes were discovered during the v0.8.6 merge and are now guarded 
 
 4. **Cross-file method contracts**: A method call in file A (e.g., `this.connection.stopReconnecting()`) can survive the merge while the method definition in file B gets dropped. Verify both sides of public API contracts.
 
+5. **Package API surface changes — function moved between packages**: Upstream may move a function from one package to another (e.g., `createTempChatExpirationDate` moved from `@librechat/api` → `@librechat/data-schemas` in v0.8.6). CommonJS files that still destructure from the old package silently receive `undefined` — no syntax error, no TypeScript error, just a runtime `TypeError: X is not a function` when the function is first called. **`node --check` and `tsc --noEmit` cannot detect this.** Use the package API export validation check (0d in the verification script, step 1d in the pre-commit checklist) to catch it.
+
+6. **`dbModels` model removal**: Upstream may remove a model from `createModels()` in `@librechat/data-schemas` (e.g., `Project` in v0.8.6). Since `api/db/models.js` spreads `...createModels(mongoose)`, the model silently disappears from `dbModels` exports. Any Paychex spec file that does `Project = dbModels.Project` and then calls `Project.create()` throws `TypeError: Cannot read properties of undefined (reading 'create')`. After each version bump, grep for `dbModels.X` patterns in Paychex spec files and verify each model is still exported from `api/db/models.js`.
+
 #### 🔍 **How to Identify Paychex Customizations**
 
 For each conflicting file:
@@ -370,7 +374,31 @@ cd packages/api && npx tsc --noEmit 2>&1 | grep "error TS"
 cd ../..
 # Must return EMPTY.
 
-# ── STEP 4: Unresolved conflict status ───────────────────────────────────────
+# ── STEP 4: Package API export validation ────────────────────────────────────
+# When upstream moves a function between @librechat packages, CommonJS files
+# silently receive `undefined` — invisible to node --check and tsc because
+# require() is a runtime operation. This catches it pre-commit.
+# (createTempChatExpirationDate moved @librechat/api → @librechat/data-schemas in v0.8.6)
+./scripts/verify-paychex-customizations.sh  # check 0d covers this automatically
+# OR run manually (requires npm install to have been run):
+# node --no-warnings -e "
+#   const PKGS=['@librechat/api','@librechat/data-schemas'];
+#   const {execSync}=require('child_process');const fs=require('fs');
+#   const pat=/const\s*\{([^}]+)\}\s*=\s*require\(['\"](@librechat\/(?:api|data-schemas))['\"]\)/g;
+#   const used={};
+#   const files=execSync('find api/ -name \"*.js\" -not -path \"*/node_modules/*\"').toString().trim().split('\n').filter(Boolean);
+#   for(const f of files){const s=fs.readFileSync(f,'utf8');let m;while((m=pat.exec(s))!==null){const p=m[2];if(!used[p])used[p]={};m[1].split(',').map(x=>x.trim().replace(/\/\/.*/,'').split(/\s+as\s+/)[0].trim()).filter(Boolean).forEach(n=>{if(!used[p][n])used[p][n]=[];used[p][n].push(f)});}}
+#   for(const p of PKGS){if(!used[p])continue;const e=require(p);for(const[n,fs]of Object.entries(used[p])){if(!(n in e))console.error('MISSING '+n+' from '+p+' ('+fs[0]+')');}}"
+# Must return EMPTY.
+
+# ── STEP 5: dbModels completeness check (after data-schemas version bump) ────
+# If upstream removed a model from createModels() in @librechat/data-schemas, it
+# silently disappears from dbModels — Paychex spec files calling dbModels.X.create()
+# throw TypeError: Cannot read properties of undefined. (Project removed in v0.8.6)
+grep -rh "dbModels\." api/ --include="*.spec.js" | grep -oP 'dbModels\.\K[A-Z][a-zA-Z]+' | sort -u
+# Compare this list against api/db/models.js. Any model NOT in that file needs to be added.
+
+# ── STEP 6: Unresolved conflict status ────────────────────────────────────────
 git diff --check
 git status --short | grep "^UU\|^AA\|^DD\|^DU\|^UD" | wc -l
 # Should output: 0
@@ -793,6 +821,8 @@ git checkout --ours <file> && git checkout --theirs <file> # Manual merge needed
 git grep -rn "^<<<<<<< " -- "*.js" "*.ts" "*.tsx" "*.json" "*.yaml" "*.md"  # conflict markers
 find api/ -name "*.js" -not -path "*/node_modules/*" | xargs -I{} node --check {}  # JS syntax
 cd packages/api && npx tsc --noEmit 2>&1 | grep "error TS"; cd ../..             # TS types
+./scripts/verify-paychex-customizations.sh                                        # includes pkg export check (0d)
+grep -rh "dbModels\." api/ --include="*.spec.js" | grep -oP 'dbModels\.\K[A-Z][a-zA-Z]+' | sort -u  # dbModels check
 
 # Customization Verification
 grep -n "filterCrossProviderToolCalls" api/app/clients/BaseClient.js

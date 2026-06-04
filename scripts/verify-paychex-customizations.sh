@@ -131,6 +131,78 @@ fi
 
 echo ""
 
+# ─── 0d. Package API Export Validation ──────────────────────────────────────
+echo "0d. Package API Export Validation (@librechat/api and @librechat/data-schemas)"
+# When upstream moves a function from one package to another (e.g., createTempChatExpirationDate
+# moved from @librechat/api to @librechat/data-schemas in v0.8.6), JS files that destructure
+# from the old package silently receive `undefined` at runtime — invisible to node --check and tsc.
+# This check scans api/**/*.js for all destructured require() imports from these packages and
+# verifies each named export still exists in the installed package version.
+PKG_EXPORT_ERRORS=$(node --no-warnings - << 'NODEJS_EOF'
+const fs = require('fs');
+const { execSync } = require('child_process');
+const PKGS = ['@librechat/api', '@librechat/data-schemas'];
+const pattern = /const\s*\{([^}]+)\}\s*=\s*require\(['"](@librechat\/(?:api|data-schemas))['"]\)/g;
+const used = {};
+
+let files;
+try {
+  files = execSync('find api/ -name "*.js" -not -path "*/node_modules/*" 2>/dev/null')
+    .toString().trim().split('\n').filter(Boolean);
+} catch (e) {
+  process.exit(0); // find not available; skip check
+}
+
+for (const file of files) {
+  let src;
+  try { src = fs.readFileSync(file, 'utf8'); } catch (e) { continue; }
+  let m;
+  while ((m = pattern.exec(src)) !== null) {
+    const pkg = m[2];
+    if (!used[pkg]) used[pkg] = {};
+    m[1].split(',')
+      .map(s => s.trim().replace(/\/\/.*$/, '').split(/\s+as\s+/)[0].trim())
+      .filter(Boolean)
+      .forEach(name => { if (!used[pkg][name]) used[pkg][name] = []; used[pkg][name].push(file); });
+  }
+}
+
+const missing = [];
+for (const pkg of PKGS) {
+  if (!used[pkg]) continue;
+  let pkgExp;
+  try { pkgExp = require(pkg); } catch (e) {
+    process.stderr.write('WARN: could not require ' + pkg + ' — skipping export check\n');
+    continue;
+  }
+  for (const [name, files] of Object.entries(used[pkg])) {
+    if (!(name in pkgExp)) {
+      missing.push('MISSING ' + name + ' from ' + pkg + ' (used in ' + files[0] + ')');
+    }
+  }
+}
+
+if (missing.length > 0) { missing.forEach(l => process.stderr.write(l + '\n')); process.exit(1); }
+NODEJS_EOF
+2>&1)
+PKG_EXIT=$?
+if [ $PKG_EXIT -ne 0 ]; then
+  echo -e "${RED}✗ FAIL${NC}: Package exports missing — a function likely moved between @librechat packages:"
+  echo "$PKG_EXPORT_ERRORS" | while IFS= read -r line; do echo "         $line"; done
+  echo "         Fix: update the require() source to match where the function now lives."
+  FAIL_COUNT=$((FAIL_COUNT + 1))
+else
+  if echo "$PKG_EXPORT_ERRORS" | grep -q "WARN:"; then
+    echo -e "${YELLOW}⚠ WARN${NC}: Some packages could not be required — run 'npm install' first"
+    WARN_COUNT=$((WARN_COUNT + 1))
+  else
+    echo -e "${GREEN}✓ PASS${NC}: All @librechat package imports are valid exports"
+    PASS_COUNT=$((PASS_COUNT + 1))
+  fi
+fi
+
+echo ""
+
 echo "======================================"
 echo "Checking Critical Paychex Customizations..."
 echo ""

@@ -222,6 +222,28 @@ cd packages/api && npx tsc --noEmit 2>&1 | grep "error TS"
 ```
 Must return **empty**. Catches broken import paths, missing exports, and wrong type aliases that won't surface until CI runs — and which are otherwise invisible during the merge process.
 
+1d. **Package API export validation:**
+```bash
+# Run as part of verify-paychex-customizations.sh (check 0d), or manually:
+node --no-warnings -e "
+const PKGS = ['@librechat/api', '@librechat/data-schemas'];
+const { execSync } = require('child_process');
+const fs = require('fs');
+const pat = /const\s*\{([^}]+)\}\s*=\s*require\(['\"](@librechat\/(?:api|data-schemas))['\"]\)/g;
+const used = {};
+const files = execSync('find api/ -name \"*.js\" -not -path \"*/node_modules/*\"').toString().trim().split('\n').filter(Boolean);
+for (const f of files) { const s = fs.readFileSync(f,'utf8'); let m; while((m=pat.exec(s))!==null){const p=m[2];if(!used[p])used[p]={};m[1].split(',').map(x=>x.trim().replace(/\/\/.*/,'').split(/\s+as\s+/)[0].trim()).filter(Boolean).forEach(n=>{if(!used[p][n])used[p][n]=[];used[p][n].push(f)});}}
+for(const p of PKGS){if(!used[p])continue;const e=require(p);for(const[n,fs]of Object.entries(used[p])){if(!(n in e))console.error('MISSING '+n+' from '+p+' ('+fs[0]+')');}}"
+```
+Must return **empty** (no `MISSING` lines). Catches the class of runtime failure where upstream moves a function between packages (e.g., `createTempChatExpirationDate` moved from `@librechat/api` → `@librechat/data-schemas` in v0.8.6). Unlike syntax or type errors, these are invisible to `node --check` and `tsc` in CommonJS files because `require()` is resolved at runtime, not statically.
+
+1e. **`dbModels` completeness check — after any upgrade that touches `@librechat/data-schemas`:**
+```bash
+# Which models do Paychex spec files expect from dbModels?
+grep -rh "dbModels\." api/ --include="*.spec.js" | grep -oP 'dbModels\.\K[A-Z][a-zA-Z]+' | sort -u
+```
+Compare this list against what `api/db/models.js` explicitly exports. If upstream removes a model from `createModels()` (e.g., `Project` in v0.8.6), it disappears from `dbModels` and any spec file that calls `dbModels.ModelName.create()` throws `TypeError: Cannot read properties of undefined (reading 'create')`. Fix: add the model back to `api/db/models.js` with its schema.
+
 2. **Verify critical customizations:**
 ```bash
 ./scripts/verify-paychex-customizations.sh
@@ -393,6 +415,8 @@ Also suggest:
 ❌ **Don't** commit without running the conflict marker scan — `git diff --check` misses markers inside already-staged files; `git grep` is required  
 ❌ **Don't** skip JS syntax validation — a duplicate `const` or stray merge token silently breaks every test suite that imports the file (20+ suites failed in v0.8.6 from one duplicated declaration in `checkPeoplePickerAccess.js`)  
 ❌ **Don't** skip `tsc --noEmit` — wrong import paths (e.g., `~/types` instead of `~/tools/classification`) won't surface until CI type-check runs  
+❌ **Don't** skip the package API export validation (check 0d / step 1d) — `require('@librechat/api').missingFn` silently returns `undefined` in CommonJS; `node --check` and `tsc` cannot detect this because `require()` is resolved at runtime  
+❌ **Don't** assume `dbModels.ModelName` still exists after a major version bump — upstream may have removed the model from `createModels()` in `@librechat/data-schemas`, making `dbModels.ModelName` silently `undefined` and crashing every spec that calls `.create()` on it  
 
 ✅ **Do** check git history before resolving conflicts  
 ✅ **Do** verify customizations are present after each major step  
@@ -403,6 +427,8 @@ Also suggest:
 ✅ **Do** cross-reference `develop` branch for any Paychex i18n keys after resolving `translation.json` conflicts  
 ✅ **Do** run `git grep -rn "^<<<<<<< " -- "*.js" "*.ts" "*.tsx" "*.json"` as the very first post-resolution check before anything else  
 ✅ **Do** run `node --check` on all modified `.js` files and `tsc --noEmit` in TypeScript packages — these two commands catch the class of error that causes mass test suite failures  
+✅ **Do** run check 0d (package API export validation) — catches functions silently moved between `@librechat/api` and `@librechat/data-schemas` that node --check and tsc cannot detect  
+✅ **Do** grep for `dbModels.X` patterns in Paychex spec files and verify each model is still exported from `api/db/models.js` after the merge  
 
 ## Reference Documentation
 
