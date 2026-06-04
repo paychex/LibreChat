@@ -163,6 +163,22 @@ Resolve in this order:
 | **Menu Descriptions** | `packages/client/src/components/DropdownPopup.tsx` | c9ae3725 | Enhanced UX for developers |
 | **OpenID Passthrough** | Header resolution logic | 6d0e02ac | LangGraph authentication |
 | **Dockerfile Build Fixes** | `Dockerfile` | d902674 | Proper error handling in CI/CD |
+| **MCPConnection stopReconnecting()** | `packages/api/src/mcp/connection.ts` | Post v0.8.4 | Public method called by MCPServerInspector for temp connections |
+| **MCP.js ContentTypes import** | `api/server/services/MCP.js` | Post v0.8.4 | Required by Gemini MCP result formatting code path |
+| **Prompt Catalog route wiring** | `routes/index.js`, `server/index.js`, `experimental.js` | e1a50fc | Route file alone is useless without mount |
+| **Paychex i18n keys** | `client/src/locales/en/translation.json` | Various | Interleaved keys silently dropped during merge |
+
+#### ⚠️ **High-Risk Merge Patterns (v0.8.6 lessons learned)**
+
+These failure modes were discovered during the v0.8.6 merge and are now guarded by the verification script:
+
+1. **Translation file silent drops**: `translation.json` is ~1750 lines, alphabetically sorted, and upstream rewrites large sections every release. Paychex keys interleaved throughout get silently dropped when upstream's version of a conflicted region is accepted. Always cross-reference `develop` for Paychex keys after resolving this file.
+
+2. **Barrel file / index wiring drops**: A route or module file can survive the merge while its `require()`/export in the corresponding `index.js` gets dropped. Always verify the full import → export → mount chain, not just the file's existence.
+
+3. **Import block truncation**: When upstream rewrites an import block (e.g., the `librechat-data-provider` destructure in MCP.js), Paychex-added imports like `ContentTypes` can be lost even though the code that uses them survives. Check that every symbol used in Paychex code paths is still imported.
+
+4. **Cross-file method contracts**: A method call in file A (e.g., `this.connection.stopReconnecting()`) can survive the merge while the method definition in file B gets dropped. Verify both sides of public API contracts.
 
 #### 🔍 **How to Identify Paychex Customizations**
 
@@ -622,6 +638,10 @@ The AI should demonstrate:
 5. ❌ **Poor commit messages** - Document what was preserved and why
 6. ❌ **Not checking for lingering references** - Verify deleted files aren't referenced
 7. ❌ **Assuming upstream knows best** - Sometimes Paychex fixes upstream regressions
+8. ❌ **Accepting upstream's `translation.json` wholesale** - Paychex i18n keys are interleaved alphabetically and silently vanish; always cross-check `develop` for Paychex keys afterward
+9. ❌ **Assuming a file's existence means it's wired** - Barrel/index files and route mounts can be dropped while the implementation file survives (happened with `prompthub.js` in v0.8.6)
+10. ❌ **Only verifying one side of a cross-file contract** - A method call can survive while the method definition is dropped (happened with `stopReconnecting()` in v0.8.6)
+11. ❌ **Not checking import blocks after upstream rewrites them** - Paychex-added imports (e.g., `ContentTypes`) can be lost even though the code using them survives (happened in `MCP.js` in v0.8.6)
 
 ### Success Metrics
 

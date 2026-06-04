@@ -92,10 +92,12 @@ For each conflicted file, determine its risk level:
 **Critical files (must preserve Paychex logic):**
 - `api/app/clients/BaseClient.js` — filterCrossProviderToolCalls
 - `api/server/services/start/tools.js` — sanitizeSchemaMetadata
-- `api/server/services/MCP.js` — Gemini custom endpoint detection; `normalizeServerName(serverName)` in all toolKey construction (prevents 400 errors for server names with spaces/special chars)
+- `api/server/services/MCP.js` — Gemini custom endpoint detection; `normalizeServerName(serverName)` in all toolKey construction (prevents 400 errors for server names with spaces/special chars); **must also import `ContentTypes` from `librechat-data-provider`** (used by Gemini MCP result formatting)
 - `packages/api/src/mcp/registry/MCPServerInspector.ts` — `normalizeServerName` imported from `~/mcp/utils` and applied in `getToolFunctions` toolKey; `stopReconnecting()` before disconnect for temp connections
+- `packages/api/src/mcp/connection.ts` — **must have `public stopReconnecting()` method** (called by MCPServerInspector for temp connections); `shouldStopReconnecting` flag for reconnection control
 - `api/server/services/Files/images/encode.js` — Anthropic image encoding; `includes('claude')||includes('anthropic')` block must appear before `VisionModes.agents` early-return
 - `api/server/routes/prompthub.js` — Prompt Catalog deep-link route; preserve `POST /api/prompthub/resolve-insert`
+- `api/server/routes/index.js`, `api/server/index.js`, `api/server/experimental.js` — **prompthub route must be imported, exported, AND mounted** at `/api/prompthub` in all three files (see "Wiring Traps" below)
 - `packages/api/src/promptCatalog/handlers.ts`, `packages/api/src/index.ts` — Prompt Catalog resolver export loaded by `@librechat/api`
 - `client/src/hooks/Input/useQueryParams.ts`, `client/src/routes/ChatRoute.tsx` — `promptCatalogId` handling, timeout/toast behavior, and query-param exclusion
 - `api/server/middleware/limiters/loginLimiter.js` — `skipSuccessfulRequests: true` (SSO multi-tab rate limit fix)
@@ -104,12 +106,12 @@ For each conflicted file, determine its risk level:
 - `packages/api/src/utils/generators.ts` — `data.choices = []` normalization for Kong SSE
 - `Dockerfile` — && error handling
 - `**/package.json` — xlsx must use npm registry
+- `client/src/locales/en/translation.json` — **all Paychex-specific i18n keys** (see "Translation File Trap" below)
 
 **Medium risk (review carefully):**
 - `client/src/components/**/*.tsx` — May contain Pendo analytics, Changelog link, DEFAULT badge
 - `packages/client/src/components/*.tsx` — May have UX customizations
 - `client/src/hooks/Endpoint/Icons.tsx` — GPTIconDark for Azure OpenAI endpoint
-- `packages/api/src/mcp/connection.ts` — shouldStopReconnecting flag and transient error log levels
 - `api/app/clients/prompts/createContextHandlers.js` — Promise.allSettled for RAG 404 isolation
 - Configuration files — May have Paychex-specific settings
 
@@ -118,6 +120,35 @@ For each conflicted file, determine its risk level:
 - Test files
 - Build configuration (unless Dockerfile)
 - Upstream-only features
+
+#### ⚠️ Translation File Trap (`translation.json`)
+
+`client/src/locales/en/translation.json` is the **most dangerous merge file**. It is ~1750 lines, alphabetically sorted, and upstream modifies it heavily every release. Paychex-specific i18n keys are interleaved throughout and **silently dropped** when upstream's version of a conflicted region is accepted. After resolving conflicts in this file, always verify these keys exist:
+
+```bash
+grep "com_ui_prompt_catalog_insert_error" client/src/locales/en/translation.json
+grep "com_nav_changelog" client/src/locales/en/translation.json
+grep "com_ui_default_model\"" client/src/locales/en/translation.json
+grep "com_ui_default_model_aria" client/src/locales/en/translation.json
+```
+
+If any are missing, restore from `develop` branch:
+```bash
+git show develop:client/src/locales/en/translation.json | grep "com_ui_prompt_catalog_insert_error"
+```
+
+#### ⚠️ Wiring Traps (barrel files and route mounts)
+
+A common merge failure mode is that a **file exists but is not wired in**. Upstream rewrites barrel/index files, and Paychex entries in those index files get dropped even though the actual implementation file survives. Always verify the full chain:
+
+1. **Route wiring**: If a route file like `prompthub.js` exists, verify it is:
+   - `require()`'d in `api/server/routes/index.js`
+   - Exported from that same `module.exports`
+   - `app.use()`'d in both `api/server/index.js` AND `api/server/experimental.js`
+
+2. **Import dependencies**: If a file uses a symbol (like `ContentTypes.TEXT`), verify the import is present. Upstream may rewrite the import block during merge.
+
+3. **Cross-file contracts**: If file A calls `obj.method()`, verify `method()` actually exists on the class in file B. The method can be dropped during merge while the call site survives.
 
 ### Step 7 — Resolve conflicts with decision matrix
 
@@ -338,12 +369,17 @@ Also suggest:
 ❌ **Don't** remove `skipSuccessfulRequests: true` from loginLimiter — SSO users will be rate-limited  
 ❌ **Don't** remove `refreshOpenIDToken` from agents router — Paxton calls will 401 after ~15 min  
 ❌ **Don't** revert `data.choices = []` normalization in generators.ts — Claude streaming breaks on Kong  
+❌ **Don't** accept upstream's `translation.json` wholesale — Paychex i18n keys are interleaved and will be silently dropped  
+❌ **Don't** assume a route file being present means it's wired — check `routes/index.js`, `server/index.js`, AND `experimental.js`  
+❌ **Don't** only verify the call site without checking the called method/import exists (cross-file contracts break silently)  
 
 ✅ **Do** check git history before resolving conflicts  
 ✅ **Do** verify customizations are present after each major step  
 ✅ **Do** test the application after merge  
 ✅ **Do** document decisions and findings  
 ✅ **Do** ask for user input when uncertain  
+✅ **Do** verify import blocks weren't truncated when upstream rewrote them (e.g., `ContentTypes` in MCP.js)  
+✅ **Do** cross-reference `develop` branch for any Paychex i18n keys after resolving `translation.json` conflicts  
 
 ## Reference Documentation
 

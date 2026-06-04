@@ -2153,6 +2153,14 @@ export class MCPConnection extends EventEmitter {
     await Promise.all(closing);
   }
 
+  /**
+   * (e.g. after a temporary inspection connection) to prevent the background
+   * handleReconnection() loop from continuing after disconnect() returns.
+   */
+  public stopReconnecting(): void {
+    this.shouldStopReconnecting = true;
+  }
+
   public async disconnect(resetCycleTracking = true): Promise<void> {
     try {
       if (this.transport) {

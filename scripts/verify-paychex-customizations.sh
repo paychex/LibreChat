@@ -525,7 +525,92 @@ check_pattern \
     "Comment documenting Kong SSE workaround for parallel tool call and missing choices bugs" \
     "warning"
 
+# 25. Prompt Catalog Route Wiring (file exists but must be mounted)
+echo "25. Prompt Catalog Route Wiring (prompthub.js → server mount)"
+check_pattern \
+    "api/server/routes/prompthub.js" \
+    "resolve-insert" \
+    "prompthub.js route file exists with POST /resolve-insert" \
+    "critical"
+
+check_pattern \
+    "api/server/routes/index.js" \
+    "require('./prompthub')" \
+    "prompthub imported in routes/index.js" \
+    "critical"
+
+check_pattern \
+    "api/server/routes/index.js" \
+    "prompthub," \
+    "prompthub exported from routes/index.js" \
+    "critical"
+
+check_pattern \
+    "api/server/index.js" \
+    "/api/prompthub" \
+    "prompthub route mounted in api/server/index.js" \
+    "critical"
+
+check_pattern \
+    "api/server/experimental.js" \
+    "/api/prompthub" \
+    "prompthub route mounted in api/server/experimental.js" \
+    "critical"
+
 echo ""
+
+# 26. MCP.js Import Dependencies (imports required by Gemini code paths)
+echo "26. MCP.js Import Dependencies"
+check_pattern \
+    "api/server/services/MCP.js" \
+    "ContentTypes" \
+    "ContentTypes imported (required by Gemini MCP result formatting at line ~752)" \
+    "critical"
+
+echo ""
+
+# 27. MCPConnection public stopReconnecting() method
+echo "27. MCPConnection stopReconnecting() Method (connection.ts)"
+check_pattern \
+    "packages/api/src/mcp/connection.ts" \
+    "public stopReconnecting" \
+    "Public stopReconnecting() method exists (called by MCPServerInspector for temp connections)" \
+    "critical"
+
+echo ""
+
+# 28. Paychex i18n Keys in translation.json
+# translation.json is the most dangerous merge file — Paychex keys are interleaved
+# alphabetically and get silently dropped when upstream regions are accepted wholesale.
+echo "28. Paychex i18n Keys (client/src/locales/en/translation.json)"
+TRANSLATION_FILE="client/src/locales/en/translation.json"
+
+check_pattern \
+    "$TRANSLATION_FILE" \
+    "com_ui_prompt_catalog_insert_error" \
+    "Prompt Catalog error toast key exists" \
+    "critical"
+
+check_pattern \
+    "$TRANSLATION_FILE" \
+    "com_nav_changelog" \
+    "Paychex Changelog nav link label exists" \
+    "warning"
+
+check_pattern \
+    "$TRANSLATION_FILE" \
+    "com_ui_default_model" \
+    "DEFAULT model badge label exists" \
+    "warning"
+
+check_pattern \
+    "$TRANSLATION_FILE" \
+    "com_ui_default_model_aria" \
+    "DEFAULT model badge aria label exists" \
+    "warning"
+
+echo ""
+
 echo "======================================"
 echo "Verification Summary"
 echo "======================================"
