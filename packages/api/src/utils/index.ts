@@ -20,6 +20,7 @@ export * from './openid';
 export * from './promise';
 export * from './ports';
 export * from './sanitizeTitle';
+export * from './schema';
 export * from './text';
 export * from './yaml';
 export * from './http';
