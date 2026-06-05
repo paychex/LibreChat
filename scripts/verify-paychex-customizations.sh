@@ -263,6 +263,21 @@ fi
 
 echo ""
 
+# ─── 0f. Paychex-added @librechat/api source exports ────────────────────────
+echo "0f. Paychex-added @librechat/api source exports (packages/api/src/utils/index.ts)"
+# packages/api/src/utils/index.ts is overwritten by upstream merges (both upstream and
+# Paychex modify it). Paychex-added re-exports (e.g. schema.ts for sanitizeSchemaMetadata)
+# are silently dropped when upstream's version wins the merge. Check 0d only validates the
+# compiled dist, which is stale until npm run build:api is run — so this check validates
+# the SOURCE directly and catches the drop before a rebuild exposes it at runtime.
+check_pattern \
+    "packages/api/src/utils/index.ts" \
+    "export \* from './schema'" \
+    "sanitizeSchemaMetadata source export present (packages/api/src/utils/index.ts re-exports schema.ts)" \
+    "critical"
+
+echo ""
+
 echo "======================================"
 echo "Checking Critical Paychex Customizations..."
 echo ""

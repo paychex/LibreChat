@@ -258,8 +258,12 @@ grep -rh "dbModels\." api/ --include="*.spec.js" | grep -oP 'dbModels\.\K[A-Z][a
 ```
 Compare this list against what `api/db/models.js` explicitly exports. If upstream removes a model from `createModels()` (e.g., `Project` in v0.8.6), it disappears from `dbModels` and any spec file that calls `dbModels.ModelName.create()` throws `TypeError: Cannot read properties of undefined (reading 'create')`. Fix: add the model back to `api/db/models.js` with its schema.
 
-2. **Verify critical customizations:**
+2. **Rebuild compiled packages then verify critical customizations:**
+
+Check 0d tests the compiled `@librechat/api` dist. The dist reflects the state at the last build — if `packages/api/src/` was changed during the merge (e.g., a Paychex-added re-export in `utils/index.ts` was dropped), the stale dist still passes 0d. Always rebuild first so 0d tests current source:
+
 ```bash
+npm run build:api
 ./scripts/verify-paychex-customizations.sh
 ```
 
@@ -430,6 +434,7 @@ Also suggest:
 ❌ **Don't** skip JS syntax validation — a duplicate `const` or stray merge token silently breaks every test suite that imports the file (20+ suites failed in v0.8.6 from one duplicated declaration in `checkPeoplePickerAccess.js`)  
 ❌ **Don't** skip `tsc --noEmit` — wrong import paths (e.g., `~/types` instead of `~/tools/classification`) won't surface until CI type-check runs  
 ❌ **Don't** skip the package API export validation (check 0d / step 1d) — `require('@librechat/api').missingFn` silently returns `undefined` in CommonJS; `node --check` and `tsc` cannot detect this because `require()` is resolved at runtime  
+❌ **Don't** run check 0d against a stale dist — the compiled `@librechat/api` dist reflects the pre-merge source until rebuilt; check 0d silently passes even when a Paychex-added source export (e.g. `export * from './schema'` in `packages/api/src/utils/index.ts`) was dropped during the merge  
 ❌ **Don't** assume `dbModels.ModelName` still exists after a major version bump — upstream may have removed the model from `createModels()` in `@librechat/data-schemas`, making `dbModels.ModelName` silently `undefined` and crashing every spec that calls `.create()` on it  
 ❌ **Don't** assume intra-repo `require()` targets still export the same names — upstream may consolidate functions between internal modules (e.g. `getSoleOwnedResourceIds` moved from `PermissionService.js` to `api/models/index.js`) without updating all callers; the try-catch in model functions silently swallows the TypeError, turning entire operations into no-ops  
 
@@ -442,6 +447,7 @@ Also suggest:
 ✅ **Do** cross-reference `develop` branch for any Paychex i18n keys after resolving `translation.json` conflicts  
 ✅ **Do** run `git grep -rn "^<<<<<<< " -- "*.js" "*.ts" "*.tsx" "*.json"` as the very first post-resolution check before anything else  
 ✅ **Do** run `node --check` on all modified `.js` files and `tsc --noEmit` in TypeScript packages — these two commands catch the class of error that causes mass test suite failures  
+✅ **Do** run `npm run build:api` before `./scripts/verify-paychex-customizations.sh` — check 0d validates the compiled dist, which is stale after merge source changes until rebuilt; check 0f validates the source directly but a rebuild is still needed to confirm the dist is consistent  
 ✅ **Do** run check 0d (package API export validation) — catches functions silently moved between `@librechat/api` and `@librechat/data-schemas` that node --check and tsc cannot detect  
 ✅ **Do** run check 0e (intra-repo require validation) — catches functions moved between internal api/ modules (e.g. `PermissionService.js` → `api/models/index.js`) that 0d misses  
 ✅ **Do** grep for `dbModels.X` patterns in Paychex spec files and verify each model is still exported from `api/db/models.js` after the merge  
