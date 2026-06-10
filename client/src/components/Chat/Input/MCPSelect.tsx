@@ -26,18 +26,23 @@ function MCPSelectContent() {
     return manager.selectableServers?.filter((s) => selectedSet.has(s.serverName));
   }, [manager?.selectableServers, manager?.mcpValues]);
 
+  // PAYCHEX: only count servers visible in the menu (selectableServers) so that
+  // hidden servers like Tavily (chatMenu: false) don't leak into the button label.
   const displayText = useMemo(() => {
-    const selectedCount = manager?.mcpValues?.length ?? 0;
-    if (selectedCount === 0) {
+    if (!manager?.mcpValues || manager.mcpValues.length === 0) {
       return null;
     }
-    if (selectedCount === 1) {
-      const server = manager?.selectableServers?.find(
-        (s) => s.serverName === manager?.mcpValues?.[0],
-      );
-      return server?.config?.title || manager?.mcpValues?.[0];
+    const visibleSelected = manager.selectableServers?.filter((s) =>
+      manager.mcpValues!.includes(s.serverName),
+    );
+    const visibleCount = visibleSelected?.length ?? 0;
+    if (visibleCount === 0) {
+      return null;
     }
-    return localize('com_ui_x_selected', { 0: selectedCount });
+    if (visibleCount === 1) {
+      return visibleSelected![0].config?.title || visibleSelected![0].serverName;
+    }
+    return localize('com_ui_x_selected', { 0: visibleCount });
   }, [manager?.selectableServers, manager?.mcpValues, localize]);
 
   if (!manager) {

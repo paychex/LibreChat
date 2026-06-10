@@ -88,10 +88,13 @@ export function useMCPServerManager({
     [availableMCPServers],
   );
 
+  // PAYCHEX: pass availableMCPServers (not selectableServers) so the ephemeral-agent
+  // sync effect inside useMCPSelect recognises chatMenu:false servers (e.g. Tavily)
+  // as valid and doesn't strip them, which would create an infinite auto-select loop.
   const { mcpValues, setMCPValues, isPinned, setIsPinned } = useMCPSelect({
     conversationId,
     storageContextKey,
-    servers: selectableServers,
+    servers: availableMCPServers,
   });
   const mcpValuesRef = useRef(mcpValues);
 

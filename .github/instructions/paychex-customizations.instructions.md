@@ -271,6 +271,16 @@ Complete catalog of Paychex-specific modifications to LibreChat.
 - **Context:** This is intentionally simpler than `feature/prompthub-integration`; preserve the ID-based same-origin flow and do not replace it with ticket/callback/export behavior unless scope changes.
 - **Build note:** `packages/api/src/promptCatalog/*.ts` compiles into `@librechat/api`, which the JS route layer loads from `packages/api/dist`. Any change here requires `npm run build:api` before restarting the backend, or use the updated `npm run backend:dev` script which rebuilds the compiled packages first.
 
+**35. MCP Select Infinite Loop Fix (chatMenu:false + startup:true)**
+- **Files:** `client/src/hooks/MCP/useMCPServerManager.ts`, `client/src/components/Chat/Input/MCPSelect.tsx`
+- **Patterns:**
+  - `servers: availableMCPServers` in the `useMCPSelect()` call (was `selectableServers`)
+  - `visibleSelected` / `visibleCount` in `MCPSelect.tsx` `displayText` computation
+- **Purpose:** Fixes an infinite render loop when a server has both `chatMenu: false` and `startup: true` (e.g. Tavily). The auto-select effect in `useMCPServerManager` uses `availableMCPServers` (unfiltered) to select startup servers, but `useMCPSelect` previously received only `selectableServers` (filtered, excludes `chatMenu: false`). The sync effect inside `useMCPSelect` would strip the hidden server from `mcpValues`, triggering the auto-select again, creating an infinite loop that caused the MCP button text to flicker between the placeholder and the hidden server name. Fix (1): pass `availableMCPServers` to `useMCPSelect` so the sync effect recognizes hidden servers as valid. Fix (2): compute `displayText` using only visible servers so hidden server names don't leak into the button label.
+- **Anti-pattern (must be absent):** `servers: selectableServers` in the `useMCPSelect()` call inside `useMCPServerManager`
+- **Criticality:** CRITICAL — Causes infinite render loop and visible UI flickering without this
+- **Added:** June 2026 (v0.8.6 merge fix)
+
 ## Authentication Fixes (post-v0.8.4)
 
 **27. SSO Rate Limit Fix**
@@ -402,6 +412,12 @@ grep -n "hasStoredModelSelection" client/src/routes/ChatRoute.tsx
 ```
 
 ```bash
+# 35. MCP Select infinite loop fix
+grep -n "servers: availableMCPServers" client/src/hooks/MCP/useMCPServerManager.ts
+grep -n "visibleSelected\|visibleCount" client/src/components/Chat/Input/MCPSelect.tsx
+# Anti-pattern — must NOT pass selectableServers to useMCPSelect:
+grep -n "servers: selectableServers" client/src/hooks/MCP/useMCPServerManager.ts | grep -i "useMCPSelect"
+
 # 27. SSO rate limit fix
 grep -n "skipSuccessfulRequests" api/server/middleware/limiters/loginLimiter.js
 
@@ -452,6 +468,7 @@ When adding new Paychex customizations:
 - Critical dependency fixes
 - MCP server name normalization
 - MCP startup field and auto-select
+- MCP Select infinite loop fix (chatMenu:false + startup:true)
 
 **WARNING** - Feature degraded but application functions:
 - Analytics tracking
