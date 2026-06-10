@@ -106,6 +106,11 @@ function EndpointMenuContent({
     return modelSpecs.filter((spec: TModelSpec) => spec.group === endpoint.value);
   }, [modelSpecs, endpoint.value]);
 
+  const specCoveredModels = useMemo(
+    () => new Set(endpointSpecs.map((spec: TModelSpec) => spec.preset?.model).filter(Boolean)),
+    [endpointSpecs],
+  );
+
   if (isAssistantsEndpoint(endpoint.value) && endpoint.models === undefined) {
     return (
       <div
@@ -118,10 +123,14 @@ function EndpointMenuContent({
     );
   }
 
+  const uncoveredModels = (endpoint.models || []).filter(
+    (m) => !specCoveredModels.has(m.name),
+  );
+
   const filteredModels = searchValue
     ? filterModels(
         endpoint,
-        (endpoint.models || []).map((model) => model.name),
+        uncoveredModels.map((model) => model.name),
         searchValue,
         agentsMap,
         assistantsMap,
@@ -134,9 +143,9 @@ function EndpointMenuContent({
         <ModelSpecItem key={spec.name} spec={spec} isSelected={selectedSpec === spec.name} />
       ))}
       {filteredModels
-        ? renderEndpointModels(endpoint, endpoint.models || [], filteredModels, endpointIndex)
-        : endpoint.models &&
-          renderEndpointModels(endpoint, endpoint.models, undefined, endpointIndex)}
+        ? renderEndpointModels(endpoint, uncoveredModels, filteredModels, endpointIndex)
+        : uncoveredModels.length > 0 &&
+          renderEndpointModels(endpoint, uncoveredModels, undefined, endpointIndex)}
     </>
   );
 }
