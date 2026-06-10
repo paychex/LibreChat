@@ -103,7 +103,11 @@ function EndpointMenuContent({
     if (!modelSpecs || !modelSpecs.length) {
       return [];
     }
-    return modelSpecs.filter((spec: TModelSpec) => spec.group === endpoint.value);
+    return modelSpecs.filter(
+      (spec: TModelSpec) =>
+        spec.group === endpoint.value ||
+        (!spec.group && spec.preset?.endpoint === endpoint.value),
+    );
   }, [modelSpecs, endpoint.value]);
 
   const specCoveredModels = useMemo(

@@ -101,9 +101,13 @@ function ModelSelectorContent() {
           renderSearchResults(searchResults, localize, searchValue)
         ) : (
           <>
-            {/* Render ungrouped modelSpecs (no group field) */}
+            {/* Render truly ungrouped modelSpecs: no group field AND no matching endpoint */}
             {renderModelSpecs(
-              modelSpecs?.filter((spec) => !spec.group) || [],
+              modelSpecs?.filter(
+                (spec) =>
+                  !spec.group &&
+                  !mappedEndpoints?.some((ep) => ep.value === spec.preset?.endpoint),
+              ) || [],
               selectedValues.modelSpec || '',
             )}
             {/* Render endpoints (will include grouped specs matching endpoint names) */}
