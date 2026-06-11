@@ -44,6 +44,40 @@ async function loginLocal(page: Page, baseUrl: string, email: string, password: 
   console.log('  ✓ Successfully authenticated locally — LibreChat loaded');
 }
 
+function isAdfsWiaPage(url: string): boolean {
+  return url.includes('/adfs/ls/wia') || url.includes('deviceAuthenticationMethod');
+}
+
+function adfsFormsUrlFromWia(wiaUrl: string): string {
+  return wiaUrl
+    .replace('/adfs/ls/wia', '/adfs/ls/')
+    .replace(/LoginOptions%3D3/i, 'LoginOptions%3D1');
+}
+
+async function fillAdfsCredentials(page: Page, email: string, password: string, baseOrigin: string): Promise<void> {
+  const adfsUsername = email.split('@')[0];
+  const usernameInput = page.locator('#userNameInput, input[name="UserName"], input[name="username"]').first();
+  const passwordInput = page.locator('#passwordInput, input[name="Password"], input[name="password"], input[type="password"]').first();
+  const submitButton = page.locator('#submitButton, input[type="submit"], button[type="submit"]').first();
+
+  if (new URL(page.url()).origin === baseOrigin) {
+    return;
+  }
+
+  if (isAdfsWiaPage(page.url())) {
+    console.log('  ↪ ADFS attempted WIA — forcing forms-based login');
+    await page.goto(adfsFormsUrlFromWia(page.url()), { waitUntil: 'domcontentloaded', timeout: 30000 });
+  }
+
+  await usernameInput.waitFor({ state: 'visible', timeout: 30000 });
+  await usernameInput.fill(adfsUsername);
+  await passwordInput.fill(password);
+  await submitButton.click();
+  console.log('  ✓ Submitted credentials on ADFS');
+
+  await page.waitForURL((url) => url.origin === baseOrigin, { timeout: 30000 });
+}
+
 async function loginAzureAD(page: Page, baseUrl: string, email: string, password: string): Promise<void> {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
@@ -64,7 +98,8 @@ async function loginAzureAD(page: Page, baseUrl: string, email: string, password
 
   // After Microsoft redirects, we may land on:
   //   a) ADFS form (CI runners / non-domain-joined machines / incognito)
-  //   b) Directly back to LibreChat (domain-joined machines via Kerberos/NTLM)
+  //   b) ADFS WIA endpoint (domain-joined runners — must fall back to forms)
+  //   c) Directly back to LibreChat (domain-joined machines via Kerberos/NTLM)
   const baseOrigin = new URL(baseUrl).origin;
   await page.waitForURL((url) => {
     const href = url.href.toLowerCase();
@@ -74,22 +109,7 @@ async function loginAzureAD(page: Page, baseUrl: string, email: string, password
   const currentUrl = page.url();
   if (currentUrl.includes('adfs') || currentUrl.includes('sts')) {
     console.log('  ✓ Redirected to ADFS — filling credentials');
-
-    // ADFS expects just the username (without @domain)
-    const adfsUsername = email.split('@')[0];
-
-    const usernameInput = page.locator('#userNameInput, input[name="UserName"], input[name="username"]').first();
-    const passwordInput = page.locator('#passwordInput, input[name="Password"], input[name="password"], input[type="password"]').first();
-    const submitButton = page.locator('#submitButton, input[type="submit"], button[type="submit"]').first();
-
-    await usernameInput.waitFor({ state: 'visible', timeout: 10000 });
-    await usernameInput.fill(adfsUsername);
-    await passwordInput.fill(password);
-    await submitButton.click();
-    console.log('  ✓ Submitted credentials on ADFS');
-
-    // Wait for redirect back to LibreChat
-    await page.waitForURL((url) => url.origin === baseOrigin, { timeout: 30000 });
+    await fillAdfsCredentials(page, email, password, baseOrigin);
   } else {
     console.log('  ✓ Auto-authenticated (Windows Integrated Auth) — skipped ADFS form');
   }
@@ -114,11 +134,13 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
   const method = useLocal ? 'local email/password' : 'Azure AD';
   console.log(`🧪 Global Setup: authenticating ${USERNAME} against ${BASE_URL} (${method})`);
 
-  // On domain-joined Windows machines, Chromium auto-negotiates Kerberos
-  // regardless of launch flags. Locally this authenticates as the developer;
-  // on CI runners (not domain-joined) the ADFS form will appear and the
-  // service account credentials will be used.
-  const browser = await chromium.launch({ headless: true });
+  // Prevent Chromium from auto-negotiating Kerberos/NTLM with ADFS. Without this,
+  // domain-joined CI runners land on /adfs/ls/wia (integrated auth) instead of
+  // the username/password form that headless automation requires.
+  const browser = await chromium.launch({
+    headless: true,
+    args: ['--auth-server-whitelist="_"'],
+  });
   const context = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await context.newPage();
 
