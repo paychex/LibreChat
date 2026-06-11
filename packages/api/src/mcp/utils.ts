@@ -143,6 +143,29 @@ export function normalizeServerName(serverName: string): string {
 }
 
 /**
+ * Resolves a normalized MCP server name back to its config key when tool
+ * definitions use `normalizeServerName` but YAML/config keys retain spaces
+ * or special characters (e.g. `Internet_Search__Tavily` → `Internet Search (Tavily)`).
+ */
+export function resolveMCPServerName(
+  serverName: string,
+  configServers?: Record<string, ParsedServerConfig>,
+): string {
+  if (configServers?.[serverName]) {
+    return serverName;
+  }
+  if (!configServers) {
+    return serverName;
+  }
+  for (const key of Object.keys(configServers)) {
+    if (normalizeServerName(key) === serverName) {
+      return key;
+    }
+  }
+  return serverName;
+}
+
+/**
  * Builds the synthetic tool-call name used during MCP OAuth flows.
  * Format: `oauth<mcp_delimiter><normalizedServerName>`
  *

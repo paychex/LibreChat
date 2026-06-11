@@ -1,6 +1,7 @@
 import {
   buildOAuthToolCallName,
   normalizeServerName,
+  resolveMCPServerName,
   redactAllServerSecrets,
   redactServerSecrets,
   isInvalidClientMessage,
@@ -35,6 +36,31 @@ describe('normalizeServerName', () => {
     const result = normalizeServerName('!server-name!');
     expect(result).toBe('server-name');
     expect(result).toMatch(/^[a-zA-Z0-9_.-]+$/);
+  });
+});
+
+describe('resolveMCPServerName', () => {
+  const configServers = {
+    'Internet Search (Tavily)': { type: 'streamable-http' as const, url: 'https://mcp.tavily.com/mcp/' },
+    'valid-server': { type: 'sse' as const, url: 'https://example.com/mcp' },
+  };
+
+  it('returns the name unchanged when it matches a config key directly', () => {
+    expect(resolveMCPServerName('valid-server', configServers)).toBe('valid-server');
+  });
+
+  it('maps a normalized name back to the original config key', () => {
+    expect(resolveMCPServerName('Internet_Search__Tavily', configServers)).toBe(
+      'Internet Search (Tavily)',
+    );
+  });
+
+  it('returns the input when no configServers map is provided', () => {
+    expect(resolveMCPServerName('Internet_Search__Tavily')).toBe('Internet_Search__Tavily');
+  });
+
+  it('returns the input when no matching config key exists', () => {
+    expect(resolveMCPServerName('unknown_server', configServers)).toBe('unknown_server');
   });
 });
 

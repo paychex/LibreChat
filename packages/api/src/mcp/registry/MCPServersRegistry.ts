@@ -13,6 +13,7 @@ import { MCPServerInspector } from './MCPServerInspector';
 import { ServerConfigsDB } from './db/ServerConfigsDB';
 import { cacheConfig } from '~/cache/cacheConfig';
 import { withTimeout } from '~/utils';
+import { normalizeServerName, resolveMCPServerName } from '~/mcp/utils';
 
 /** How long a failure stub is considered fresh before re-attempting inspection (5 minutes). */
 const CONFIG_STUB_RETRY_MS = 5 * 60 * 1000;
@@ -208,18 +209,19 @@ export class MCPServersRegistry {
     userId?: string,
     configServers?: Record<string, t.ParsedServerConfig>,
   ): Promise<t.ParsedServerConfig | undefined> {
-    const candidate = configServers?.[serverName];
+    const resolvedServerName = await this.resolveServerName(serverName, configServers);
+    const candidate = configServers?.[resolvedServerName];
 
-    const cacheKey = this.getReadThroughCacheKey(serverName, userId);
+    const cacheKey = this.getReadThroughCacheKey(resolvedServerName, userId);
     let base: t.ParsedServerConfig | undefined;
     if (await this.readThroughCache.has(cacheKey)) {
       base = await this.readThroughCache.get(cacheKey);
     } else {
-      const configFromYaml = await this.cacheConfigsRepo.get(serverName);
+      const configFromYaml = await this.cacheConfigsRepo.get(resolvedServerName);
       if (configFromYaml) {
         base = configFromYaml;
       } else {
-        base = await this.dbConfigsRepo.get(serverName, userId);
+        base = await this.dbConfigsRepo.get(resolvedServerName, userId);
       }
       await this.readThroughCache.set(cacheKey, base);
     }
@@ -228,6 +230,27 @@ export class MCPServersRegistry {
     if (base?.source === 'user') return base;
     if (candidate.inspectionFailed) return base ?? candidate;
     return base ? { ...candidate, source: base.source } : candidate;
+  }
+
+  /** Maps normalized tool-definition server names back to YAML/config keys. */
+  private async resolveServerName(
+    serverName: string,
+    configServers?: Record<string, t.ParsedServerConfig>,
+  ): Promise<string> {
+    const fromConfig = resolveMCPServerName(serverName, configServers);
+    if (fromConfig !== serverName || configServers?.[serverName]) {
+      return fromConfig;
+    }
+    if (await this.cacheConfigsRepo.get(serverName)) {
+      return serverName;
+    }
+    const yamlConfigs = await this.cacheConfigsRepo.getAll();
+    for (const key of Object.keys(yamlConfigs)) {
+      if (normalizeServerName(key) === serverName) {
+        return key;
+      }
+    }
+    return serverName;
   }
 
   /**

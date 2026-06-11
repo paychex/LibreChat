@@ -10,6 +10,7 @@ const {
   buildImageToolContext,
   buildWebSearchContext,
   buildWebSearchDynamicContext,
+  resolveMCPServerName,
 } = require('@librechat/api');
 const {
   Tools,
@@ -367,17 +368,18 @@ const loadTools = async ({
         continue;
       }
 
-      const [toolName, serverName] = tool.split(Constants.mcp_delimiter);
+      const [toolName, rawServerName] = tool.split(Constants.mcp_delimiter);
       if (toolName === Constants.mcp_server) {
         /** Placeholder used for UI purposes */
         continue;
       }
+      const serverName = resolveMCPServerName(rawServerName, configServers);
       const serverConfig = serverName
         ? await getMCPServersRegistry().getServerConfig(serverName, user, configServers)
         : null;
       if (!serverConfig) {
         logger.warn(
-          `MCP server "${serverName}" for "${toolName}" tool is not configured${agent?.id != null && agent.id ? ` but attached to "${agent.id}"` : ''}`,
+          `MCP server "${rawServerName}" for "${toolName}" tool is not configured${agent?.id != null && agent.id ? ` but attached to "${agent.id}"` : ''}`,
         );
         continue;
       }

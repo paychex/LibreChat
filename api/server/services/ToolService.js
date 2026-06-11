@@ -21,6 +21,7 @@ const {
   buildOAuthToolCallName,
   buildToolClassification,
   getMissingCustomUserVars,
+  resolveMCPServerName,
   buildWebSearchDynamicContext,
   getCodeApiAuthHeaders,
 } = require('@librechat/api');
@@ -645,11 +646,16 @@ async function loadToolDefinitionsWrapper({ req, res, agent, streamId = null, to
   };
 
   const getOrFetchMCPServerTools = async (userId, serverName) => {
+    const resolvedServerName = resolveMCPServerName(serverName, configServers);
     let serverConfig;
     try {
       serverConfig =
-        configServers?.[serverName] ??
-        (await getMCPServersRegistry().getServerConfig(serverName, userId, configServers));
+        configServers?.[resolvedServerName] ??
+        (await getMCPServersRegistry().getServerConfig(
+          resolvedServerName,
+          userId,
+          configServers,
+        ));
     } catch (err) {
       logger.warn(
         `[Tool Definitions] MCP registry unavailable while resolving '${serverName}': ${
@@ -666,31 +672,31 @@ async function loadToolDefinitionsWrapper({ req, res, agent, streamId = null, to
       return null;
     }
 
-    const customUserVars = userMCPAuthMap?.[`${Constants.mcp_prefix}${serverName}`];
+    const customUserVars = userMCPAuthMap?.[`${Constants.mcp_prefix}${resolvedServerName}`];
     const missingUserVars = getMissingCustomUserVars(serverConfig, customUserVars);
     if (missingUserVars.length > 0) {
       logger.warn(
-        `[Tool Definitions] Skipping MCP server '${serverName}': required user-provided variable(s) not set: ${missingUserVars.join(
+        `[Tool Definitions] Skipping MCP server '${resolvedServerName}': required user-provided variable(s) not set: ${missingUserVars.join(
           ', ',
         )}. Tools will not be exposed until the user configures them.`,
       );
       return null;
     }
 
-    const cached = await getMCPServerTools(userId, serverName);
+    const cached = await getMCPServerTools(userId, resolvedServerName);
     if (cached) {
       return cached;
     }
 
     const oauthStart = async () => {
-      pendingOAuthServers.add(serverName);
+      pendingOAuthServers.add(resolvedServerName);
     };
 
     const result = await reinitMCPServer({
       user: req.user,
       oauthStart,
       flowManager,
-      serverName,
+      serverName: resolvedServerName,
       configServers,
       userMCPAuthMap,
     });
