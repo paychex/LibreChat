@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
+import { createBrowserRouter, Navigate, Outlet, useLocation } from 'react-router-dom';
 import {
   Login,
   VerifyEmail,
@@ -40,6 +40,12 @@ const loadSkillsView = () =>
   import('~/components/Skills/layouts/SkillsView').then((m) => ({
     Component: m.default,
   }));
+
+/** Redirects `/` → `/c/new` while preserving any query parameters (e.g. ?promptCatalogId=). */
+const RootRedirect = () => {
+  const location = useLocation();
+  return <Navigate to={`/c/new${location.search}`} replace={true} />;
+};
 
 const baseEl = document.querySelector('base');
 const baseHref = baseEl?.getAttribute('href') || '/';
@@ -114,7 +120,7 @@ export const router = createBrowserRouter(
           children: [
             {
               index: true,
-              element: <Navigate to="/c/new" replace={true} />,
+              element: <RootRedirect />,
             },
             {
               path: 'c/:conversationId?',
