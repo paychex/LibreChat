@@ -307,20 +307,20 @@ describe('MCPServersRegistry', () => {
         // Spy on the cache repository get method
         const cacheRepoGetSpy = jest.spyOn(registry['cacheConfigsRepo'], 'get');
 
-        // First call should hit the cache repository
+        // First call: resolveServerName calls get (1) + main body cache-miss calls get (2)
         const config1 = await registry.getServerConfig('test_server');
         expect(config1).toEqual(testParsedConfig);
-        expect(cacheRepoGetSpy).toHaveBeenCalledTimes(1);
+        expect(cacheRepoGetSpy).toHaveBeenCalledTimes(2);
 
-        // Second call should hit the read-through cache, not the repository
+        // Second call: resolveServerName calls get (3), main body hits read-through cache
         const config2 = await registry.getServerConfig('test_server');
         expect(config2).toEqual(testParsedConfig);
-        expect(cacheRepoGetSpy).toHaveBeenCalledTimes(1); // Still 1, not 2
+        expect(cacheRepoGetSpy).toHaveBeenCalledTimes(3);
 
-        // Third call should also hit the read-through cache
+        // Third call: resolveServerName calls get (4), main body hits read-through cache
         const config3 = await registry.getServerConfig('test_server');
         expect(config3).toEqual(testParsedConfig);
-        expect(cacheRepoGetSpy).toHaveBeenCalledTimes(1); // Still 1
+        expect(cacheRepoGetSpy).toHaveBeenCalledTimes(4);
       });
 
       it('should cache "not found" results to avoid repeated DB lookups', async () => {
@@ -342,17 +342,21 @@ describe('MCPServersRegistry', () => {
         await registry['cacheConfigsRepo'].add('test_server', testParsedConfig);
         const cacheRepoGetSpy = jest.spyOn(registry['cacheConfigsRepo'], 'get');
 
+        // resolveServerName(1) + main body miss for key 'test_server'(2)
         await registry.getServerConfig('test_server');
-        expect(cacheRepoGetSpy).toHaveBeenCalledTimes(1);
-
-        await registry.getServerConfig('test_server', 'user123');
         expect(cacheRepoGetSpy).toHaveBeenCalledTimes(2);
 
+        // resolveServerName(3) + main body miss for key 'test_server::user123'(4)
         await registry.getServerConfig('test_server', 'user123');
-        expect(cacheRepoGetSpy).toHaveBeenCalledTimes(2);
+        expect(cacheRepoGetSpy).toHaveBeenCalledTimes(4);
 
+        // resolveServerName(5) + main body hits cache for 'test_server::user123'
+        await registry.getServerConfig('test_server', 'user123');
+        expect(cacheRepoGetSpy).toHaveBeenCalledTimes(5);
+
+        // resolveServerName(6) + main body miss for key 'test_server::user456'(7)
         await registry.getServerConfig('test_server', 'user456');
-        expect(cacheRepoGetSpy).toHaveBeenCalledTimes(3);
+        expect(cacheRepoGetSpy).toHaveBeenCalledTimes(7);
       });
     });
 
