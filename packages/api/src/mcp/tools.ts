@@ -2,6 +2,7 @@ import { logger } from '@librechat/data-schemas';
 import { Constants } from 'librechat-data-provider';
 import type { JsonSchemaType } from '@librechat/agents';
 import type { LCAvailableTools, LCFunctionTool } from './types';
+import { normalizeServerName } from './utils';
 
 export interface MCPToolInput {
   name: string;
@@ -39,7 +40,7 @@ export function createMCPToolCacheService(deps: MCPToolCacheDeps) {
       }
 
       for (const tool of tools) {
-        const name = `${tool.name}${mcpDelimiter}${serverName}`;
+        const name = `${tool.name}${mcpDelimiter}${normalizeServerName(serverName)}`;
         const entry: LCFunctionTool = {
           type: 'function',
           ['function']: {

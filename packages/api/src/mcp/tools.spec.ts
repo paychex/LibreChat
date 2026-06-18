@@ -57,6 +57,35 @@ describe('createMCPToolCacheService', () => {
       });
     });
 
+    it('normalizes server names with spaces and special chars in tool function names', async () => {
+      const deps = createMockDeps();
+      const { updateMCPServerTools } = createMCPToolCacheService(deps);
+      const tools: MCPToolInput[] = [
+        { name: 'tavily_search', description: 'Tavily search' },
+        { name: 'tavily_research', description: 'Tavily deep research' },
+      ];
+
+      const result = await updateMCPServerTools({
+        userId: 'u1',
+        serverName: 'Internet Search (Tavily)',
+        tools,
+      });
+
+      const expectedSearchKey = `tavily_search${Constants.mcp_delimiter}Internet_Search__Tavily`;
+      const expectedResearchKey = `tavily_research${Constants.mcp_delimiter}Internet_Search__Tavily`;
+
+      expect(result[expectedSearchKey]).toBeDefined();
+      expect(result[expectedSearchKey]['function'].name).toBe(expectedSearchKey);
+      expect(result[expectedResearchKey]).toBeDefined();
+      expect(result[expectedResearchKey]['function'].name).toBe(expectedResearchKey);
+
+      // Cache key uses original serverName (for lookup consistency), but tool names are normalized
+      expect(deps.setCachedTools).toHaveBeenCalledWith(result, {
+        userId: 'u1',
+        serverName: 'Internet Search (Tavily)',
+      });
+    });
+
     it('propagates setCachedTools errors', async () => {
       const deps = createMockDeps({
         setCachedTools: jest.fn().mockRejectedValue(new Error('Redis down')),
