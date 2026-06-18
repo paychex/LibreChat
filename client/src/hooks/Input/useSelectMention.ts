@@ -51,6 +51,7 @@ export default function useSelectMention({
         ...spec.preset,
         iconURL: getModelSpecIconURL(spec),
         spec: spec.name,
+        modelLabel: spec.label ?? null,
       } as TPreset;
       const { endpoint } = preset;
       const newEndpoint = endpoint ?? '';
@@ -196,6 +197,7 @@ export default function useSelectMention({
         newConversation({
           template: currentConvo,
           preset: currentConvo,
+          buildDefault: false,
           keepAddedConvos: true,
         });
         return;
