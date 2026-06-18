@@ -685,7 +685,14 @@ async function loadToolDefinitionsWrapper({ req, res, agent, streamId = null, to
 
     const cached = await getMCPServerTools(userId, resolvedServerName);
     if (cached) {
-      return cached;
+      const invalidName = Object.keys(cached).find((name) => !/^[a-zA-Z0-9_.\-]+$/.test(name));
+      if (invalidName) {
+        logger.warn(
+          `[Tool Definitions] Evicting stale cache for '${resolvedServerName}': tool name '${invalidName}' contains invalid characters. Re-initializing...`,
+        );
+      } else {
+        return cached;
+      }
     }
 
     const oauthStart = async () => {
