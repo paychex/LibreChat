@@ -7,13 +7,13 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@librechat/client';
-import { PermissionBits } from 'librechat-data-provider';
+import { PermissionBits, ResourceType } from 'librechat-data-provider';
 import type { TPromptGroup } from 'librechat-data-provider';
 import { useLocalize, useSubmitMessage, useCustomLink, useResourcePermissions } from '~/hooks';
 import VariableDialog from '~/components/Prompts/Groups/VariableDialog';
 import PreviewPrompt from '~/components/Prompts/PreviewPrompt';
 import ListCard from '~/components/Prompts/Groups/ListCard';
-import { detectVariables } from '~/utils';
+import { detectVariables, getPromptCatalogEditUrl, isPromptCatalogGroup } from '~/utils';
 
 function ChatGroupItem({
   group,
@@ -27,6 +27,7 @@ function ChatGroupItem({
   const [isPreviewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [isVariableDialogOpen, setVariableDialogOpen] = useState(false);
   const onEditClick = useCustomLink<HTMLDivElement>(`/d/prompts/${group._id}`);
+  const isCatalogGroup = isPromptCatalogGroup(group);
 
   const groupIsGlobal = useMemo(
     () => instanceProjectId != null && group.projectIds?.includes(instanceProjectId),
@@ -34,8 +35,11 @@ function ChatGroupItem({
   );
 
   // Check permissions for the promptGroup
-  const { hasPermission } = useResourcePermissions('promptGroup', group._id || '');
-  const canEdit = hasPermission(PermissionBits.EDIT);
+  const { hasPermission } = useResourcePermissions(
+    ResourceType.PROMPTGROUP,
+    isCatalogGroup ? '' : group._id || '',
+  );
+  const canEdit = isCatalogGroup || hasPermission(PermissionBits.EDIT);
 
   const onCardClick: React.MouseEventHandler<HTMLButtonElement> = () => {
     const text = group.productionPrompt?.prompt;
@@ -117,6 +121,10 @@ function ChatGroupItem({
                     className="cursor-pointer rounded-lg text-text-primary hover:bg-surface-hover focus:bg-surface-hover disabled:cursor-not-allowed"
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (isCatalogGroup) {
+                        window.location.assign(getPromptCatalogEditUrl(group));
+                        return;
+                      }
                       onEditClick(e);
                     }}
                     onKeyDown={(e) => {

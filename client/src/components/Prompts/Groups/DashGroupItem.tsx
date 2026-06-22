@@ -1,7 +1,7 @@
 import { memo, useState, useRef, useMemo, useCallback, KeyboardEvent } from 'react';
 import { EarthIcon, Pen } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { PermissionBits, type TPromptGroup } from 'librechat-data-provider';
+import { PermissionBits, ResourceType, type TPromptGroup } from 'librechat-data-provider';
 import {
   Input,
   Label,
@@ -14,7 +14,7 @@ import {
 import { useDeletePromptGroup, useUpdatePromptGroup } from '~/data-provider';
 import CategoryIcon from '~/components/Prompts/Groups/CategoryIcon';
 import { useLocalize, useResourcePermissions } from '~/hooks';
-import { cn } from '~/utils';
+import { cn, getPromptCatalogEditUrl, isPromptCatalogGroup } from '~/utils';
 
 interface DashGroupItemProps {
   group: TPromptGroup;
@@ -28,10 +28,14 @@ function DashGroupItemComponent({ group, instanceProjectId }: DashGroupItemProps
 
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [nameInputValue, setNameInputValue] = useState(group.name);
+  const isCatalogGroup = isPromptCatalogGroup(group);
 
-  const { hasPermission } = useResourcePermissions('promptGroup', group._id || '');
-  const canEdit = hasPermission(PermissionBits.EDIT);
-  const canDelete = hasPermission(PermissionBits.DELETE);
+  const { hasPermission } = useResourcePermissions(
+    ResourceType.PROMPTGROUP,
+    isCatalogGroup ? '' : group._id || '',
+  );
+  const canEdit = isCatalogGroup || hasPermission(PermissionBits.EDIT);
+  const canDelete = !isCatalogGroup && hasPermission(PermissionBits.DELETE);
 
   const isGlobalGroup = useMemo(
     () => instanceProjectId && group.projectIds?.includes(instanceProjectId),
@@ -65,10 +69,14 @@ function DashGroupItemComponent({ group, instanceProjectId }: DashGroupItemProps
     (e: KeyboardEvent<HTMLDivElement>) => {
       if (e.key === 'Enter') {
         e.preventDefault();
+        if (isCatalogGroup) {
+          window.location.assign(getPromptCatalogEditUrl(group));
+          return;
+        }
         navigate(`/d/prompts/${group._id}`, { replace: true });
       }
     },
-    [group._id, navigate],
+    [group, group._id, isCatalogGroup, navigate],
   );
 
   const triggerDelete = useCallback(() => {
@@ -76,8 +84,12 @@ function DashGroupItemComponent({ group, instanceProjectId }: DashGroupItemProps
   }, [group._id, deleteGroup]);
 
   const handleContainerClick = useCallback(() => {
+    if (isCatalogGroup) {
+      window.location.assign(getPromptCatalogEditUrl(group));
+      return;
+    }
     navigate(`/d/prompts/${group._id}`, { replace: true });
-  }, [group._id, navigate]);
+  }, [group, group._id, isCatalogGroup, navigate]);
 
   return (
     <div
@@ -107,44 +119,57 @@ function DashGroupItemComponent({ group, instanceProjectId }: DashGroupItemProps
               aria-label={localize('com_ui_global_group')}
             />
           )}
-          {canEdit && (
-            <OGDialog>
-              <OGDialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  onClick={(e) => e.stopPropagation()}
-                  className="h-8 w-8 p-0 hover:bg-surface-hover"
-                  aria-label={localize('com_ui_rename_prompt') + ' ' + group.name}
-                >
-                  <Pen className="icon-sm text-text-primary" aria-hidden="true" />
-                </Button>
-              </OGDialogTrigger>
-              <OGDialogTemplate
-                showCloseButton={false}
-                title={localize('com_ui_rename_prompt')}
-                className="w-11/12 max-w-lg"
-                main={
-                  <div className="flex w-full flex-col items-center gap-2">
-                    <div className="grid w-full items-center gap-2">
-                      <Input
-                        value={nameInputValue}
-                        onChange={(e) => setNameInputValue(e.target.value)}
-                        className="w-full"
-                        aria-label={localize('com_ui_rename_prompt') + ' ' + group.name}
-                      />
-                    </div>
-                  </div>
-                }
-                selection={{
-                  selectHandler: handleSaveRename,
-                  selectClasses:
-                    'bg-surface-submit hover:bg-surface-submit-hover text-white disabled:hover:bg-surface-submit',
-                  selectText: localize('com_ui_save'),
-                  isLoading,
+          {canEdit &&
+            (isCatalogGroup ? (
+              <Button
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.location.assign(getPromptCatalogEditUrl(group));
                 }}
-              />
-            </OGDialog>
-          )}
+                className="h-8 w-8 p-0 hover:bg-surface-hover"
+                aria-label={localize('com_ui_edit') + ' ' + group.name}
+              >
+                <Pen className="icon-sm text-text-primary" aria-hidden="true" />
+              </Button>
+            ) : (
+              <OGDialog>
+                <OGDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-8 w-8 p-0 hover:bg-surface-hover"
+                    aria-label={localize('com_ui_rename_prompt') + ' ' + group.name}
+                  >
+                    <Pen className="icon-sm text-text-primary" aria-hidden="true" />
+                  </Button>
+                </OGDialogTrigger>
+                <OGDialogTemplate
+                  showCloseButton={false}
+                  title={localize('com_ui_rename_prompt')}
+                  className="w-11/12 max-w-lg"
+                  main={
+                    <div className="flex w-full flex-col items-center gap-2">
+                      <div className="grid w-full items-center gap-2">
+                        <Input
+                          value={nameInputValue}
+                          onChange={(e) => setNameInputValue(e.target.value)}
+                          className="w-full"
+                          aria-label={localize('com_ui_rename_prompt') + ' ' + group.name}
+                        />
+                      </div>
+                    </div>
+                  }
+                  selection={{
+                    selectHandler: handleSaveRename,
+                    selectClasses:
+                      'bg-surface-submit hover:bg-surface-submit-hover text-white disabled:hover:bg-surface-submit',
+                    selectText: localize('com_ui_save'),
+                    isLoading,
+                  }}
+                />
+              </OGDialog>
+            ))}
 
           {canDelete && (
             <OGDialog>

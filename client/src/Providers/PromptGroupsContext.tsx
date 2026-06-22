@@ -4,7 +4,7 @@ import type { TPromptGroup } from 'librechat-data-provider';
 import type { PromptOption } from '~/common';
 import CategoryIcon from '~/components/Prompts/Groups/CategoryIcon';
 import { usePromptGroupsNav, useHasAccess } from '~/hooks';
-import { useGetAllPromptGroups } from '~/data-provider';
+import { useGetAllPromptGroups, useGetPromptCatalogGroups } from '~/data-provider';
 import { mapPromptGroups } from '~/utils';
 
 type AllPromptGroupsData =
@@ -26,6 +26,25 @@ type PromptGroupsContextType =
 
 const PromptGroupsContext = createContext<PromptGroupsContextType>(null);
 
+const mapGroupsForCommand = (groups: TPromptGroup[]) => {
+  const mappedArray: PromptOption[] = groups.map((group) => ({
+    id: group._id ?? '',
+    type: 'prompt',
+    value: group.command ?? group.name,
+    label: `${group.command != null && group.command ? `/${group.command} - ` : ''}${group.name}: ${
+      (group.oneliner?.length ?? 0) > 0 ? group.oneliner : (group.productionPrompt?.prompt ?? '')
+    }`,
+    icon: <CategoryIcon category={group.category ?? ''} className="h-5 w-5" />,
+  }));
+
+  const promptsMap = mapPromptGroups(groups);
+
+  return {
+    promptsMap,
+    promptGroups: mappedArray,
+  };
+};
+
 export const PromptGroupsProvider = ({ children }: { children: ReactNode }) => {
   const hasAccess = useHasAccess({
     permissionType: PermissionTypes.PROMPTS,
@@ -35,40 +54,45 @@ export const PromptGroupsProvider = ({ children }: { children: ReactNode }) => {
   const promptGroupsNav = usePromptGroupsNav(hasAccess);
   const { data: allGroupsData, isLoading: isLoadingAll } = useGetAllPromptGroups(undefined, {
     enabled: hasAccess,
-    select: (data) => {
-      const mappedArray: PromptOption[] = data.map((group) => ({
-        id: group._id ?? '',
-        type: 'prompt',
-        value: group.command ?? group.name,
-        label: `${group.command != null && group.command ? `/${group.command} - ` : ''}${
-          group.name
-        }: ${
-          (group.oneliner?.length ?? 0) > 0
-            ? group.oneliner
-            : (group.productionPrompt?.prompt ?? '')
-        }`,
-        icon: <CategoryIcon category={group.category ?? ''} className="h-5 w-5" />,
-      }));
-
-      const promptsMap = mapPromptGroups(data);
-
-      return {
-        promptsMap,
-        promptGroups: mappedArray,
-      };
-    },
+    select: mapGroupsForCommand,
   });
+  const { data: promptCatalogGroupsData, isLoading: isLoadingPromptCatalog } =
+    useGetPromptCatalogGroups(
+      { pageSize: 200 },
+      {
+        enabled: hasAccess,
+        select: mapGroupsForCommand,
+      },
+    );
+
+  const combinedAllGroupsData = useMemo(() => {
+    if (!allGroupsData && !promptCatalogGroupsData) {
+      return undefined;
+    }
+    return {
+      promptsMap: {
+        ...(promptCatalogGroupsData?.promptsMap ?? {}),
+        ...(allGroupsData?.promptsMap ?? {}),
+      },
+      promptGroups: [
+        ...(promptCatalogGroupsData?.promptGroups ?? []),
+        ...(allGroupsData?.promptGroups ?? []),
+      ],
+    };
+  }, [allGroupsData, promptCatalogGroupsData]);
+
+  const isLoading = isLoadingAll || isLoadingPromptCatalog;
 
   const contextValue = useMemo(
     () => ({
       ...promptGroupsNav,
       allPromptGroups: {
-        data: hasAccess ? allGroupsData : undefined,
-        isLoading: hasAccess ? isLoadingAll : false,
+        data: hasAccess ? combinedAllGroupsData : undefined,
+        isLoading: hasAccess ? isLoading : false,
       },
       hasAccess,
     }),
-    [promptGroupsNav, allGroupsData, isLoadingAll, hasAccess],
+    [promptGroupsNav, combinedAllGroupsData, isLoading, hasAccess],
   );
 
   return (

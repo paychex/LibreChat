@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useRecoilState } from 'recoil';
-import { usePromptGroupsInfiniteQuery } from '~/data-provider';
+import { useGetPromptCatalogGroups, usePromptGroupsInfiniteQuery } from '~/data-provider';
 import store from '~/store';
 
 export default function usePromptGroupsNav(hasAccess = true) {
@@ -24,6 +24,16 @@ export default function usePromptGroupsNav(hasAccess = true) {
       enabled: hasAccess,
     },
   );
+  const promptCatalogGroupsQuery = useGetPromptCatalogGroups(
+    {
+      name,
+      category,
+      pageSize: 200,
+    },
+    {
+      enabled: hasAccess,
+    },
+  );
 
   // Get the current page data
   const currentPageData = useMemo(() => {
@@ -37,8 +47,9 @@ export default function usePromptGroupsNav(hasAccess = true) {
 
   // Get prompt groups for current page
   const promptGroups = useMemo(() => {
-    return currentPageData?.promptGroups || [];
-  }, [currentPageData]);
+    const catalogGroups = currentPageIndex === 0 ? (promptCatalogGroupsQuery.data ?? []) : [];
+    return [...catalogGroups, ...(currentPageData?.promptGroups || [])];
+  }, [currentPageData, currentPageIndex, promptCatalogGroupsQuery.data]);
 
   // Calculate pagination state
   const hasNextPage = useMemo(() => {
@@ -101,14 +112,18 @@ export default function usePromptGroupsNav(hasAccess = true) {
 
   return {
     promptGroups: hasAccess ? promptGroups : [],
-    groupsQuery,
+    groupsQuery: {
+      ...groupsQuery,
+      isLoading: hasAccess ? groupsQuery.isLoading || promptCatalogGroupsQuery.isLoading : false,
+      isFetching: hasAccess ? groupsQuery.isFetching || promptCatalogGroupsQuery.isFetching : false,
+    },
     currentPage,
     totalPages,
     hasNextPage: hasAccess && hasNextPage,
     hasPreviousPage: hasAccess && hasPreviousPage,
     nextPage,
     prevPage,
-    isFetching: hasAccess ? groupsQuery.isFetching : false,
+    isFetching: hasAccess ? groupsQuery.isFetching || promptCatalogGroupsQuery.isFetching : false,
     name,
     setName,
   };

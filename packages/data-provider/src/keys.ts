@@ -40,6 +40,7 @@ export enum QueryKeys {
   prompt = 'prompt',
   promptGroups = 'promptGroups',
   allPromptGroups = 'allPromptGroups',
+  promptCatalogGroups = 'promptCatalogGroups',
   promptGroup = 'promptGroup',
   categories = 'categories',
   randomPrompts = 'randomPrompts',

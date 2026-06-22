@@ -1,6 +1,16 @@
 import { specialVariables } from 'librechat-data-provider';
 import type { TPromptGroup } from 'librechat-data-provider';
 
+export const PROMPT_CATALOG_SOURCE = 'promptCatalog';
+export const PROMPT_CATALOG_EDIT_URL =
+  'https://app-aidocs-web-eastus-prod-002.azurewebsites.net/prompts';
+
+export const isPromptCatalogGroup = (group?: Pick<TPromptGroup, 'promptSource'> | null): boolean =>
+  group?.promptSource === PROMPT_CATALOG_SOURCE;
+
+export const getPromptCatalogEditUrl = (group?: Pick<TPromptGroup, 'editUrl'> | null): string =>
+  group?.editUrl || PROMPT_CATALOG_EDIT_URL;
+
 /**
  * Detects the presence of variables in the given text, excluding those found in `specialVariables`.
  */

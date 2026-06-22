@@ -310,6 +310,11 @@ export const getCategories = () => `${BASE_URL}/api/categories`;
 
 export const getAllPromptGroups = () => `${prompts()}/all`;
 
+export const getPromptCatalogGroups = (filter: object = {}) => {
+  const query = buildQuery(filter as Record<string, unknown>);
+  return `${BASE_URL}/api/prompt-catalog/groups${query}`;
+};
+
 /* Roles */
 export const roles = () => `${BASE_URL}/api/roles`;
 export const getRole = (roleName: string) => `${roles()}/${roleName.toLowerCase()}`;

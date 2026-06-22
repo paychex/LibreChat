@@ -724,6 +724,12 @@ export function getPromptGroups(
   return request.get(endpoints.getPromptGroupsWithFilters(filter));
 }
 
+export function getPromptCatalogGroups(
+  filter?: t.TPromptCatalogGroupsRequest,
+): Promise<t.TPromptGroup[]> {
+  return request.get(endpoints.getPromptCatalogGroups(filter));
+}
+
 export function getPromptGroup(id: string): Promise<t.TPromptGroup> {
   return request.get(endpoints.getPromptGroup(id));
 }

@@ -518,6 +518,14 @@ export type TPromptGroup = {
   createdAt?: Date;
   updatedAt?: Date;
   _id?: string;
+  promptSource?: 'promptCatalog' | 'librechat' | string;
+  externalId?: string;
+  editUrl?: string;
+  aiTool?: string;
+  tags?: string[];
+  thumbsUpCount?: number;
+  favoriteCount?: number;
+  leadershipApproved?: boolean;
 };
 
 export type TCreatePrompt = {
@@ -545,6 +553,14 @@ export type TPromptGroupsWithFilterRequest = {
   order?: 'asc' | 'desc';
   name?: string;
   author?: string;
+};
+
+export type TPromptCatalogGroupsRequest = {
+  page?: string | number;
+  pageSize?: string | number;
+  name?: string;
+  search?: string;
+  category?: string;
 };
 
 export type PromptGroupListResponse = {

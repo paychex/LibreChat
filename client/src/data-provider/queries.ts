@@ -484,6 +484,31 @@ export const useGetAllPromptGroups = <TData = t.AllPromptGroupsResponse>(
   );
 };
 
+export const useGetPromptCatalogGroups = <TData = t.TPromptGroup[]>(
+  filter?: t.TPromptCatalogGroupsRequest,
+  config?: UseQueryOptions<t.TPromptGroup[], unknown, TData>,
+): QueryObserverResult<TData> => {
+  return useQuery<t.TPromptGroup[], unknown, TData>(
+    [
+      QueryKeys.promptCatalogGroups,
+      filter?.name,
+      filter?.search,
+      filter?.category,
+      filter?.page,
+      filter?.pageSize,
+    ],
+    () => dataService.getPromptCatalogGroups(filter),
+    {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      retry: false,
+      staleTime: 1000 * 60 * 5,
+      ...config,
+    },
+  );
+};
+
 export const useGetCategories = <TData = t.TGetCategoriesResponse>(
   config?: UseQueryOptions<t.TGetCategoriesResponse, unknown, TData>,
 ): QueryObserverResult<TData> => {
