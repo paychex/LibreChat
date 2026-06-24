@@ -31,7 +31,6 @@ import {
   getDefaultEndpoint,
   getModelSpecPreset,
   buildDefaultConvo,
-  getLocalStorageItems,
   logger,
 } from '~/utils';
 import { useDeleteFilesMutation, useGetEndpointsQuery, useGetStartupConfig } from '~/data-provider';
