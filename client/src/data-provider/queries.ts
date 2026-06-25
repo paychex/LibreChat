@@ -490,6 +490,42 @@ export const useGetAllPromptGroups = <TData = t.AllPromptGroupsResponse>(
   );
 };
 
+export const useGetPromptCatalog = <TData = t.CatalogPromptsResponse>(
+  params?: t.CatalogPromptsParams,
+  config?: UseQueryOptions<t.CatalogPromptsResponse, unknown, TData>,
+): QueryObserverResult<TData> => {
+  return useQuery<t.CatalogPromptsResponse, unknown, TData>(
+    [QueryKeys.promptCatalog, params],
+    async () => {
+      const url = new URL('https://app-promptcatalog-api-eastus-prod-001.azurewebsites.net/api/prompts');
+      if (params?.search) {
+        url.searchParams.set('search', params.search);
+      }
+      if (params?.category) {
+        url.searchParams.set('category', params.category);
+      }
+      if (params?.page) {
+        url.searchParams.set('page', params.page);
+      }
+      if (params?.limit) {
+        url.searchParams.set('limit', params.limit);
+      }
+      const response = await fetch(url.toString());
+      if (!response.ok) {
+        throw new Error(`Prompt Catalog fetch failed: ${response.status}`);
+      }
+      return response.json() as Promise<t.CatalogPromptsResponse>;
+    },
+    {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      retry: false,
+      ...config,
+    },
+  );
+};
+
 export const useGetCategories = <TData = t.TGetCategoriesResponse>(
   config?: UseQueryOptions<t.TGetCategoriesResponse, unknown, TData>,
 ): QueryObserverResult<TData> => {

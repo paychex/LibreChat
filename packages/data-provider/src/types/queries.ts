@@ -99,6 +99,28 @@ export type AllPromptGroupsFilterRequest = {
 
 export type AllPromptGroupsResponse = t.TPromptGroup[];
 
+export type CatalogPrompt = {
+  id: number;
+  title: string;
+  content: string;
+  category: string;
+  ai_tool: string;
+  tags: string[];
+  creator_name: string;
+  thumbs_up_count: number;
+};
+
+export type CatalogPromptsResponse = {
+  prompts: CatalogPrompt[];
+};
+
+export type CatalogPromptsParams = {
+  search?: string;
+  category?: string;
+  page?: string;
+  limit?: string;
+};
+
 export type ConversationTagsResponse = s.TConversationTag[];
 
 /* MCP Types */

@@ -357,6 +357,18 @@ export const getCategories = () => `${BASE_URL}/api/categories`;
 
 export const getAllPromptGroups = () => `${prompts()}/all`;
 
+export const getPromptCatalog = (params: Record<string, string | undefined> = {}): string => {
+  let url = `${BASE_URL}/api/prompthub/catalog`;
+  const searchParams = Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== '')
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value as string)}`)
+    .join('&');
+  if (searchParams) {
+    url += `?${searchParams}`;
+  }
+  return url;
+};
+
 /* Roles */
 export const roles = () => `${BASE_URL}/api/roles`;
 export const getRole = (roleName: string) => `${roles()}/${roleName.toLowerCase()}`;

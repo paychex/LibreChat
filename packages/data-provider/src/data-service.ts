@@ -806,6 +806,12 @@ export function getAllPromptGroups(): Promise<q.AllPromptGroupsResponse> {
   return request.get(endpoints.getAllPromptGroups());
 }
 
+export function getPromptCatalog(
+  params?: q.CatalogPromptsParams,
+): Promise<q.CatalogPromptsResponse> {
+  return request.get(endpoints.getPromptCatalog(params as Record<string, string | undefined>));
+}
+
 export function getPromptGroups(
   filter: t.TPromptGroupsWithFilterRequest,
 ): Promise<t.PromptGroupListResponse> {

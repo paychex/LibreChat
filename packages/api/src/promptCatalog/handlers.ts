@@ -146,3 +146,92 @@ export function createPromptHubResolveInsertHandler(deps: PromptCatalogResolveIn
     }
   };
 }
+
+type CatalogPromptListRequest = Request<
+  unknown,
+  unknown,
+  unknown,
+  {
+    search?: string;
+    category?: string;
+    page?: string;
+    limit?: string;
+  }
+> & {
+  user?: {
+    email?: string;
+    name?: string;
+    username?: string;
+  };
+};
+
+export interface PromptHubCatalogListDependencies {
+  getPromptCatalogApiUrl: () => string | undefined;
+  fetchImpl?: PromptCatalogFetch;
+  timeoutMs?: number;
+}
+
+function buildCatalogListUrl(
+  promptCatalogApiUrl: string,
+  query: CatalogPromptListRequest['query'],
+): string {
+  const normalizedApiUrl = promptCatalogApiUrl.endsWith('/')
+    ? promptCatalogApiUrl
+    : `${promptCatalogApiUrl}/`;
+
+  const url = new URL('api/prompts', normalizedApiUrl);
+
+  if (query.search) {
+    url.searchParams.set('search', query.search);
+  }
+  if (query.category) {
+    url.searchParams.set('category', query.category);
+  }
+  if (query.page) {
+    url.searchParams.set('page', query.page);
+  }
+  if (query.limit) {
+    url.searchParams.set('limit', query.limit);
+  }
+
+  return url.toString();
+}
+
+export function createPromptHubCatalogListHandler(deps: PromptHubCatalogListDependencies) {
+  const fetchImpl = deps.fetchImpl ?? fetch;
+  const timeoutMs = deps.timeoutMs ?? 10_000;
+
+  return async function promptHubCatalogListHandler(
+    req: CatalogPromptListRequest,
+    res: Response,
+  ) {
+    const promptCatalogApiUrl = deps.getPromptCatalogApiUrl();
+    if (!promptCatalogApiUrl) {
+      return res.status(500).json({ message: 'PROMPT_CATALOG_API_URL is not configured' });
+    }
+
+    let catalogListUrl: string;
+    try {
+      catalogListUrl = buildCatalogListUrl(promptCatalogApiUrl, req.query ?? {});
+    } catch {
+      return res.status(500).json({ message: 'Invalid PROMPT_CATALOG_API_URL' });
+    }
+
+    try {
+      const response = await fetchImpl(catalogListUrl, {
+        headers: buildPromptCatalogHeaders(req.user),
+        signal: getTimeoutSignal(timeoutMs),
+      });
+
+      if (!response.ok) {
+        return res.status(response.status).json({ message: 'Failed to fetch Prompt Catalog' });
+      }
+
+      const data = (await response.json()) as unknown;
+      return res.status(200).json(data);
+    } catch (error) {
+      logger.error('[PromptHubCatalogList] Failed to fetch catalog:', error);
+      return res.status(502).json({ message: 'Prompt Catalog service unavailable' });
+    }
+  };
+}
