@@ -110,15 +110,24 @@ export type CatalogPrompt = {
   thumbs_up_count: number;
 };
 
+export type CatalogPagination = {
+  page: number;
+  page_size: number;
+  total_count: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+};
+
 export type CatalogPromptsResponse = {
   prompts: CatalogPrompt[];
+  pagination: CatalogPagination;
 };
 
 export type CatalogPromptsParams = {
   search?: string;
   category?: string;
   page?: string;
-  limit?: string;
 };
 
 export type ConversationTagsResponse = s.TConversationTag[];

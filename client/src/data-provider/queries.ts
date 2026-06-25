@@ -497,7 +497,9 @@ export const useGetPromptCatalog = <TData = t.CatalogPromptsResponse>(
   return useQuery<t.CatalogPromptsResponse, unknown, TData>(
     [QueryKeys.promptCatalog, params],
     async () => {
-      const url = new URL('https://app-promptcatalog-api-eastus-prod-001.azurewebsites.net/api/prompts');
+      const url = new URL(
+        'https://app-promptcatalog-api-eastus-prod-001.azurewebsites.net/api/prompts',
+      );
       if (params?.search) {
         url.searchParams.set('search', params.search);
       }
