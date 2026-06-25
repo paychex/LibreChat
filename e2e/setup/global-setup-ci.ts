@@ -49,9 +49,12 @@ function isAdfsWiaPage(url: string): boolean {
 }
 
 function adfsFormsUrlFromWia(wiaUrl: string): string {
-  return wiaUrl
-    .replace('/adfs/ls/wia', '/adfs/ls/')
-    .replace(/LoginOptions%3D3/i, 'LoginOptions%3D1');
+  const url = new URL(wiaUrl);
+  // Switch to the forms-based endpoint
+  url.pathname = url.pathname.replace(/\/wia$/, '/');
+  // Remove the TLS/WIA device-auth hint so ADFS doesn't bounce back to WIA
+  url.searchParams.delete('deviceAuthenticationMethod');
+  return url.toString();
 }
 
 async function fillAdfsCredentials(page: Page, email: string, password: string, baseOrigin: string): Promise<void> {
