@@ -113,12 +113,9 @@ export function createPromptHubResolveInsertHandler(deps: PromptCatalogResolveIn
         });
       }
 
-      let promptText: string | null = null;
-      if (typeof data?.content === 'string') {
-        promptText = data.content;
-      } else if (typeof data?.prompt === 'string') {
-        promptText = data.prompt;
-      }
+      const promptText =
+        (typeof data?.content === 'string' ? data.content : null) ??
+        (typeof data?.prompt === 'string' ? data.prompt : null);
 
       if (promptText == null) {
         return res
