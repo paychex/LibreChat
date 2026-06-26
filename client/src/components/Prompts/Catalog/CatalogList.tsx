@@ -32,8 +32,7 @@ export default function CatalogList() {
   const totalLocalPages = Math.ceil(totalCount / LOCAL_PAGE_SIZE);
 
   // Slice the 50-item API page down to the 5 we want
-  const offsetWithinApiPage =
-    ((localPage - 1) * LOCAL_PAGE_SIZE) % API_PAGE_SIZE;
+  const offsetWithinApiPage = ((localPage - 1) * LOCAL_PAGE_SIZE) % API_PAGE_SIZE;
   const prompts = allPrompts.slice(offsetWithinApiPage, offsetWithinApiPage + LOCAL_PAGE_SIZE);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -136,4 +135,3 @@ export default function CatalogList() {
     </div>
   );
 }
-

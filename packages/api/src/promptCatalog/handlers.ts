@@ -113,12 +113,12 @@ export function createPromptHubResolveInsertHandler(deps: PromptCatalogResolveIn
         });
       }
 
-      const promptText =
-        typeof data?.content === 'string'
-          ? data.content
-          : typeof data?.prompt === 'string'
-            ? data.prompt
-            : null;
+      let promptText: string | null = null;
+      if (typeof data?.content === 'string') {
+        promptText = data.content;
+      } else if (typeof data?.prompt === 'string') {
+        promptText = data.prompt;
+      }
 
       if (promptText == null) {
         return res
@@ -201,10 +201,7 @@ export function createPromptHubCatalogListHandler(deps: PromptHubCatalogListDepe
   const fetchImpl = deps.fetchImpl ?? fetch;
   const timeoutMs = deps.timeoutMs ?? 10_000;
 
-  return async function promptHubCatalogListHandler(
-    req: CatalogPromptListRequest,
-    res: Response,
-  ) {
+  return async function promptHubCatalogListHandler(req: CatalogPromptListRequest, res: Response) {
     const promptCatalogApiUrl = deps.getPromptCatalogApiUrl();
     if (!promptCatalogApiUrl) {
       return res.status(500).json({ message: 'PROMPT_CATALOG_API_URL is not configured' });
