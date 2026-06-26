@@ -59,6 +59,10 @@ function adfsFormsUrlFromWia(wiaUrl: string): string {
   url.pathname = url.pathname.replace(/\/wia$/, '/');
   // Remove the TLS/WIA device-auth hint so ADFS doesn't bounce back to WIA
   url.searchParams.delete('deviceAuthenticationMethod');
+  // Explicitly request password/forms auth via WS-Federation wauth parameter.
+  // Without this ADFS sees the same session context and immediately re-redirects
+  // back to the WIA/TLS endpoint regardless of the path change above.
+  url.searchParams.set('wauth', 'urn:oasis:names:tc:SAML:1.0:am:password');
   return url.toString();
 }
 
@@ -93,8 +97,18 @@ async function fillAdfsCredentials(
     });
   }
 
-  await usernameInput.waitFor({ state: 'visible', timeout: 30000 });
-  await usernameInput.fill(adfsUsername);
+  // ADFS may pre-fill the username from the URL query param (username=...) and
+  // hide the username field, advancing straight to the password step.
+  // Only fill the username if the field is actually visible.
+  const usernameVisible = await usernameInput.isVisible().catch(() => false);
+  if (usernameVisible) {
+    await usernameInput.fill(adfsUsername);
+    console.log('  ✓ Filled username on ADFS');
+  } else {
+    console.log('  ↪ ADFS pre-filled username from URL — skipping to password step');
+  }
+
+  await passwordInput.waitFor({ state: 'visible', timeout: 30000 });
   await passwordInput.fill(password);
   await submitButton.click();
   console.log('  ✓ Submitted credentials on ADFS');
