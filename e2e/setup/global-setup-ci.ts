@@ -24,7 +24,12 @@ function isLocalhost(url: string): boolean {
   return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
 }
 
-async function loginLocal(page: Page, baseUrl: string, email: string, password: string): Promise<void> {
+async function loginLocal(
+  page: Page,
+  baseUrl: string,
+  email: string,
+  password: string,
+): Promise<void> {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
   // Wait for the login form to render
@@ -57,19 +62,35 @@ function adfsFormsUrlFromWia(wiaUrl: string): string {
   return url.toString();
 }
 
-async function fillAdfsCredentials(page: Page, email: string, password: string, baseOrigin: string): Promise<void> {
-  const adfsUsername = email.split('@')[0];
-  const usernameInput = page.locator('#userNameInput, input[name="UserName"], input[name="username"]').first();
-  const passwordInput = page.locator('#passwordInput, input[name="Password"], input[name="password"], input[type="password"]').first();
-  const submitButton = page.locator('#submitButton, input[type="submit"], button[type="submit"]').first();
-
+async function fillAdfsCredentials(
+  page: Page,
+  email: string,
+  password: string,
+  baseOrigin: string,
+): Promise<void> {
   if (new URL(page.url()).origin === baseOrigin) {
     return;
   }
 
+  const adfsUsername = email.split('@')[0];
+  const usernameInput = page
+    .locator('#userNameInput, input[name="UserName"], input[name="username"]')
+    .first();
+  const passwordInput = page
+    .locator(
+      '#passwordInput, input[name="Password"], input[name="password"], input[type="password"]',
+    )
+    .first();
+  const submitButton = page
+    .locator('#submitButton, input[type="submit"], button[type="submit"]')
+    .first();
+
   if (isAdfsWiaPage(page.url())) {
     console.log('  ↪ ADFS attempted WIA — forcing forms-based login');
-    await page.goto(adfsFormsUrlFromWia(page.url()), { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto(adfsFormsUrlFromWia(page.url()), {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000,
+    });
   }
 
   await usernameInput.waitFor({ state: 'visible', timeout: 30000 });
@@ -81,7 +102,12 @@ async function fillAdfsCredentials(page: Page, email: string, password: string, 
   await page.waitForURL((url) => url.origin === baseOrigin, { timeout: 30000 });
 }
 
-async function loginAzureAD(page: Page, baseUrl: string, email: string, password: string): Promise<void> {
+async function loginAzureAD(
+  page: Page,
+  baseUrl: string,
+  email: string,
+  password: string,
+): Promise<void> {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
   // Wait for the OpenID button to appear
@@ -104,10 +130,13 @@ async function loginAzureAD(page: Page, baseUrl: string, email: string, password
   //   b) ADFS WIA endpoint (domain-joined runners — must fall back to forms)
   //   c) Directly back to LibreChat (domain-joined machines via Kerberos/NTLM)
   const baseOrigin = new URL(baseUrl).origin;
-  await page.waitForURL((url) => {
-    const href = url.href.toLowerCase();
-    return href.includes('adfs') || href.includes('sts') || url.origin === baseOrigin;
-  }, { timeout: 30000, waitUntil: 'domcontentloaded' });
+  await page.waitForURL(
+    (url) => {
+      const href = url.href.toLowerCase();
+      return href.includes('adfs') || href.includes('sts') || url.origin === baseOrigin;
+    },
+    { timeout: 30000, waitUntil: 'domcontentloaded' },
+  );
 
   const currentUrl = page.url();
   if (currentUrl.includes('adfs') || currentUrl.includes('sts')) {
@@ -142,7 +171,7 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
   // the username/password form that headless automation requires.
   const browser = await chromium.launch({
     headless: true,
-    args: ['--auth-server-whitelist="_"'],
+    args: ['--auth-server-allowlist="_"'],
   });
   const context = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await context.newPage();
