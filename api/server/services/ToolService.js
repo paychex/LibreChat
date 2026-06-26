@@ -1,9 +1,7 @@
-const { logger } = require('@librechat/data-schemas');
+const { logger, redactMessage } = require('@librechat/data-schemas');
 const { tool: toolFn, DynamicStructuredTool } = require('@librechat/agents/langchain/tools');
 const {
   sleep,
-  StepTypes,
-  GraphEvents,
   createToolSearch,
   createBashExecutionTool,
   Constants: AgentConstants,
@@ -18,12 +16,19 @@ const {
   isActionDomainAllowed,
   buildWebSearchContext,
   buildImageToolContext,
-  buildOAuthToolCallName,
   buildToolClassification,
   getMissingCustomUserVars,
   resolveMCPServerName,
   buildWebSearchDynamicContext,
   getCodeApiAuthHeaders,
+  getReplayablePendingMCPOAuthStart,
+  getMCPServerNamesFromTools,
+  buildMCPAuthToolCall,
+  buildMCPAuthStepId,
+  buildMCPAuthRunStepEvent,
+  buildMCPAuthRunStepDeltaEvent,
+  buildMCPAuthRunStepCompletedEvent,
+  isFileAuthoringToolDefinition,
 } = require('@librechat/api');
 const {
   Time,
@@ -65,9 +70,9 @@ const { manifestToolMap, toolkits } = require('~/app/clients/tools/manifest');
 const { createOnSearchResults } = require('~/server/services/Tools/search');
 const { reinitMCPServer } = require('~/server/services/Tools/mcp');
 const { createMCPPermissionContext, resolveConfigServers } = require('~/server/services/MCP');
+const { getMCPRequestContext } = require('~/server/services/MCPRequestContext');
 const { recordUsage } = require('~/server/services/Threads');
 const { loadTools } = require('~/app/clients/tools/util');
-const { redactMessage } = require('~/config/parsers');
 const { findPluginAuthsByKeys } = require('~/models');
 const { getFlowStateManager, getMCPServersRegistry } = require('~/config');
 const { getLogStores } = require('~/cache');
@@ -525,6 +530,7 @@ const isBuiltInTool = (toolName) =>
  * @returns {Promise<{
  *   toolDefinitions?: import('@librechat/api').LCTool[];
  *   toolRegistry?: Map<string, import('@librechat/api').LCTool>;
+ *   mcpAvailableTools?: Record<string, import('@librechat/api').LCAvailableTools>;
  *   userMCPAuthMap?: Record<string, Record<string, string>>;
  *   hasDeferredTools?: boolean;
  * }>}
@@ -596,40 +602,44 @@ async function loadToolDefinitionsWrapper({ req, res, agent, streamId = null, to
   const flowManager = getFlowStateManager(flowsCache);
   const configServers = await resolveConfigServers(req);
   const pendingOAuthServers = new Set();
+  const pendingOAuthStarts = new Map();
+  const emittedOAuthStarts = new Map();
+  const oauthToolCallIds = new Map();
+  const oauthStepIndexes = new Map();
+  /** @type {Record<string, import('@librechat/api').LCAvailableTools>} */
+  const mcpAvailableTools = {};
+  const requestScopedConnections = getMCPRequestContext(req, res);
+  const rememberMCPAvailableTools = (serverName, availableTools) => {
+    if (!availableTools || Object.keys(availableTools).length === 0) {
+      return;
+    }
+    mcpAvailableTools[serverName] = availableTools;
+  };
 
-  const createOAuthEmitter = (serverName) => {
-    return async (authURL) => {
-      const flowId = `${req.user.id}:${serverName}:${Date.now()}`;
-      const stepId = 'step_oauth_login_' + serverName;
-      const toolCall = {
+  const createOAuthEmitter = (serverName, index) => {
+    return async (authURL, options) => {
+      if (emittedOAuthStarts.get(serverName) === authURL) {
+        return;
+      }
+      emittedOAuthStarts.set(serverName, authURL);
+
+      const flowId =
+        oauthToolCallIds.get(serverName) ?? `${req.user.id}:${serverName}:${Date.now()}`;
+      const stepId = buildMCPAuthStepId(serverName);
+      oauthToolCallIds.set(serverName, flowId);
+      oauthStepIndexes.set(serverName, index);
+      const toolCall = buildMCPAuthToolCall({
         id: flowId,
-        name: buildOAuthToolCallName(serverName),
-        type: 'tool_call_chunk',
-      };
+        serverName,
+      });
 
-      const runStepData = {
-        runId: Constants.USE_PRELIM_RESPONSE_MESSAGE_ID,
-        id: stepId,
-        type: StepTypes.TOOL_CALLS,
-        index: 0,
-        stepDetails: {
-          type: StepTypes.TOOL_CALLS,
-          tool_calls: [toolCall],
-        },
-      };
-
-      const runStepDeltaData = {
-        id: stepId,
-        delta: {
-          type: StepTypes.TOOL_CALLS,
-          tool_calls: [{ ...toolCall, args: '' }],
-          auth: authURL,
-          expires_at: Date.now() + Time.TWO_MINUTES,
-        },
-      };
-
-      const runStepEvent = { event: GraphEvents.ON_RUN_STEP, data: runStepData };
-      const runStepDeltaEvent = { event: GraphEvents.ON_RUN_STEP_DELTA, data: runStepDeltaData };
+      const runStepEvent = buildMCPAuthRunStepEvent({ stepId, toolCall, index });
+      const runStepDeltaEvent = buildMCPAuthRunStepDeltaEvent({
+        authURL,
+        stepId,
+        toolCall,
+        options,
+      });
 
       if (streamId) {
         await GenerationJobManager.emitChunk(streamId, runStepEvent);
@@ -645,8 +655,74 @@ async function loadToolDefinitionsWrapper({ req, res, agent, streamId = null, to
     };
   };
 
+  const createOAuthEndEmitter = (serverName) => {
+    return async () => {
+      const stepId = buildMCPAuthStepId(serverName);
+      const toolCall = buildMCPAuthToolCall({
+        id: oauthToolCallIds.get(serverName),
+        args: '',
+        output: 'OAuth authentication completed',
+        serverName,
+        type: 'tool_call',
+      });
+      const runStepCompletedEvent = buildMCPAuthRunStepCompletedEvent({
+        stepId,
+        toolCall,
+        index: oauthStepIndexes.get(serverName) ?? 0,
+      });
+
+      if (streamId) {
+        await GenerationJobManager.emitChunk(streamId, runStepCompletedEvent);
+      } else if (res && !res.writableEnded) {
+        sendEvent(res, runStepCompletedEvent);
+      } else {
+        logger.warn(
+          `[Tool Definitions] Cannot emit OAuth completion for ${serverName}: no streamId and res not available`,
+        );
+      }
+    };
+  };
+
+  const getPendingOAuthStartForEmit = async (serverName) => {
+    const cachedOAuthStart = pendingOAuthStarts.get(serverName);
+    if (cachedOAuthStart?.options?.expiresAt != null) {
+      return cachedOAuthStart;
+    }
+
+    const pendingOAuthStart = await getReplayablePendingMCPOAuthStart({
+      flowManager,
+      userId: req.user.id,
+      serverName,
+    });
+    if (!pendingOAuthStart) {
+      return cachedOAuthStart;
+    }
+
+    if (!cachedOAuthStart || pendingOAuthStart.authURL === cachedOAuthStart.authURL) {
+      pendingOAuthStarts.set(serverName, pendingOAuthStart);
+      return pendingOAuthStart;
+    }
+
+    return cachedOAuthStart;
+  };
+
   const getOrFetchMCPServerTools = async (userId, serverName) => {
     const resolvedServerName = resolveMCPServerName(serverName, configServers);
+    const addPendingOAuthServer = async () => {
+      const pendingOAuthStart = await getReplayablePendingMCPOAuthStart({
+        flowManager,
+        userId,
+        serverName: resolvedServerName,
+      });
+      if (!pendingOAuthStart) {
+        return false;
+      }
+
+      pendingOAuthServers.add(resolvedServerName);
+      pendingOAuthStarts.set(resolvedServerName, pendingOAuthStart);
+      return true;
+    };
+
     let serverConfig;
     try {
       serverConfig =
@@ -683,7 +759,11 @@ async function loadToolDefinitionsWrapper({ req, res, agent, streamId = null, to
       return null;
     }
 
-    const cached = await getMCPServerTools(userId, resolvedServerName);
+    if (mcpAvailableTools[resolvedServerName]) {
+      return mcpAvailableTools[resolvedServerName];
+    }
+
+    const cached = await getMCPServerTools(userId, resolvedServerName, serverConfig);
     if (cached) {
       const invalidName = Object.keys(cached).find((name) => !/^[a-zA-Z0-9_.\-]+$/.test(name));
       if (invalidName) {
@@ -691,12 +771,21 @@ async function loadToolDefinitionsWrapper({ req, res, agent, streamId = null, to
           `[Tool Definitions] Evicting stale cache for '${resolvedServerName}': tool name '${invalidName}' contains invalid characters. Re-initializing...`,
         );
       } else {
+        rememberMCPAvailableTools(resolvedServerName, cached);
+        await addPendingOAuthServer();
         return cached;
       }
     }
 
-    const oauthStart = async () => {
+    if (await addPendingOAuthServer()) {
+      return null;
+    }
+
+    const oauthStart = async (authURL, options) => {
       pendingOAuthServers.add(resolvedServerName);
+      if (typeof authURL === 'string' && authURL.length > 0) {
+        pendingOAuthStarts.set(resolvedServerName, { authURL, options });
+      }
     };
 
     const result = await reinitMCPServer({
@@ -706,8 +795,11 @@ async function loadToolDefinitionsWrapper({ req, res, agent, streamId = null, to
       serverName: resolvedServerName,
       configServers,
       userMCPAuthMap,
+      requestBody: req.body,
+      requestScopedConnections,
     });
 
+    rememberMCPAvailableTools(serverName, result?.availableTools);
     return result?.availableTools || null;
   };
 
@@ -779,6 +871,7 @@ async function loadToolDefinitionsWrapper({ req, res, agent, streamId = null, to
       deferredToolsEnabled,
       programmaticToolsEnabled,
       codeExecutionEnabled,
+      provider: agent.provider,
     },
     {
       isBuiltInTool,
@@ -787,26 +880,51 @@ async function loadToolDefinitionsWrapper({ req, res, agent, streamId = null, to
     },
   );
 
+  for (const serverName of getMCPServerNamesFromTools(filteredTools)) {
+    if (pendingOAuthServers.has(serverName)) {
+      continue;
+    }
+
+    const pendingOAuthStart = await getReplayablePendingMCPOAuthStart({
+      flowManager,
+      userId: req.user.id,
+      serverName,
+    });
+    if (pendingOAuthStart) {
+      pendingOAuthServers.add(serverName);
+      pendingOAuthStarts.set(serverName, pendingOAuthStart);
+    }
+  }
+
   if (pendingOAuthServers.size > 0 && (res || streamId)) {
     const serverNames = Array.from(pendingOAuthServers);
     logger.info(
       `[Tool Definitions] OAuth required for ${serverNames.length} server(s): ${serverNames.join(', ')}. Emitting events and waiting.`,
     );
 
-    const oauthWaitPromises = serverNames.map(async (serverName) => {
+    const oauthWaitPromises = serverNames.map(async (serverName, index) => {
       try {
+        const pendingOAuthStart = await getPendingOAuthStartForEmit(serverName);
+        const oauthStart = createOAuthEmitter(serverName, index);
+        if (pendingOAuthStart) {
+          await oauthStart(pendingOAuthStart.authURL, pendingOAuthStart.options);
+        }
+
         const result = await reinitMCPServer({
           user: req.user,
           serverName,
           configServers,
           userMCPAuthMap,
           flowManager,
+          requestBody: req.body,
           returnOnOAuth: false,
-          oauthStart: createOAuthEmitter(serverName),
+          oauthStart,
+          oauthEnd: createOAuthEndEmitter(serverName),
           connectionTimeout: Time.TWO_MINUTES,
         });
 
         if (result?.availableTools) {
+          rememberMCPAvailableTools(serverName, result.availableTools);
           logger.info(`[Tool Definitions] OAuth completed for ${serverName}, tools available`);
           return { serverName, success: true };
         }
@@ -835,6 +953,7 @@ async function loadToolDefinitionsWrapper({ req, res, agent, streamId = null, to
           deferredToolsEnabled,
           programmaticToolsEnabled,
           codeExecutionEnabled,
+          provider: agent.provider,
         },
         {
           isBuiltInTool,
@@ -934,6 +1053,8 @@ async function loadToolDefinitionsWrapper({ req, res, agent, streamId = null, to
 
   return {
     toolRegistry,
+    mcpAvailableTools,
+    requestScopedConnections,
     userMCPAuthMap,
     toolContextMap,
     dynamicToolContextMap,
@@ -1060,6 +1181,7 @@ async function loadAgentTools({
       uploadImageBuffer,
       returnMetadata: true,
       mcpPermissionContext,
+      requestScopedConnections: getMCPRequestContext(req, res),
       [Tools.web_search]: webSearchCallbacks,
     },
     webSearch: appConfig.webSearch,
@@ -1135,6 +1257,7 @@ async function loadAgentTools({
   if (!hasActionTools) {
     return {
       toolRegistry,
+      requestScopedConnections: getMCPRequestContext(req, res),
       userMCPAuthMap,
       toolContextMap,
       dynamicToolContextMap,
@@ -1153,6 +1276,7 @@ async function loadAgentTools({
     }
     return {
       toolRegistry,
+      requestScopedConnections: getMCPRequestContext(req, res),
       userMCPAuthMap,
       toolContextMap,
       dynamicToolContextMap,
@@ -1281,6 +1405,7 @@ async function loadAgentTools({
 
   return {
     toolRegistry,
+    requestScopedConnections: getMCPRequestContext(req, res),
     toolContextMap,
     dynamicToolContextMap,
     userMCPAuthMap,
@@ -1306,6 +1431,8 @@ async function loadAgentTools({
  * @param {Object} params.agent - The agent object
  * @param {string[]} params.toolNames - Names of tools to load
  * @param {Map} [params.toolRegistry] - Tool registry
+ * @param {Record<string, import('@librechat/api').LCAvailableTools>} [params.mcpAvailableTools] - Run-scoped MCP tool definitions
+ * @param {import('@librechat/api').RequestScopedMCPConnectionStore} [params.requestScopedConnections] - Run-scoped MCP connections
  * @param {Record<string, Record<string, string>>} [params.userMCPAuthMap] - User MCP auth map
  * @param {Object} [params.tool_resources] - Tool resources
  * @param {string|null} [params.streamId] - Stream ID for web search callbacks
@@ -1319,6 +1446,8 @@ async function loadToolsForExecution({
   agent,
   toolNames,
   toolRegistry,
+  mcpAvailableTools,
+  requestScopedConnections,
   userMCPAuthMap,
   tool_resources,
   streamId = null,
@@ -1326,7 +1455,8 @@ async function loadToolsForExecution({
 }) {
   const appConfig = req.config;
   const allLoadedTools = [];
-  const configurable = { userMCPAuthMap };
+  const mcpRequestScopedConnections = requestScopedConnections ?? getMCPRequestContext(req, res);
+  const configurable = { userMCPAuthMap, requestScopedConnections: mcpRequestScopedConnections };
 
   const isToolSearch = toolNames.includes(AgentConstants.TOOL_SEARCH);
   const ptcToolNames = [
@@ -1334,20 +1464,25 @@ async function loadToolsForExecution({
     AgentConstants.PROGRAMMATIC_TOOL_CALLING,
   ].filter((name) => toolNames.includes(name));
   const isPTCRequested = ptcToolNames.length > 0;
+  const isBashToolRequested = toolNames.includes(AgentConstants.BASH_TOOL);
+  const isLegacyExecuteCodeRequested = toolNames.includes(Tools.execute_code);
+  const isCodeExecutionToolRequested = isBashToolRequested || isLegacyExecuteCodeRequested;
 
   let enabledCapabilities;
-  if (actionsEnabled === undefined || isPTCRequested) {
+  if (actionsEnabled === undefined || isPTCRequested || isCodeExecutionToolRequested) {
     enabledCapabilities = await resolveAgentCapabilities(req, appConfig, agent?.id);
   }
   if (actionsEnabled === undefined) {
     actionsEnabled = enabledCapabilities.has(AgentCapabilities.actions);
   }
+  const codeExecutionEnabled =
+    enabledCapabilities?.has(AgentCapabilities.execute_code) === true &&
+    agent?.tools?.includes(Tools.execute_code) === true;
 
   const isPTC =
     isPTCRequested &&
     enabledCapabilities.has(AgentCapabilities.programmatic_tools) &&
-    enabledCapabilities.has(AgentCapabilities.execute_code) &&
-    agent?.tools?.includes(Tools.execute_code) === true;
+    codeExecutionEnabled;
 
   logger.debug(
     `[loadToolsForExecution] isToolSearch: ${isToolSearch}, toolRegistry: ${toolRegistry?.size ?? 'undefined'}`,
@@ -1381,7 +1516,16 @@ async function loadToolsForExecution({
     }
   }
 
-  const isBashTool = toolNames.includes(AgentConstants.BASH_TOOL);
+  const isBashTool =
+    isBashToolRequested &&
+    codeExecutionEnabled &&
+    toolRegistry?.has(AgentConstants.BASH_TOOL) === true;
+  if (isBashToolRequested && !isBashTool) {
+    logger.warn(
+      `[loadToolsForExecution] Skipping unregistered or unauthorized ${AgentConstants.BASH_TOOL}. ` +
+        `User: ${req.user.id} | Agent: ${agent?.id ?? 'unknown'}`,
+    );
+  }
   if (isBashTool) {
     try {
       const bashTool = createBashExecutionTool({
@@ -1393,6 +1537,13 @@ async function loadToolsForExecution({
     }
   }
 
+  const fileAuthoringToolNames = new Set(
+    toolRegistry
+      ? Array.from(toolRegistry.values())
+          .filter((definition) => isFileAuthoringToolDefinition(definition))
+          .map((definition) => definition.name)
+      : [],
+  );
   const specialToolNames = new Set([
     AgentConstants.TOOL_SEARCH,
     AgentConstants.PROGRAMMATIC_TOOL_CALLING,
@@ -1400,6 +1551,7 @@ async function loadToolsForExecution({
     AgentConstants.BASH_TOOL,
     AgentConstants.SKILL_TOOL,
     AgentConstants.READ_FILE,
+    ...fileAuthoringToolNames,
   ]);
 
   let ptcOrchestratedToolNames = [];
@@ -1410,9 +1562,22 @@ async function loadToolsForExecution({
   }
 
   const requestedNonSpecialToolNames = toolNames.filter((name) => !specialToolNames.has(name));
+  const allowedNonSpecialToolNames = requestedNonSpecialToolNames.filter((name) => {
+    if (name !== Tools.execute_code) {
+      return true;
+    }
+    const allowed = codeExecutionEnabled && toolRegistry?.has(Tools.execute_code) === true;
+    if (!allowed) {
+      logger.warn(
+        `[loadToolsForExecution] Skipping unregistered or unauthorized ${Tools.execute_code}. ` +
+          `User: ${req.user.id} | Agent: ${agent?.id ?? 'unknown'}`,
+      );
+    }
+    return allowed;
+  });
   const allToolNamesToLoad = isPTC
-    ? [...new Set([...requestedNonSpecialToolNames, ...ptcOrchestratedToolNames])]
-    : requestedNonSpecialToolNames;
+    ? [...new Set([...allowedNonSpecialToolNames, ...ptcOrchestratedToolNames])]
+    : allowedNonSpecialToolNames;
 
   const actionToolNames = [];
   const regularToolNames = [];
@@ -1438,6 +1603,8 @@ async function loadToolsForExecution({
         processFileURL,
         uploadImageBuffer,
         returnMetadata: true,
+        mcpAvailableTools,
+        requestScopedConnections: mcpRequestScopedConnections,
         [Tools.web_search]: webSearchCallbacks,
       },
       webSearch: appConfig?.webSearch,

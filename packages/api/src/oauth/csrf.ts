@@ -1,12 +1,12 @@
-﻿import crypto from 'crypto';
+import crypto from 'crypto';
 import type { Request, Response, NextFunction } from 'express';
 import { isEnabled } from '~/utils/common';
 
 export const OAUTH_CSRF_COOKIE = 'oauth_csrf';
-export const OAUTH_CSRF_MAX_AGE = 10 * 60 * 1000;
+export const OAUTH_CSRF_MAX_AGE: number = 10 * 60 * 1000;
 
 export const OAUTH_SESSION_COOKIE = 'oauth_session';
-export const OAUTH_SESSION_MAX_AGE = 24 * 60 * 60 * 1000;
+export const OAUTH_SESSION_MAX_AGE: number = 24 * 60 * 60 * 1000;
 export const OAUTH_SESSION_COOKIE_PATH = '/api';
 
 /**

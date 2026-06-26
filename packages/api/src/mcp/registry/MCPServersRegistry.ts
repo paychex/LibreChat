@@ -83,6 +83,28 @@ const CONFIG_SERVER_INIT_TIMEOUT_MS = (() => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 30_000;
 })();
 
+/** Request context for resolving the effective MCP allowlists. */
+export interface MCPAllowlistContext {
+  userId?: string;
+  role?: string;
+}
+
+/**
+ * Resolves the effective `mcpSettings` allowlists for a request. Injected from the app
+ * layer (where the merged, tenant-scoped config lives) so the registry keeps no app-config
+ * dependency. Reads the ALS tenant context internally; pass the acting user to also pick up
+ * user/role-scoped overrides.
+ */
+export type MCPAllowlistResolver = (
+  ctx?: MCPAllowlistContext,
+) => Promise<{ allowedDomains?: string[] | null; allowedAddresses?: string[] | null }>;
+
+/** Effective allowlists resolved for a request. */
+interface ResolvedMCPAllowlists {
+  allowedDomains?: string[] | null;
+  allowedAddresses?: string[] | null;
+}
+
 /**
  * Central registry for managing MCP server configurations.
  * Authoritative source of truth for all MCP servers provided by LibreChat.
@@ -100,8 +122,11 @@ export class MCPServersRegistry {
   private readonly dbConfigsRepo: ServerConfigsDB;
   private readonly cacheConfigsRepo: IServerConfigsRepositoryInterface;
   private readonly configCacheRepo: IServerConfigsRepositoryInterface;
+  /** YAML-derived base allowlists; used at boot and as the fallback when no resolver is set. */
   private readonly allowedDomains?: string[] | null;
   private readonly allowedAddresses?: string[] | null;
+  /** Resolves the per-request (tenant-scoped) merged allowlists; falls back to the base above. */
+  private readonly allowlistResolver?: MCPAllowlistResolver;
   private readonly readThroughCache: Keyv<t.ParsedServerConfig>;
   private readonly readThroughCacheAll: Keyv<Record<string, t.ParsedServerConfig>>;
   private readonly pendingGetAllPromises = new Map<
@@ -123,12 +148,14 @@ export class MCPServersRegistry {
     mongoose: typeof import('mongoose'),
     allowedDomains?: string[] | null,
     allowedAddresses?: string[] | null,
+    allowlistResolver?: MCPAllowlistResolver,
   ) {
     this.dbConfigsRepo = new ServerConfigsDB(mongoose);
     this.cacheConfigsRepo = ServerConfigsCacheFactory.create(APP_CACHE_NAMESPACE, false);
     this.configCacheRepo = ServerConfigsCacheFactory.create(CONFIG_CACHE_NAMESPACE, false);
     this.allowedDomains = allowedDomains;
     this.allowedAddresses = allowedAddresses;
+    this.allowlistResolver = allowlistResolver;
 
     const ttl = cacheConfig.MCP_REGISTRY_CACHE_TTL;
 
@@ -148,6 +175,7 @@ export class MCPServersRegistry {
     mongoose: typeof import('mongoose'),
     allowedDomains?: string[] | null,
     allowedAddresses?: string[] | null,
+    allowlistResolver?: MCPAllowlistResolver,
   ): MCPServersRegistry {
     if (!mongoose) {
       throw new Error(
@@ -164,6 +192,7 @@ export class MCPServersRegistry {
       mongoose,
       allowedDomains,
       allowedAddresses,
+      allowlistResolver,
     );
     return MCPServersRegistry.instance;
   }
@@ -176,10 +205,12 @@ export class MCPServersRegistry {
     return MCPServersRegistry.instance;
   }
 
+  /** YAML base allowlist (boot/fallback). For request-time decisions use {@link resolveAllowlists}. */
   public getAllowedDomains(): string[] | null | undefined {
     return this.allowedDomains;
   }
 
+  /** YAML base allowlist (boot/fallback). For request-time decisions use {@link resolveAllowlists}. */
   public getAllowedAddresses(): string[] | null | undefined {
     return this.allowedAddresses;
   }
@@ -187,6 +218,43 @@ export class MCPServersRegistry {
   /** Returns true when no explicit allowedDomains allowlist is configured, enabling SSRF TOCTOU protection */
   public shouldEnableSSRFProtection(): boolean {
     return !Array.isArray(this.allowedDomains) || this.allowedDomains.length === 0;
+  }
+
+  /**
+   * Resolves the effective domain/address allowlists for the current request.
+   *
+   * MCP allowlists live in `mcpSettings`, which is tenant/principal-scoped admin config, so
+   * they must be read per-request from the merged config — not from a process-global value
+   * that would leak across tenants. The injected resolver reads the ALS tenant context; pass
+   * the acting user so user/role-scoped overrides resolve too (config-source inspection has no
+   * user and resolves at tenant scope). Falls back to the YAML base allowlists when no resolver
+   * is injected or the resolver fails, so a transient lookup error fails to the operator's
+   * baseline rather than disabling the allowlist.
+   */
+  public async resolveAllowlists(ctx?: MCPAllowlistContext): Promise<{
+    allowedDomains?: string[] | null;
+    allowedAddresses?: string[] | null;
+    useSSRFProtection: boolean;
+  }> {
+    let allowedDomains = this.allowedDomains;
+    let allowedAddresses = this.allowedAddresses;
+    if (this.allowlistResolver) {
+      try {
+        const resolved = await this.allowlistResolver(ctx);
+        allowedDomains = resolved.allowedDomains;
+        allowedAddresses = resolved.allowedAddresses;
+      } catch (error) {
+        logger.warn(
+          '[MCPServersRegistry] Allowlist resolver failed; falling back to YAML base allowlists',
+          error,
+        );
+      }
+    }
+    return {
+      allowedDomains,
+      allowedAddresses,
+      useSSRFProtection: !Array.isArray(allowedDomains) || allowedDomains.length === 0,
+    };
   }
 
   /**
@@ -362,14 +430,17 @@ export class MCPServersRegistry {
     reservedServerNames?: Iterable<string>,
   ): Promise<t.AddServerResult> {
     const configRepo = this.getConfigRepository(storageLocation);
+    const source = (storageLocation === 'CACHE' ? 'yaml' : 'user') as t.MCPServerSource;
+    const configForInspection = { ...config, source } as t.ParsedServerConfig;
+    const { allowedDomains, allowedAddresses } = await this.resolveAllowlists({ userId });
     let parsedConfig: t.ParsedServerConfig;
     try {
       parsedConfig = await MCPServerInspector.inspect(
         serverName,
-        config,
+        configForInspection,
         undefined,
-        this.allowedDomains,
-        this.allowedAddresses,
+        allowedDomains,
+        allowedAddresses,
       );
     } catch (error) {
       logger.error(`[MCPServersRegistry] Failed to inspect server "${serverName}":`, error);
@@ -380,7 +451,7 @@ export class MCPServersRegistry {
     }
     const tagged = {
       ...parsedConfig,
-      source: (storageLocation === 'CACHE' ? 'yaml' : 'user') as t.MCPServerSource,
+      source,
     };
     const result =
       storageLocation === 'DB'
@@ -419,14 +490,15 @@ export class MCPServersRegistry {
     }
 
     const { inspectionFailed: _, ...configForInspection } = existing;
+    const { allowedDomains, allowedAddresses } = await this.resolveAllowlists({ userId });
     let parsedConfig: t.ParsedServerConfig;
     try {
       parsedConfig = await MCPServerInspector.inspect(
         serverName,
         configForInspection,
         undefined,
-        this.allowedDomains,
-        this.allowedAddresses,
+        allowedDomains,
+        allowedAddresses,
       );
     } catch (error) {
       logger.error(`[MCPServersRegistry] Reinspection failed for server "${serverName}":`, error);
@@ -449,6 +521,7 @@ export class MCPServersRegistry {
     userId?: string,
   ): Promise<t.ParsedServerConfig> {
     const configRepo = this.getConfigRepository(storageLocation);
+    const source = (storageLocation === 'CACHE' ? 'yaml' : 'user') as t.MCPServerSource;
 
     // Merge existing admin API key if not provided in update (needed for inspection)
     let configForInspection = { ...config };
@@ -465,14 +538,15 @@ export class MCPServersRegistry {
       }
     }
 
+    const { allowedDomains, allowedAddresses } = await this.resolveAllowlists({ userId });
     let parsedConfig: t.ParsedServerConfig;
     try {
       parsedConfig = await MCPServerInspector.inspect(
         serverName,
-        configForInspection,
+        { ...configForInspection, source } as t.ParsedServerConfig,
         undefined,
-        this.allowedDomains,
-        this.allowedAddresses,
+        allowedDomains,
+        allowedAddresses,
       );
     } catch (error) {
       logger.error(`[MCPServersRegistry] Failed to inspect server "${serverName}":`, error);
@@ -503,6 +577,12 @@ export class MCPServersRegistry {
 
     const result: Record<string, t.ParsedServerConfig> = {};
 
+    // Config-source servers are admin-defined with no acting user; resolve the effective
+    // allowlists once at tenant scope and fold them into each config-cache key so a tenant
+    // whose allowlist rejects a URL cannot poison the shared key for a tenant that allows it.
+    const { allowedDomains, allowedAddresses } = await this.resolveAllowlists();
+    const allowlists: ResolvedMCPAllowlists = { allowedDomains, allowedAddresses };
+
     /** Single snapshot of the YAML cache for the whole pass: in the Redis aggregate-key backend, every per-name get() reads and deserializes the full map, so N concurrent per-server lookups would issue N full-map reads. The snapshot also keeps the unchanged-YAML comparison consistent against one view of YAML across all entries. */
     const yamlSnapshot = await this.cacheConfigsRepo.getAll();
 
@@ -511,7 +591,7 @@ export class MCPServersRegistry {
         if (this.isUnmodifiedYamlServer(yamlSnapshot, serverName, rawConfig)) {
           return;
         }
-        const parsed = await this.ensureSingleConfigServer(serverName, rawConfig);
+        const parsed = await this.ensureSingleConfigServer(serverName, rawConfig, allowlists);
         if (parsed) {
           result[serverName] = parsed;
         }
@@ -560,8 +640,9 @@ export class MCPServersRegistry {
   private async ensureSingleConfigServer(
     serverName: string,
     rawConfig: t.MCPOptions,
+    allowlists: ResolvedMCPAllowlists,
   ): Promise<t.ParsedServerConfig | undefined> {
-    const cacheKey = this.configCacheKey(serverName, rawConfig);
+    const cacheKey = this.configCacheKey(serverName, rawConfig, allowlists);
 
     const cached = await this.configCacheRepo.get(cacheKey);
     if (cached) {
@@ -578,7 +659,7 @@ export class MCPServersRegistry {
       return pending;
     }
 
-    const initPromise = this.lazyInitConfigServer(cacheKey, serverName, rawConfig);
+    const initPromise = this.lazyInitConfigServer(cacheKey, serverName, rawConfig, allowlists);
     this.pendingConfigInits.set(cacheKey, initPromise);
 
     try {
@@ -596,18 +677,24 @@ export class MCPServersRegistry {
     cacheKey: string,
     serverName: string,
     rawConfig: t.MCPOptions,
+    allowlists: ResolvedMCPAllowlists,
   ): Promise<t.ParsedServerConfig | undefined> {
     const prefix = `[MCP][config][${serverName}]`;
     logger.info(`${prefix} Lazy-initializing config-source server`);
 
     try {
+      const configForInspection = {
+        ...rawConfig,
+        source: 'config' as const,
+      } as t.ParsedServerConfig;
+      const { allowedDomains, allowedAddresses } = allowlists;
       const inspected = await withTimeout(
         MCPServerInspector.inspect(
           serverName,
-          rawConfig,
+          configForInspection,
           undefined,
-          this.allowedDomains,
-          this.allowedAddresses,
+          allowedDomains,
+          allowedAddresses,
         ),
         CONFIG_SERVER_INIT_TIMEOUT_MS,
         `${prefix} Server initialization timed out`,
@@ -803,12 +890,24 @@ export class MCPServersRegistry {
   }
 
   /**
-   * Produces a config-cache key scoped by server name AND a hash of the raw config.
-   * Prevents cross-tenant cache poisoning when two tenants define the same server name
-   * with different configurations.
+   * Produces a config-cache key scoped by server name AND a hash of the raw config plus the
+   * effective allowlists. Hashing the raw config prevents cross-tenant poisoning when two
+   * tenants define the same server name with different configurations; hashing the allowlists
+   * prevents poisoning when the same config resolves differently because tenants have different
+   * `mcpSettings.allowedDomains` / `allowedAddresses` (so one tenant's inspection result — e.g.
+   * an `inspectionFailed` stub from a rejected domain — never satisfies another tenant's lookup).
    */
-  private configCacheKey(serverName: string, rawConfig: t.MCPOptions): string {
-    const sorted = JSON.stringify(rawConfig, (_key, value: unknown) => {
+  private configCacheKey(
+    serverName: string,
+    rawConfig: t.MCPOptions,
+    allowlists?: ResolvedMCPAllowlists,
+  ): string {
+    const payload = {
+      rawConfig,
+      allowedDomains: allowlists?.allowedDomains ?? null,
+      allowedAddresses: allowlists?.allowedAddresses ?? null,
+    };
+    const sorted = JSON.stringify(payload, (_key, value: unknown) => {
       if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
         return Object.fromEntries(
           Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)),

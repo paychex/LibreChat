@@ -5,6 +5,7 @@ import type { TModelSpec } from 'librechat-data-provider';
 import { useFavorites, useLocalize, useIsActiveItem } from '~/hooks';
 import { useModelSelectorContext } from '../ModelSelectorContext';
 import { CustomMenuItem as MenuItem } from '../CustomMenu';
+import SpecDescription from './SpecDescription';
 import SpecIcon from './SpecIcon';
 import { cn } from '~/utils';
 
@@ -60,9 +61,7 @@ export function ModelSpecItem({ spec, isSelected }: ModelSpecItemProps) {
               </span>
             )}
           </span>
-          {spec.description && (
-            <span className="break-words text-xs font-normal">{spec.description}</span>
-          )}
+          <SpecDescription description={spec.description} />
         </div>
       </div>
       <button

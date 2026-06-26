@@ -30,10 +30,12 @@ import {
   getDefaultModelSpec,
   getDefaultEndpoint,
   getModelSpecPreset,
+  hasModelSelection,
   buildDefaultConvo,
   logger,
 } from '~/utils';
 import { useDeleteFilesMutation, useGetEndpointsQuery, useGetStartupConfig } from '~/data-provider';
+import useGetConversation from './Conversations/useGetConversation';
 import useAssistantListMap from './Assistants/useAssistantListMap';
 import { useResetChatBadges } from './useChatBadges';
 import { useApplyModelSpecEffects } from './Agents';
@@ -45,6 +47,7 @@ const useNewConvo = (index = 0) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { data: startupConfig } = useGetStartupConfig();
+  const getConversation = useGetConversation(index);
   const applyModelSpecEffects = useApplyModelSpecEffects();
   const clearAllConversations = store.useClearConvoState();
   const defaultPreset = useRecoilValue(store.defaultPreset);
@@ -96,6 +99,11 @@ const useNewConvo = (index = 0) => {
           storedConversation?.model ?? storedConversation?.agentOptions?.model,
         );
         const buildDefaultConversation = (endpoint === null || buildDefault) ?? false;
+        const hasExplicitChatProjectId = Object.prototype.hasOwnProperty.call(
+          conversation,
+          'chatProjectId',
+        );
+        const explicitChatProjectId = conversation.chatProjectId;
 
         // Check if the passed preset is the default spec preset (not a user-selected one)
         const isDefaultSpecPreset = Boolean(
@@ -217,6 +225,12 @@ const useNewConvo = (index = 0) => {
             models,
             defaultParamsEndpoint,
           });
+
+          if (hasExplicitChatProjectId) {
+            conversation.chatProjectId = explicitChatProjectId ?? null;
+          } else {
+            delete conversation.chatProjectId;
+          }
         } else if (appliedPreset) {
           conversation = {
             ...conversation,
@@ -251,26 +265,44 @@ const useNewConvo = (index = 0) => {
           return;
         }
 
-        const searchParamsString = searchParams?.toString();
-        const getParams = () => (searchParamsString ? `?${searchParamsString}` : '');
+        const getParams = (nextConversation: TConversation) => {
+          const nextParams = new URLSearchParams(searchParams);
+          nextParams.delete('projectId');
+          if (
+            nextConversation.conversationId === Constants.NEW_CONVO &&
+            nextConversation.chatProjectId
+          ) {
+            nextParams.set('projectId', nextConversation.chatProjectId);
+          }
+
+          const searchParamsString = nextParams.toString();
+          return searchParamsString ? `?${searchParamsString}` : '';
+        };
 
         if (conversation.conversationId === Constants.NEW_CONVO && !modelsData) {
           const appTitle = localStorage.getItem(LocalStorageKeys.APP_TITLE) ?? '';
           if (appTitle) {
             document.title = appTitle;
           }
-          const path = `/c/${Constants.NEW_CONVO}${getParams()}`;
+          const path = `/c/${Constants.NEW_CONVO}${getParams(conversation)}`;
           navigate(path, { state: { focusChat: true } });
           return;
         }
 
-        const path = `/c/${conversation.conversationId}${getParams()}`;
+        const path = `/c/${conversation.conversationId}${getParams(conversation)}`;
         navigate(path, {
           replace: true,
           state: disableFocus ? {} : { focusChat: true },
         });
       },
-    [endpointsConfig, defaultPreset, assistantsListMap, modelsQuery.data, hasAgentAccess],
+    [
+      endpointsConfig,
+      defaultPreset,
+      assistantsListMap,
+      modelsQuery.data,
+      hasAgentAccess,
+      searchParams,
+    ],
   );
 
   const newConversation = useCallback(
@@ -302,7 +334,7 @@ const useNewConvo = (index = 0) => {
         isParamEndpoint(_preset?.endpoint ?? '', _preset?.endpointType ?? '');
       const template =
         paramEndpoint === true && templateConvoId && templateConvoId === Constants.NEW_CONVO
-          ? { endpoint: _template.endpoint }
+          ? { endpoint: _template.endpoint, chatProjectId: _template.chatProjectId }
           : _template;
 
       const conversation = {
@@ -315,23 +347,26 @@ const useNewConvo = (index = 0) => {
       };
 
       let preset = _preset;
-      const result = getDefaultModelSpec(startupConfig);
-      const defaultModelSpec = result?.default ?? result?.last;
-      if (
-        !preset &&
-        startupConfig &&
-        (startupConfig.modelSpecs?.prioritize === true ||
-          (startupConfig.interface?.modelSelect ?? true) !== true ||
-          (result?.last != null && Object.keys(_template).length === 0)) &&
-        defaultModelSpec
-      ) {
+      const result = getDefaultModelSpec(startupConfig, endpointsConfig);
+      const defaultModelSpec = result?.default ?? result?.last ?? result?.softDefault;
+      const shouldApplyModelSpec =
+        result?.softDefault != null
+          ? !hasModelSelection(_template)
+          : startupConfig?.modelSpecs?.prioritize === true ||
+            (startupConfig?.interface?.modelSelect ?? true) !== true ||
+            (result?.last != null &&
+              Object.keys(_template).filter((key) => key !== 'chatProjectId').length === 0);
+      if (!preset && startupConfig && shouldApplyModelSpec && defaultModelSpec) {
         preset = getModelSpecPreset(defaultModelSpec);
       }
 
+      const prevConversation = getConversation();
       applyModelSpecEffects({
         startupConfig,
         specName: preset?.spec,
         convoId: conversation.conversationId,
+        prevConvoId: prevConversation?.conversationId,
+        prevSpecName: prevConversation?.spec,
       });
 
       if (conversation.conversationId === Constants.NEW_CONVO && !modelsData) {
@@ -377,6 +412,8 @@ const useNewConvo = (index = 0) => {
       resetBadges,
       startupConfig,
       saveBadgesState,
+      endpointsConfig,
+      getConversation,
       pauseGlobalAudio,
       switchToConversation,
       applyModelSpecEffects,
