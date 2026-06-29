@@ -46,6 +46,20 @@ describe('resolveOboToken', () => {
     jest.clearAllMocks();
   });
 
+  it('should throw when scopes are empty or unresolved', async () => {
+    mockExtractOpenIDTokenInfo.mockReturnValue({ accessToken: 'federated-access-token' });
+    mockIsOpenIDTokenValid.mockReturnValue(true);
+
+    await expect(
+      resolveOboToken(mockUser as IUser, { scopes: '${SERVICENOW_MCP_OBO_SCOPES}' }, mockResolver),
+    ).rejects.toMatchObject({
+      reason: 'invalid_scopes',
+      retryable: false,
+      userMessage: 'OBO scopes are not configured for this MCP server.',
+    });
+    expect(mockResolver).not.toHaveBeenCalled();
+  });
+
   it('should throw when user has no valid OpenID token info', async () => {
     mockExtractOpenIDTokenInfo.mockReturnValue(null);
 

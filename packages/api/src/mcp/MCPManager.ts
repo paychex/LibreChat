@@ -444,7 +444,7 @@ Please follow these instructions when using tools from the respective MCP server
         'headers' in currentOptions ? { ...(currentOptions.headers || {}) } : {};
 
       /** Refresh OBO token on each tool call to ensure it's current */
-      const oboConfig = rawConfig.obo;
+      const oboConfig = currentOptions.obo;
       if (oboConfig && oboTokenResolver && user) {
         const oboTrusted = oboTrustChecker
           ? await oboTrustChecker({

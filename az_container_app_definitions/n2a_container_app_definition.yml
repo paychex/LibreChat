@@ -59,6 +59,9 @@ properties:
       - name: tavily-api-key
         keyVaultUrl: https://kv-pyxplayai-n2a-001.vault.azure.net/secrets/N2A-TAVILY-API-KEY
         identity: system
+      - name: servicenow-mcp-obo-scopes
+        keyVaultUrl: https://kv-pyxplayai-n2a-001.vault.azure.net/secrets/N2A-SERVICENOW-MCP-OBO-SCOPES
+        identity: system
     activeRevisionsMode: Single
     ingress:
       external: true
@@ -167,6 +170,8 @@ properties:
             value: TRUE
           - name: TAVILY_API_KEY
             secretRef: tavily-api-key
+          - name: SERVICENOW_MCP_OBO_SCOPES
+            secretRef: servicenow-mcp-obo-scopes
           - name: NODE_OPTIONS
             value: --max-old-space-size=4096
           - name: BAN_VIOLATIONS

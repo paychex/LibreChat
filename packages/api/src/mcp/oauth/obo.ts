@@ -20,6 +20,7 @@ export type OboTokenResolver = (
 ) => Promise<{ access_token: string; expires_in?: number }>;
 
 export type OboTokenResolutionReason =
+  | 'invalid_scopes'
   | 'missing_upstream_token'
   | 'missing_upstream_access_token'
   | 'empty_exchange_response'
@@ -27,6 +28,7 @@ export type OboTokenResolutionReason =
 
 const RETRYABLE_OBO_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
 const RETRYABLE_OBO_ERROR_CODES = new Set(['ETIMEDOUT', 'ECONNRESET', 'EAI_AGAIN', 'ENOTFOUND']);
+const UNRESOLVED_ENV_VAR_PATTERN = /\$\{[^}]+\}/;
 
 function getErrorStatus(error: unknown): number | undefined {
   if (!error || typeof error !== 'object') {
@@ -122,6 +124,15 @@ export async function resolveOboToken(
   oboConfig: OboConfig,
   oboTokenResolver: OboTokenResolver,
 ): Promise<MCPOAuthTokens> {
+  const scopes = oboConfig.scopes?.trim();
+  if (!scopes || UNRESOLVED_ENV_VAR_PATTERN.test(scopes)) {
+    logger.warn('[OBO] OBO scopes are empty or contain unresolved environment variables');
+    throw new OboTokenResolutionError(
+      'invalid_scopes',
+      'OBO scopes are not configured for this MCP server.',
+    );
+  }
+
   const tokenInfo = extractOpenIDTokenInfo(user);
   if (!tokenInfo || !isOpenIDTokenValid(tokenInfo)) {
     logger.warn(
@@ -142,7 +153,7 @@ export async function resolveOboToken(
   }
 
   try {
-    const response = await oboTokenResolver(user, tokenInfo.accessToken, oboConfig.scopes, true);
+    const response = await oboTokenResolver(user, tokenInfo.accessToken, scopes, true);
 
     if (!response?.access_token) {
       logger.warn('[OBO] Token exchange did not return an access token');

@@ -1,5 +1,6 @@
 import {
   MCPOptions,
+  MCPServerUserInputSchema,
   StdioOptionsSchema,
   StreamableHTTPOptionsSchema,
 } from 'librechat-data-provider';
@@ -186,6 +187,20 @@ describe('Environment Variable Extraction (MCP)', () => {
 
       expect(() => StreamableHTTPOptionsSchema.parse(options)).toThrow();
     });
+
+    it('should reject environment variables in user-managed OBO scopes', () => {
+      const options = {
+        type: 'streamable-http',
+        url: 'https://example.com/api',
+        obo: {
+          scopes: '${SERVICENOW_MCP_OBO_SCOPES}',
+        },
+      };
+
+      expect(() => MCPServerUserInputSchema.parse(options)).toThrow(
+        'Environment variable references are not allowed in OBO scopes',
+      );
+    });
   });
 
   describe('processMCPEnv', () => {
@@ -348,6 +363,40 @@ describe('Environment Variable Extraction (MCP)', () => {
 
       expect('proxy' in result && result.proxy).toBe('http://proxy.example.com:8080');
       delete process.env.MCP_PROXY_URL;
+    });
+
+    it('should process environment variables in OBO scopes for trusted configs', () => {
+      process.env.SERVICENOW_MCP_OBO_SCOPES = 'api://servicenow-mcp/Mcp.Tools.ReadWrite';
+      const options: MCPOptions = {
+        type: 'streamable-http',
+        url: 'https://example.com/mcp',
+        obo: {
+          scopes: '${SERVICENOW_MCP_OBO_SCOPES}',
+        },
+      };
+
+      const result = processMCPEnv({ options });
+
+      expect('obo' in result && result.obo?.scopes).toBe(
+        'api://servicenow-mcp/Mcp.Tools.ReadWrite',
+      );
+      delete process.env.SERVICENOW_MCP_OBO_SCOPES;
+    });
+
+    it('should not process environment variables in OBO scopes for DB-sourced configs', () => {
+      process.env.SERVICENOW_MCP_OBO_SCOPES = 'api://servicenow-mcp/Mcp.Tools.ReadWrite';
+      const options = {
+        type: 'streamable-http' as const,
+        url: 'https://example.com/mcp',
+        obo: {
+          scopes: '${SERVICENOW_MCP_OBO_SCOPES}',
+        },
+      };
+
+      const result = processMCPEnv({ options: options as unknown as MCPOptions, dbSourced: true });
+
+      expect('obo' in result && result.obo?.scopes).toBe('${SERVICENOW_MCP_OBO_SCOPES}');
+      delete process.env.SERVICENOW_MCP_OBO_SCOPES;
     });
 
     it('should maintain streamable-http type in processed options', () => {

@@ -432,6 +432,13 @@ export function processMCPEnv(params: {
     newObj.oauth = processedOAuth;
   }
 
+  if ('obo' in newObj && newObj.obo) {
+    newObj.obo = {
+      ...newObj.obo,
+      scopes: processAdminValue(newObj.obo.scopes, dbSourced),
+    };
+  }
+
   return newObj;
 }
 

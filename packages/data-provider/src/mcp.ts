@@ -151,7 +151,19 @@ const UserOAuthOptionsSchema = OAuthOptionsBaseSchema.omit({
 
 const OboOptionsSchema = z.object({
   /** Scopes to request for the downstream MCP server (e.g., "api://<client-id>/Mcp.Tools.ReadWrite") */
-  scopes: z.string().min(1),
+  scopes: z
+    .string()
+    .transform((val) => extractEnvVariable(val))
+    .pipe(z.string().min(1)),
+});
+
+const UserOboOptionsSchema = z.object({
+  scopes: z
+    .string()
+    .min(1)
+    .refine((val) => !envVarPattern.test(val), {
+      message: 'Environment variable references are not allowed in OBO scopes',
+    }),
 });
 
 const BaseOptionsSchema = z.object({
@@ -434,10 +446,12 @@ export const MCPServerUserInputSchema = z.union([
     url: userUrlSchema(isWsProtocol, 'WebSocket URL must use ws:// or wss://'),
   }),
   userManagedServerFields(SSEOptionsSchema).extend({
+    obo: UserOboOptionsSchema.optional(),
     proxy: z.never().optional(),
     url: userUrlSchema(isHttpProtocol, 'SSE URL must use http:// or https://'),
   }),
   userManagedServerFields(StreamableHTTPOptionsSchema).extend({
+    obo: UserOboOptionsSchema.optional(),
     proxy: z.never().optional(),
     url: userUrlSchema(isHttpProtocol, 'Streamable HTTP URL must use http:// or https://'),
   }),

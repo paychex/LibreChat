@@ -69,6 +69,14 @@ modelSpecs:
         endpoint: "Claude Sonnet 4.5"
         model: claude-sonnet-4-5
 mcpServers:
+  corp-intose-mcpservicenow-mcp-pyx:
+    title: Corp SNOW ServiceNow
+    type: streamable-http
+    url: https://corp-intose-mcpservicenow-mcp-pyx.n1-lb.paychex.com/mcp
+    obo:
+      scopes: ${SERVICENOW_MCP_OBO_SCOPES}
+    startup: false
+    requiresOAuth: false
   Internet Search (Tavily):
     type: streamable-http
     url: https://mcp.tavily.com/mcp/
