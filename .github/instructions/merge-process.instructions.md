@@ -238,7 +238,7 @@ Before considering merge complete:
 1. ✅ **Verification script:** `./scripts/verify-paychex-customizations.sh` → 100% critical passing
 2. ✅ **Build:** `npm run build` → No errors
 3. ✅ **Tests:** `npm test` → 93%+ passing
-4. ✅ **No TypeScript errors:** `npx tsc --noEmit`
+4. ✅ **No TypeScript errors:** `cd packages/api && npx tsc --noEmit` AND `cd client && npx tsc --noEmit`
 5. ✅ **No ESLint errors:** `npm run lint`
 6. ✅ **Git status clean:** All conflicts resolved, no untracked critical files
 
@@ -252,6 +252,17 @@ Before considering merge complete:
 | TypeScript migration | Type conflicts | Use types from `packages/data-provider` |
 | Component prop changes | Paychex custom props may break | Adapt to new prop structure |
 | Query-param handling refactors in `ChatRoute` / `useQueryParams` | Prompt Catalog deep links regress | Preserve `promptCatalogId` exclusion, same-origin `/api/prompthub/resolve-insert` flow, and timeout/toast failure handling |
+
+## Known Upstream Refactoring Patterns (v0.8.7)
+
+| Upstream Pattern | Impact | Resolution |
+|------------------|--------|------------|
+| Prompts component restructure into subdirectories (`dialogs/`, `display/`, `editor/`, `fields/`, `lists/`, `sidebar/`, `utils/`, `buttons/`) | Paychex-only files in `Groups/` and root `Prompts/` have stale relative imports — **no merge conflicts produced** | Update all import paths; run `cd client && npx tsc --noEmit` to find them |
+| New i18n keys added by upstream | Missing localization keys cause runtime errors in Paychex files that import upstream components | Compare key counts: `grep -c '"com_' translation.json` should be ≥ upstream’s count |
+| `TStartupConfig` / `TPromptGroup` type additions | Type access fails in Paychex code | Add new fields to `packages/data-provider/src/config.ts` and `types.ts` |
+| Component API changes (MemoNewChat props removed, FooterStartupConfig extended) | Paychex call sites pass old props | Update to new component signatures |
+| New React context providers (e.g., `useDashboardContext`) | Paychex-modified components fail with missing context | Create provider file and wire in barrel export |
+| Function signature changes (new params, removed fields, different return types) | Paychex hooks/routes reference old APIs | Update type access and add assertions where needed |
 
 ## Known Paychex Customization Patterns to Preserve (v0.8.4 → v0.8.6)
 

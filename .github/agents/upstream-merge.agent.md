@@ -123,7 +123,10 @@ For each conflicted file, determine its risk level:
 
 #### ⚠️ Translation File Trap (`translation.json`)
 
-`client/src/locales/en/translation.json` is the **most dangerous merge file**. It is ~1750 lines, alphabetically sorted, and upstream modifies it heavily every release. Paychex-specific i18n keys are interleaved throughout and **silently dropped** when upstream's version of a conflicted region is accepted. After resolving conflicts in this file, always verify these keys exist:
+`client/src/locales/en/translation.json` is the **most dangerous merge file**. It is ~1750 lines, alphabetically sorted, and upstream modifies it heavily every release. There are **two distinct failure modes**:
+
+**Failure mode 1: Paychex keys silently dropped during conflict resolution.**
+Paychex-specific i18n keys are interleaved throughout and silently lost when upstream's version of a conflicted region is accepted. Verify these known Paychex keys exist:
 
 ```bash
 grep "com_ui_prompt_catalog_insert_error" client/src/locales/en/translation.json
@@ -135,6 +138,28 @@ grep "com_ui_default_model_aria" client/src/locales/en/translation.json
 If any are missing, restore from `develop` branch:
 ```bash
 git show develop:client/src/locales/en/translation.json | grep "com_ui_prompt_catalog_insert_error"
+```
+
+**Failure mode 2: New upstream keys missing after merge.**
+Upstream adds new i18n keys that its refactored components reference. Paychex files that import those components need the keys to exist. After resolving conflicts, compare key counts:
+
+```bash
+# Count keys in upstream's version
+UPSTREAM_KEYS=$(git show v{TARGET_VERSION}:client/src/locales/en/translation.json | grep -c '"com_')
+# Count keys in merged version
+MERGED_KEYS=$(grep -c '"com_' client/src/locales/en/translation.json)
+echo "Upstream: $UPSTREAM_KEYS keys, Merged: $MERGED_KEYS keys"
+# Merged should be >= upstream (upstream keys + any Paychex-only keys)
+# If merged < upstream, keys were dropped during conflict resolution
+```
+
+To find specific missing keys:
+```bash
+# Extract key names from both versions and diff
+git show v{TARGET_VERSION}:client/src/locales/en/translation.json | grep -oP '"com_[^"]+"' | sort > /tmp/upstream_keys.txt
+grep -oP '"com_[^"]+"' client/src/locales/en/translation.json | sort > /tmp/merged_keys.txt
+comm -23 /tmp/upstream_keys.txt /tmp/merged_keys.txt
+# Any output = keys present in upstream but missing from merge
 ```
 
 #### ⚠️ Wiring Traps (barrel files and route mounts)
@@ -186,7 +211,7 @@ Merge: Upstream changes to other parts of the file
 Verify: grep -n "filterCrossProviderToolCalls" api/app/clients/BaseClient.js
 ```
 
-### Step 9 — Handle deleted files
+### Step 9 — Handle deleted files and upstream restructures
 
 Check for files deleted by upstream that Paychex modified:
 ```bash
@@ -197,6 +222,27 @@ For each deleted file:
 1. Check if it was moved/refactored in upstream
 2. If moved: Update import paths, preserve Paychex customizations in new location
 3. If deleted: Verify functionality exists elsewhere or restore if critical
+
+#### ⚠️ Upstream Restructure Trap (non-conflicting import breakage)
+
+Upstream may restructure components into subdirectories (e.g., v0.8.7 moved `Prompts/*.tsx` into `Prompts/dialogs/`, `Prompts/display/`, `Prompts/editor/`, etc.). **This does NOT produce merge conflicts** in Paychex-only files that import from the old paths — those files simply break silently.
+
+After the merge, detect upstream directory restructures:
+```bash
+# Find directories that were created in the upstream version
+git diff --diff-filter=A --name-only $(git merge-base HEAD v{TARGET_VERSION})..v{TARGET_VERSION} \
+  | grep -oP '^client/src/components/[^/]+/[^/]+/' | sort -u
+```
+
+For each new subdirectory, check if Paychex-only files still import from the old parent:
+```bash
+# Example: if upstream created client/src/components/Prompts/dialogs/
+# Check if any files still import from the old flat structure
+grep -rn "from '\.\." client/src/components/Prompts/Groups/ --include="*.tsx" --include="*.ts"
+grep -rn "from '~/components/Prompts/" client/src/ --include="*.tsx" --include="*.ts" | grep -v node_modules
+```
+
+The client-side `tsc --noEmit` check (Step 10, check 1g) catches these, but detecting restructures here helps understand the scope before fixing.
 
 Common scenario: Files moved from `/api/app/clients/` to `/packages/api/src/`
 
@@ -251,7 +297,25 @@ grep "require('~/server/services/PermissionService')" api/models/*.js \
 ```
 Run via `./scripts/verify-paychex-customizations.sh` (check 0e automates this).
 
-1f. **`dbModels` completeness check — after any upgrade that touches `@librechat/data-schemas`:**
+1g. **Client-side TypeScript type check:**
+```bash
+cd client && npx tsc --noEmit 2>&1 | grep "error TS"
+```
+Must return **empty**. The backend tsc check (1c) only covers `packages/api/`. This check catches client-side errors that are invisible until `npm run build` (Step 11) — typically 5–10 minutes later. Common error categories after an upstream merge:
+- **Stale import paths:** Upstream restructured components into subdirectories (e.g., Prompts into `dialogs/`, `display/`, `editor/`, etc. in v0.8.7) but Paychex-only files still use old relative imports. These aren't merge conflicts because Paychex files weren't touched by upstream.
+- **Component API mismatches:** Upstream changed component props (removed, renamed, or added required props) and Paychex call sites still pass the old API.
+- **Missing providers/hooks:** Upstream introduced new React context providers that Paychex-modified components now depend on but the provider file wasn't included in the merge.
+- **Type narrowing/signature changes:** Upstream changed function signatures (new parameters, removed fields, different return types) in files that Paychex hooks and routes reference.
+
+When errors appear, categorize them to fix efficiently:
+| Error pattern | Category | Fix approach |
+|---|---|---|
+| `Cannot find module` | Import path | Check upstream file moves with `git log v{PREV}..v{TARGET} -- <old-path>` |
+| `is not assignable to parameter` | API change | Update call site to match new component/function signature |
+| `Cannot find name` | Missing export/provider | Check barrel `index.ts` exports and provider creation |
+| `Property X does not exist on type` | Type change | Update type access, add assertions, or extend type definitions |
+
+1h. **`dbModels` completeness check — after any upgrade that touches `@librechat/data-schemas`:**
 ```bash
 # Which models do Paychex spec files expect from dbModels?
 grep -rh "dbModels\." api/ --include="*.spec.js" | grep -oP 'dbModels\.\K[A-Z][a-zA-Z]+' | sort -u
@@ -437,6 +501,9 @@ Also suggest:
 ❌ **Don't** run check 0d against a stale dist — the compiled `@librechat/api` dist reflects the pre-merge source until rebuilt; check 0d silently passes even when a Paychex-added source export (e.g. `export * from './schema'` in `packages/api/src/utils/index.ts`) was dropped during the merge  
 ❌ **Don't** assume `dbModels.ModelName` still exists after a major version bump — upstream may have removed the model from `createModels()` in `@librechat/data-schemas`, making `dbModels.ModelName` silently `undefined` and crashing every spec that calls `.create()` on it  
 ❌ **Don't** assume intra-repo `require()` targets still export the same names — upstream may consolidate functions between internal modules (e.g. `getSoleOwnedResourceIds` moved from `PermissionService.js` to `api/models/index.js`) without updating all callers; the try-catch in model functions silently swallows the TypeError, turning entire operations into no-ops  
+❌ **Don't** skip client-side `tsc --noEmit` (Step 10, check 1g) — backend tsc (1c) only covers `packages/api/`; client-side errors from stale imports, changed component APIs, and missing providers are invisible until `npm run build` fails minutes later  
+❌ **Don't** assume non-conflicting Paychex files have correct imports after upstream restructures — upstream may move components into subdirectories without producing merge conflicts in Paychex-only files that reference them (e.g., v0.8.7 Prompts restructure broke 9 Paychex files with zero conflicts)  
+❌ **Don't** only compare Paychex-specific i18n keys after `translation.json` merge — also verify upstream's new keys weren't dropped; compare key counts (merged should be ≥ upstream)  
 
 ✅ **Do** check git history before resolving conflicts  
 ✅ **Do** verify customizations are present after each major step  
@@ -451,6 +518,9 @@ Also suggest:
 ✅ **Do** run check 0d (package API export validation) — catches functions silently moved between `@librechat/api` and `@librechat/data-schemas` that node --check and tsc cannot detect  
 ✅ **Do** run check 0e (intra-repo require validation) — catches functions moved between internal api/ modules (e.g. `PermissionService.js` → `api/models/index.js`) that 0d misses  
 ✅ **Do** grep for `dbModels.X` patterns in Paychex spec files and verify each model is still exported from `api/db/models.js` after the merge  
+✅ **Do** run `cd client && npx tsc --noEmit` (check 1g) to catch client-side errors early — stale import paths, component API mismatches, missing providers, and type signature changes that `npm run build` would catch 5–10 minutes later  
+✅ **Do** check for upstream directory restructures after merge (Step 9) — new subdirectories in upstream mean Paychex-only files may have broken relative imports with zero merge conflicts  
+✅ **Do** compare translation.json key counts (merged ≥ upstream) to catch both dropped Paychex keys AND missing upstream keys  
 
 ## Reference Documentation
 
