@@ -63,7 +63,7 @@ function Files({
     <div className="mb-2 w-full">
       <div className="flex flex-col gap-3">
         <div className="rounded-lg text-xs text-text-secondary">
-          {localize('com_assistants_code_interpreter_files')}
+          {localize('com_agents_run_code_files')}
         </div>
         <FileRow
           files={files}
@@ -77,7 +77,7 @@ function Files({
           <button
             type="button"
             disabled={isEphemeralAgent(agent_id) || codeChecked === false}
-            className="btn btn-neutral border-token-border-light relative h-9 w-full rounded-lg font-medium"
+            className="btn btn-neutral border-token-border-light relative h-9 w-full rounded-lg text-sm font-medium"
             onClick={handleButtonClick}
           >
             <div className="flex w-full items-center justify-center gap-1">
@@ -91,7 +91,7 @@ function Files({
                 onChange={handleFileChange}
               />
               <AttachmentIcon className="text-token-text-primary h-4 w-4" />
-              {localize('com_ui_upload_code_files')}
+              {localize('com_ui_upload_code_environment')}
             </div>
           </button>
         </div>

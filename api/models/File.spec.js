@@ -177,6 +177,9 @@ describe('File Access Control', () => {
         },
       });
 
+      // Create File records so canInheritFromAgent ownership check resolves correctly
+      await createFile({ user: authorId, file_id: fileIds[0], filename: `file-${fileIds[0]}.txt`, filepath: `/uploads/${fileIds[0]}` });
+
       const { hasAccessToFilesViaAgent } = require('~/server/services/Files/permissions');
       const accessMap = await hasAccessToFilesViaAgent({
         userId: authorId,
@@ -249,6 +252,10 @@ describe('File Access Control', () => {
         },
       });
 
+      // Create File records so canInheritFromAgent ownership check resolves correctly
+      await createFile({ user: authorId, file_id: fileIds[0], filename: `file-${fileIds[0]}.txt`, filepath: `/uploads/${fileIds[0]}` });
+      await createFile({ user: authorId, file_id: fileIds[1], filename: `file-${fileIds[1]}.txt`, filepath: `/uploads/${fileIds[1]}` });
+
       const { hasAccessToFilesViaAgent } = require('~/server/services/Files/permissions');
       const accessMap = await hasAccessToFilesViaAgent({
         userId: authorId,
@@ -287,6 +294,9 @@ describe('File Access Control', () => {
           },
         },
       });
+
+      // Create File record so canInheritFromAgent ownership check resolves correctly
+      await createFile({ user: authorId, file_id: attachedFileId, filename: `file-${attachedFileId}.txt`, filepath: `/uploads/${attachedFileId}` });
 
       const { hasAccessToFilesViaAgent } = require('~/server/services/Files/permissions');
       const accessMap = await hasAccessToFilesViaAgent({
@@ -420,6 +430,11 @@ describe('File Access Control', () => {
           },
         },
       });
+
+      // Create File records owned by the agent author so VIEW user can inherit access
+      for (const fileId of fileIds) {
+        await createFile({ user: authorId, file_id: fileId, filename: `file-${fileId}.txt`, filepath: `/uploads/${fileId}` });
+      }
 
       // Grant only VIEW permission to user on the agent
       await grantPermission({

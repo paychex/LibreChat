@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
+import { createBrowserRouter, Navigate, Outlet, useLocation } from 'react-router-dom';
 import {
   Login,
   VerifyEmail,
@@ -11,7 +11,8 @@ import {
 import { MarketplaceProvider } from '~/components/Agents/MarketplaceContext';
 import AgentMarketplace from '~/components/Agents/Marketplace';
 import { OAuthSuccess, OAuthError } from '~/components/OAuth';
-import { AuthContextProvider, PendoInitializer } from '~/hooks';
+import { AuthContextProvider } from '~/hooks/AuthContext';
+import WithRum from '~/lib/rum/WithRum';
 import RouteErrorBoundary from './RouteErrorBoundary';
 import StartupLayout from './Layouts/Startup';
 import LoginLayout from './Layouts/Login';
@@ -23,12 +24,28 @@ import Root from './Root';
 
 const AuthLayout = () => (
   <AuthContextProvider>
-    <PendoInitializer>
+    <WithRum>
       <Outlet />
-      <ApiErrorWatcher />
-    </PendoInitializer>
+    </WithRum>
+    <ApiErrorWatcher />
   </AuthContextProvider>
 );
+
+const loadInlinePromptsView = () =>
+  import('~/components/Prompts/layouts/InlinePromptsView').then((m) => ({
+    Component: m.default,
+  }));
+
+const loadSkillsView = () =>
+  import('~/components/Skills/layouts/SkillsView').then((m) => ({
+    Component: m.default,
+  }));
+
+/** Redirects `/` → `/c/new` while preserving any query parameters (e.g. ?promptCatalogId=). */
+const RootRedirect = () => {
+  const location = useLocation();
+  return <Navigate to={`/c/new${location.search}`} replace={true} />;
+};
 
 const baseEl = document.querySelector('base');
 const baseHref = baseEl?.getAttribute('href') || '/';
@@ -103,7 +120,7 @@ export const router = createBrowserRouter(
           children: [
             {
               index: true,
-              element: <Navigate to="/c/new" replace={true} />,
+              element: <RootRedirect />,
             },
             {
               path: 'c/:conversationId?',
@@ -112,6 +129,34 @@ export const router = createBrowserRouter(
             {
               path: 'search',
               element: <Search />,
+            },
+            {
+              path: 'prompts',
+              element: <Navigate to="/prompts/new" replace={true} />,
+            },
+            {
+              path: 'prompts/new',
+              lazy: loadInlinePromptsView,
+            },
+            {
+              path: 'prompts/:promptId',
+              lazy: loadInlinePromptsView,
+            },
+            {
+              path: 'skills',
+              lazy: loadSkillsView,
+            },
+            {
+              path: 'skills/new',
+              lazy: loadSkillsView,
+            },
+            {
+              path: 'skills/:skillId',
+              lazy: loadSkillsView,
+            },
+            {
+              path: 'skills/:skillId/edit',
+              lazy: loadSkillsView,
             },
             {
               path: 'agents',

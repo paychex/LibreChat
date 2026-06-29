@@ -7,12 +7,12 @@
 ## Copy-Paste Ready Prompt
 
 ```
-I need to merge LibreChat upstream version [TARGET_VERSION] into Paychex develop branch.
+I need to merge LibreChat upstream version [TARGET_VERSION] into the upstream/v[TARGET_VERSION]-integration branch.
 
 **Context:**
 - Current version: [CURRENT_VERSION] 
 - Target version: [TARGET_VERSION]
-- Merge branch: feature/merge-upstream-[TARGET_VERSION]
+- Integration branch: upstream/v[TARGET_VERSION]-integration
 - Repository: Paychex LibreChat fork
 - Documentation: docs/merge-process/UPSTREAM_MERGE_GUIDE.md
 
@@ -26,9 +26,9 @@ I need to merge LibreChat upstream version [TARGET_VERSION] into Paychex develop
    - Import and usage of `sanitizeSchemaMetadata`
    - Required for Gemini tool compatibility
 
-3. **Gemini Endpoint Detection** (api/server/services/MCP.js)
-   - Pattern: `providerLower.includes('gemini') || providerLower.includes('google')`
-   - Appears in 2 locations
+3. **Gemini Endpoint Detection + MCP Server Name Normalization** (api/server/services/MCP.js, packages/api/src/mcp/registry/MCPServerInspector.ts)
+   - Pattern: `providerLower.includes('gemini') || providerLower.includes('google')` — appears in 2 locations in MCP.js
+   - Pattern: `normalizeServerName(serverName)` in ALL toolKey construction in both MCP.js and MCPServerInspector.ts (prevents 400 errors for server names with spaces/special chars)
 
 4. **Pendo Analytics** (client/src/components/Chat/Menus/Endpoints/ModelSelector.tsx)
    - Element: `<span id="agentUsers" />`
@@ -55,10 +55,44 @@ I need to merge LibreChat upstream version [TARGET_VERSION] into Paychex develop
    - Required for AI Hub Prompt Catalog deep links to open LibreChat with server-side resolved prompt text
    - Preserve the route mount, `@librechat/api` export, query-param exclusion in `ChatRoute`, and failure timeout/toast behavior
 
+10. **SSO Rate Limit Fix** (`api/server/middleware/limiters/loginLimiter.js`)
+    - Pattern: `skipSuccessfulRequests: true`
+    - Prevents multi-tab SSO users from being rate-limited when all tabs simultaneously re-authenticate after JWT expiry
+
+11. **OpenID Token Refresh Middleware** (`api/server/middleware/refreshOpenIDToken.js`, `api/server/routes/agents/index.js`)
+    - Patterns: `isAccessTokenExpiredOrExpiringSoon`, `_inflight` Map, `refreshOpenIDToken` in agents router
+    - Prevents Paxton 401s after ~15 minutes by proactively refreshing expired Azure AD access_tokens before agent requests
+    - `_inflight` deduplicates concurrent refresh grants to prevent Azure AD `invalid_grant` rotation race
+
+12. **RAG Context 404 Graceful Handling** (`api/app/clients/prompts/createContextHandlers.js`)
+    - Pattern: `Promise.allSettled` (not `Promise.all`)
+    - Isolates per-file 404 failures so unindexed files don't crash the entire generation
+
+13. **MCP SSE Noise Reduction + stopReconnecting** (`packages/api/src/mcp/connection.ts`, `packages/api/src/mcp/registry/MCPServerInspector.ts`)
+    - Patterns: `shouldStopReconnecting` in connection.ts, `stopReconnecting()` called in MCPServerInspector before disconnect for temp connections
+    - Prevents reconnection storm after server inspection; reduces Splunk noise from transient SSE errors
+
+14. **Claude SSE Parsing Fix for Kong** (`packages/api/src/utils/generators.ts`)
+    - Pattern: `data.choices = []`
+    - Kong omits the `choices` array from some Claude SSE chunks; normalize to prevent LangChain parser crash
+    - Requires `npm run build -w packages/api` after any change
+
+15. **Azure OpenAI Custom Icon** (`client/src/hooks/Endpoint/Icons.tsx`)
+    - Pattern: `GPTIconDark` component replaces `AzureMinimalIcon`
+    - Visual consistency for Azure OpenAI endpoint
+
+16. **Paychex Changelog Link** (`client/src/components/Chat/Footer.tsx`, `client/src/components/Nav/AccountSettings.tsx`)
+    - Patterns: `changelogURL` in Footer, `startupConfig?.changelogURL` in AccountSettings
+    - Exposes the Paychex changelog URL configured in `librechat.*.yml`
+
+17. **Native DEFAULT Badge** (`client/src/components/Chat/Menus/Endpoints/components/ModelSpecItem.tsx`)
+    - Pattern: `spec.default === true`
+    - Renders DEFAULT badge when spec.default is true; replaces the old Pendo-injected badge
+
 **Requirements:**
 
 ✅ **Must Do:**
-- Check git history before resolving conflicts: `git log develop -- <file>`
+- Check git history before resolving conflicts: `git log upstream/v[TARGET_VERSION]-integration -- <file>`
 - Use Decision Matrix from docs/merge-process/UPSTREAM_MERGE_GUIDE.md
 - Preserve ALL customizations listed above
 - Verify after resolution: `./scripts/verify-paychex-customizations.sh`
@@ -99,7 +133,7 @@ Before pasting, replace these placeholders:
 If using GitHub Copilot Workspace with the merge agent:
 
 ```
-@upstream-merge v0.8.5
+@upstream-merge v0.8.6
 ```
 
 The agent will automatically guide you through the entire process.

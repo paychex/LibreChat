@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import type { CatalogPrompt } from 'librechat-data-provider';
 import useSubmitMessage from '~/hooks/Messages/useSubmitMessage';
-import ListCard from '~/components/Prompts/Groups/ListCard';
+import { ListCard } from '~/components/Prompts';
 
 function CatalogItem({ prompt }: { prompt: CatalogPrompt }) {
   const { submitPrompt } = useSubmitMessage();

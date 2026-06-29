@@ -3,11 +3,19 @@ import { ExternalLink } from 'lucide-react';
 import TagManager from 'react-gtm-module';
 import ReactMarkdown from 'react-markdown';
 import { Constants } from 'librechat-data-provider';
+import type { TStartupConfig } from 'librechat-data-provider';
 import { useGetStartupConfig } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 
-function Footer({ className }: { className?: string }) {
-  const { data: config } = useGetStartupConfig();
+type FooterProps = {
+  className?: string;
+  startupConfig?: TStartupConfig | null;
+};
+
+function Footer({ className, startupConfig }: FooterProps) {
+  const shouldFetchConfig = startupConfig === undefined;
+  const { data: fetchedConfig } = useGetStartupConfig({ enabled: shouldFetchConfig });
+  const config = shouldFetchConfig ? fetchedConfig : startupConfig;
   const localize = useLocalize();
 
   const privacyPolicy = config?.interface?.privacyPolicy;
@@ -68,10 +76,6 @@ function Footer({ className }: { className?: string }) {
     </React.Fragment>
   ));
 
-  const footerElements = [...mainContentRender, privacyPolicyRender, termsOfServiceRender].filter(
-    Boolean,
-  );
-
   const changelogURL = config?.changelogURL;
   const changelogRender = changelogURL && changelogURL !== '/' && (
     <a
@@ -85,7 +89,9 @@ function Footer({ className }: { className?: string }) {
     </a>
   );
 
-  const allFooterElements = [...footerElements, changelogRender].filter(Boolean);
+  const footerElements = [...mainContentRender, privacyPolicyRender, termsOfServiceRender, changelogRender].filter(
+    Boolean,
+  );
 
   return (
     <div className="relative w-full">
@@ -96,8 +102,8 @@ function Footer({ className }: { className?: string }) {
         }
         role="contentinfo"
       >
-        {allFooterElements.map((contentRender, index) => {
-          const isLastElement = index === allFooterElements.length - 1;
+        {footerElements.map((contentRender, index) => {
+          const isLastElement = index === footerElements.length - 1;
           return (
             <React.Fragment key={`footer-element-${index}`}>
               {contentRender}

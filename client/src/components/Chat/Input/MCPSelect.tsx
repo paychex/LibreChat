@@ -6,48 +6,62 @@ import { TooltipAnchor } from '@librechat/client';
 import MCPServerMenuItem from '~/components/MCP/MCPServerMenuItem';
 import MCPConfigDialog from '~/components/MCP/MCPConfigDialog';
 import StackedMCPIcons from '~/components/MCP/StackedMCPIcons';
+import { useHasAccess, useLocalize } from '~/hooks';
 import { useBadgeRowContext } from '~/Providers';
-import { useHasAccess } from '~/hooks';
 import { cn } from '~/utils';
 
 function MCPSelectContent() {
-  const { conversationId, storageContextKey, mcpServerManager } = useBadgeRowContext();
-  const {
-    localize,
-    isPinned,
-    mcpValues,
-    placeholderText,
-    selectableServers,
-    connectionStatus,
-    isInitializing,
-    getConfigDialogProps,
-    toggleServerSelection,
-    getServerStatusIconProps,
-  } = mcpServerManager;
+  const localize = useLocalize();
+  const context = useBadgeRowContext();
+  const { conversationId, storageContextKey, mcpServerManager: manager } = context ?? {};
 
   const menuStore = Ariakit.useMenuStore({ focusLoop: true });
   const isOpen = menuStore.useState('open');
 
   const selectedServers = useMemo(() => {
-    if (!mcpValues || mcpValues.length === 0) {
+    if (!manager?.mcpValues || manager.mcpValues.length === 0) {
       return [];
     }
-    return selectableServers.filter((s) => mcpValues.includes(s.serverName));
-  }, [selectableServers, mcpValues]);
+    const selectedSet = new Set(manager.mcpValues);
+    return manager.selectableServers?.filter((s) => selectedSet.has(s.serverName));
+  }, [manager?.selectableServers, manager?.mcpValues]);
 
-  const selectedCount = selectedServers.length;
-
+  // PAYCHEX: only count servers visible in the menu (selectableServers) so that
+  // hidden servers like Tavily (chatMenu: false) don't leak into the button label.
   const displayText = useMemo(() => {
-    if (selectedCount === 0) {
+    if (!manager?.mcpValues || manager.mcpValues.length === 0) {
       return null;
     }
-    if (selectedCount === 1) {
-      return selectedServers[0]?.config?.title || selectedServers[0]?.serverName;
+    const visibleSelected = manager.selectableServers?.filter((s) =>
+      manager.mcpValues!.includes(s.serverName),
+    );
+    const visibleCount = visibleSelected?.length ?? 0;
+    if (visibleCount === 0) {
+      return null;
     }
-    return localize('com_ui_x_selected', { 0: selectedCount });
-  }, [selectedCount, selectedServers, localize]);
+    if (visibleCount === 1) {
+      return visibleSelected![0].config?.title || visibleSelected![0].serverName;
+    }
+    return localize('com_ui_x_selected', { 0: visibleCount });
+  }, [manager?.selectableServers, manager?.mcpValues, localize]);
 
-  if (!isPinned && selectedCount === 0) {
+  if (!manager) {
+    return null;
+  }
+
+  const {
+    isPinned,
+    mcpValues,
+    isInitializing,
+    placeholderText,
+    connectionStatus,
+    selectableServers,
+    getConfigDialogProps,
+    toggleServerSelection,
+    getServerStatusIconProps,
+  } = manager;
+
+  if (!isPinned && mcpValues?.length === 0) {
     return null;
   }
 
@@ -125,8 +139,8 @@ function MCPSelectContent() {
 }
 
 function MCPSelect() {
-  const { mcpServerManager } = useBadgeRowContext();
-  const { selectableServers } = mcpServerManager;
+  const context = useBadgeRowContext();
+  const { selectableServers } = context?.mcpServerManager ?? {};
   const canUseMcp = useHasAccess({
     permissionType: PermissionTypes.MCP_SERVERS,
     permission: Permissions.USE,

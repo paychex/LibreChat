@@ -27,6 +27,11 @@ on:
           - n2a
           - n1
           - prod
+      test_branch:
+        description: 'Branch to check out test code from (defaults to develop)'
+        required: false
+        default: 'develop'
+        type: string
 
 jobs:
   e2e:
@@ -56,7 +61,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: develop
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.test_branch || 'develop' }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

@@ -47,10 +47,12 @@ export default function useSelectMention({
       }
 
       const conversation = getConversation();
-      const { preset } = spec;
-      preset.iconURL = getModelSpecIconURL(spec);
-      preset.spec = spec.name;
-      preset.modelLabel = spec.label ?? null;
+      const preset = {
+        ...spec.preset,
+        iconURL: getModelSpecIconURL(spec),
+        spec: spec.name,
+        modelLabel: spec.label ?? null,
+      } as TPreset;
       const { endpoint } = preset;
       const newEndpoint = endpoint ?? '';
       if (!newEndpoint) {
@@ -99,9 +101,8 @@ export default function useSelectMention({
         newConversation({
           template: currentConvo,
           preset,
-          keepLatestMessage: true,
-          keepAddedConvos: true,
           buildDefault: false,
+          keepAddedConvos: true,
         });
         return;
       }
@@ -110,8 +111,8 @@ export default function useSelectMention({
       newConversation({
         template: { ...(template as Partial<TConversation>) },
         preset,
-        keepAddedConvos: isModular,
         buildDefault: false,
+        keepAddedConvos: isModular,
       });
     },
     [
@@ -196,7 +197,7 @@ export default function useSelectMention({
         newConversation({
           template: currentConvo,
           preset: currentConvo,
-          keepLatestMessage: true,
+          buildDefault: false,
           keepAddedConvos: true,
         });
         return;
@@ -206,6 +207,7 @@ export default function useSelectMention({
       newConversation({
         template: { ...(template as Partial<TConversation>) },
         preset: { ...kwargs, spec: null, iconURL: null, modelLabel: null, endpoint: newEndpoint },
+        buildDefault: false,
         keepAddedConvos: isNewModular,
       });
     },
@@ -259,7 +261,7 @@ export default function useSelectMention({
         newConversation({
           template: currentConvo,
           preset: newPreset,
-          keepLatestMessage: true,
+          buildDefault: false,
           keepAddedConvos: true,
           disableParams,
         });
@@ -269,6 +271,7 @@ export default function useSelectMention({
       logger.info('conversation', 'Switching conversation to new preset', template);
       newConversation({
         preset: newPreset,
+        buildDefault: false,
         keepAddedConvos: isModular,
         disableParams,
       });
