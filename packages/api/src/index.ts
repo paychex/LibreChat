@@ -56,6 +56,7 @@ export * from './skills';
 export * from './endpoints';
 export { createEndpointsConfigService } from './endpoints/config/endpoints';
 export { createLoadConfigModels } from './endpoints/config/models';
+export { resolveTitleTiming } from './endpoints/config/providers';
 /* Files */
 export * from './files';
 /* Storage */
