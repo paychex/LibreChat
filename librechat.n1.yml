@@ -6,6 +6,7 @@ interface:
   modelSelect: true
   parameters: true
   presets: true
+  prompts: true
 modelSpecs:
   addedEndpoints:
     - agents
@@ -79,6 +80,10 @@ mcpServers:
     chatMenu: false
     serverInstructions: "TAVILY SEARCH PROTOCOL: (1) Never use tavily_research tool unless the user explicitly includes '/deep-research' in their prompt. For all other queries, use tavily_search which has higher rate limits. If /deep-research is requested, use 'mini' model first, and only escalate to 'pro' if the task clearly requires broader multi-topic coverage. (2) If a search fails or returns errors, analyze the error message, modify the query or parameters, and retry with adjustments. "
     requiresOAuth: false
+mcpSettings:
+  allowedDomains:
+    - https://mcp.tavily.com
+    - '*.paychex.com'
 endpoints:
   azureOpenAI:
     # Endpoint-level configuration
