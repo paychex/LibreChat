@@ -75,14 +75,14 @@ function getTimeoutSignal(timeoutMs: number): AbortSignal | undefined {
     : undefined;
 }
 
-export function createPromptHubResolveInsertHandler(deps: PromptCatalogResolveInsertDependencies) {
+export function createPromptHubResolveInsertHandler(deps: PromptCatalogResolveInsertDependencies): (req: PromptCatalogResolveInsertRequest, res: Response) => Promise<Response> {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const timeoutMs = deps.timeoutMs ?? 10_000;
 
   return async function promptHubResolveInsertHandler(
     req: PromptCatalogResolveInsertRequest,
     res: Response,
-  ) {
+  ): Promise<Response> {
     const promptId = Number.parseInt(String(req.body?.promptCatalogId ?? ''), 10);
     if (!Number.isInteger(promptId) || promptId <= 0) {
       return res.status(400).json({ message: 'promptCatalogId is required' });
