@@ -57,7 +57,7 @@ export const getPresetTitle = (preset: TPreset, mention?: boolean) => {
 export const removeUnavailableTools = (
   preset: TPreset,
   availableTools: Record<string, TPlugin | undefined>,
-) => {
+): TPreset => {
   const newPreset = { ...preset };
 
   if (newPreset.tools && newPreset.tools.length > 0) {

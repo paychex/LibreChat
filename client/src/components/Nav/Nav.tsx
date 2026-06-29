@@ -228,12 +228,9 @@ const Nav = memo(
           {...{ inert: !navVisible ? '' : undefined }}
         >
           <div className="flex flex-1 flex-col overflow-hidden" ref={outerContainerRef}>
-            <MemoNewChat
-              subHeaders={subHeaders}
-              toggleNav={toggleNavVisible}
-              headerButtons={headerButtons}
-              isSmallScreen={isSmallScreen}
-            />
+            <MemoNewChat />
+            {subHeaders}
+            {headerButtons}
             <div className="flex min-h-0 flex-grow flex-col overflow-hidden">
               <Conversations
                 conversations={conversations}

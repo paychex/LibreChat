@@ -626,6 +626,7 @@ export type TPromptGroup = {
   command?: string;
   oneliner?: string;
   category?: string;
+  projectIds?: string[];
   productionId?: string | null;
   productionPrompt?: Pick<TPrompt, 'prompt'> | null;
   author: string;

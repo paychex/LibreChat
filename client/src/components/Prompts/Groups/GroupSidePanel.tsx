@@ -1,10 +1,9 @@
 import { useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Button, Sidebar, TooltipAnchor } from '@librechat/client';
-import ManagePrompts from '~/components/Prompts/ManagePrompts';
 import { usePromptGroupsContext } from '~/Providers';
 import List from '~/components/Prompts/Groups/List';
-import PanelNavigation from './PanelNavigation';
+import PanelNavigation from '../sidebar/PanelNavigation';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
 
@@ -23,8 +22,12 @@ export default function GroupSidePanel({
   const localize = useLocalize();
   const isChatRoute = useMemo(() => location.pathname?.startsWith('/c/'), [location.pathname]);
 
+  const context = usePromptGroupsContext();
+  if (!context) {
+    return null;
+  }
   const { promptGroups, groupsQuery, nextPage, prevPage, hasNextPage, hasPreviousPage } =
-    usePromptGroupsContext();
+    context;
 
   return (
     <div
@@ -73,9 +76,7 @@ export default function GroupSidePanel({
           hasPreviousPage={hasPreviousPage}
           isLoading={groupsQuery.isFetching}
           isChatRoute={isChatRoute}
-        >
-          {isChatRoute && <ManagePrompts className="select-none" />}
-        </PanelNavigation>
+        />
       </div>
     </div>
   );

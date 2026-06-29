@@ -176,7 +176,7 @@ export default function ChatRoute() {
           ? storedSetup
           : null;
       const hasStoredModelSelection = Boolean(
-        storedConvo?.model ?? storedConvo?.agentOptions?.model,
+        storedConvo?.model ?? (storedConvo as Record<string, unknown>)?.agentOptions,
       );
       const activePreset = hasStoredModelSelection ? undefined : specPreset;
 

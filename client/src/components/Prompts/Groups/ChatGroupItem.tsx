@@ -11,7 +11,7 @@ import {
 } from '@librechat/client';
 import type { TPromptGroup } from 'librechat-data-provider';
 import { useLocalize, useSubmitMessage, useResourcePermissions } from '~/hooks';
-import VariableDialog from '~/components/Prompts/Groups/VariableDialog';
+import VariableDialog from '~/components/Prompts/dialogs/VariableDialog';
 import PreviewPrompt from '~/components/Prompts/PreviewPrompt';
 import ListCard from '~/components/Prompts/Groups/ListCard';
 import { detectVariables } from '~/utils';

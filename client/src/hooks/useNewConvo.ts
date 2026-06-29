@@ -96,7 +96,7 @@ const useNewConvo = (index = 0) => {
             ? (storedSetup as TConversation)
             : null;
         const hasStoredModelSelection = Boolean(
-          storedConversation?.model ?? storedConversation?.agentOptions?.model,
+          storedConversation?.model ?? (storedConversation as Record<string, unknown>)?.agentOptions,
         );
         const buildDefaultConversation = (endpoint === null || buildDefault) ?? false;
         const hasExplicitChatProjectId = Object.prototype.hasOwnProperty.call(
@@ -235,7 +235,7 @@ const useNewConvo = (index = 0) => {
           conversation = {
             ...conversation,
             ...appliedPreset,
-          };
+          } as typeof conversation;
         }
 
         if (_disableParams === true) {
@@ -313,6 +313,7 @@ const useNewConvo = (index = 0) => {
       disableFocus,
       buildDefault = true,
       keepAddedConvos = false,
+      keepLatestMessage,
       disableParams,
     }: {
       template?: Partial<TConversation>;
@@ -321,6 +322,7 @@ const useNewConvo = (index = 0) => {
       buildDefault?: boolean;
       disableFocus?: boolean;
       keepAddedConvos?: boolean;
+      keepLatestMessage?: boolean;
       disableParams?: boolean;
     } = {}) {
       pauseGlobalAudio();

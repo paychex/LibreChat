@@ -147,7 +147,7 @@ export default function useQueryParams({
       if (!_newPreset) {
         return;
       }
-      let newPreset = removeUnavailableTools(_newPreset, availableTools);
+      let newPreset: TPreset = removeUnavailableTools(_newPreset, availableTools);
       if (newPreset.spec != null && newPreset.spec !== '') {
         const startupConfig = queryClient.getQueryData<TStartupConfig>([QueryKeys.startupConfig]);
         const modelSpecs = startupConfig?.modelSpecs?.list ?? [];
@@ -156,9 +156,7 @@ export default function useQueryParams({
           return;
         }
         const { preset } = spec;
-        preset.iconURL = getModelSpecIconURL(spec);
-        preset.spec = spec.name;
-        newPreset = preset;
+        newPreset = { ...preset, iconURL: getModelSpecIconURL(spec), spec: spec.name } as TPreset;
       }
 
       let newEndpoint = newPreset.endpoint ?? '';

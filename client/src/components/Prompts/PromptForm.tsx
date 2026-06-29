@@ -21,20 +21,20 @@ import {
   useMakePromptProduction,
 } from '~/data-provider';
 import { useResourcePermissions, useHasAccess, useLocalize } from '~/hooks';
-import CategorySelector from './Groups/CategorySelector';
+import CategorySelector from './fields/CategorySelector';
 import { usePromptGroupsContext } from '~/Providers';
-import NoPromptGroup from './Groups/NoPromptGroup';
+import NoPromptGroup from './lists/NoPromptGroup';
 import PromptVariables from './PromptVariables';
 import { cn, findPromptGroup } from '~/utils';
 import PromptVersions from './PromptVersions';
 import { PromptsEditorMode } from '~/common';
-import DeleteVersion from './DeleteVersion';
-import PromptDetails from './PromptDetails';
+import { DeleteVersion } from './dialogs';
+import PromptDetails from './display/PromptDetails';
 import PromptEditor from './PromptEditor';
-import SkeletonForm from './SkeletonForm';
+import SkeletonForm from './utils/SkeletonForm';
 import Description from './Description';
-import SharePrompt from './SharePrompt';
-import PromptName from './PromptName';
+import SharePrompt from './dialogs/SharePrompt';
+import PromptName from './fields/PromptName';
 import Command from './Command';
 import store from '~/store';
 
@@ -167,7 +167,8 @@ const PromptForm = () => {
   const params = useParams();
   const localize = useLocalize();
   const { showToast } = useToastContext();
-  const { hasAccess } = usePromptGroupsContext();
+  const promptGroupsContext = usePromptGroupsContext();
+  const hasAccess = promptGroupsContext?.hasAccess ?? false;
   const alwaysMakeProd = useRecoilValue(store.alwaysMakeProd);
   const promptId = params.promptId || '';
 
@@ -213,7 +214,7 @@ const PromptForm = () => {
 
   const selectedPromptId = useMemo(() => selectedPrompt?._id, [selectedPrompt?._id]);
 
-  const { groupsQuery } = usePromptGroupsContext();
+  const groupsQuery = usePromptGroupsContext()?.groupsQuery;
 
   const updateGroupMutation = useUpdatePromptGroup({
     onError: () => {
@@ -364,7 +365,7 @@ const PromptForm = () => {
   }
 
   // Show read-only view if user doesn't have edit permission
-  if (!canEdit && !permissionsLoading && groupsQuery.data) {
+  if (!canEdit && !permissionsLoading && groupsQuery?.data) {
     const fetchedPrompt = findPromptGroup(
       groupsQuery.data,
       (group) => group._id === params.promptId,
