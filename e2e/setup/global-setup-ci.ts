@@ -57,12 +57,13 @@ function adfsFormsUrlFromWia(wiaUrl: string): string {
   const url = new URL(wiaUrl);
   // Switch to the forms-based endpoint
   url.pathname = url.pathname.replace(/\/wia$/, '/');
-  // Remove the TLS/WIA device-auth hint so ADFS doesn't bounce back to WIA
+  // Remove the TLS/WIA device-auth hint so ADFS doesn't carry it forward
   url.searchParams.delete('deviceAuthenticationMethod');
-  // Explicitly request password/forms auth via WS-Federation wauth parameter.
-  // Without this ADFS sees the same session context and immediately re-redirects
-  // back to the WIA/TLS endpoint regardless of the path change above.
-  url.searchParams.set('wauth', 'urn:oasis:names:tc:SAML:1.0:am:password');
+  // authmethod=FormsAuthentication is an ADFS-native override that bypasses
+  // WIA policy (including TlsHandler) regardless of network zone or client
+  // classification. This is more authoritative than the WS-Fed `wauth` hint,
+  // which ADFS may ignore when its own policy mandates Windows Auth.
+  url.searchParams.set('authmethod', 'FormsAuthentication');
   return url.toString();
 }
 
@@ -95,6 +96,17 @@ async function fillAdfsCredentials(
       waitUntil: 'domcontentloaded',
       timeout: 30000,
     });
+
+    // ADFS may still redirect back to WIA even after the authmethod override
+    // (e.g. a 302 loop from strict WIA policy). Detect and fail fast.
+    if (isAdfsWiaPage(page.url())) {
+      throw new Error(
+        `ADFS redirected back to WIA after authmethod=FormsAuthentication override. ` +
+          `Current URL: ${page.url()}. ` +
+          `ADFS WIA policy may be enforced at the network/realm level — ` +
+          `check that the CI runner's IP is not classified as intranet by ADFS.`,
+      );
+    }
   }
 
   // ADFS may pre-fill the username from the URL query param (username=...) and
