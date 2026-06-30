@@ -1,7 +1,7 @@
 import { useMemo, useEffect, useState, useCallback, useRef } from 'react';
 import { Outlet, useParams, useNavigate } from 'react-router-dom';
 import { PermissionTypes, Permissions } from 'librechat-data-provider';
-import FilterPrompts from '~/components/Prompts/Groups/FilterPrompts';
+import FilterPrompts from '~/components/Prompts/sidebar/FilterPrompts';
 import DashBreadcrumb from '~/routes/Layouts/DashBreadcrumb';
 import GroupSidePanel from './Groups/GroupSidePanel';
 import { useHasAccess, useLocalize } from '~/hooks';

@@ -1,12 +1,16 @@
 const mongoose = require('mongoose');
 
 const mockLogger = { error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() };
+const mockGetTenantId = jest.fn();
 
 jest.mock('@librechat/data-schemas', () => ({
   logger: mockLogger,
+  getTenantId: mockGetTenantId,
+  SYSTEM_TENANT_ID: '__SYSTEM__',
 }));
 
-const { ResourceType, PrincipalType } = jest.requireActual('librechat-data-provider');
+const { AccessRoleIds, ResourceType, PrincipalType } =
+  jest.requireActual('librechat-data-provider');
 
 jest.mock('librechat-data-provider', () => ({
   ...jest.requireActual('librechat-data-provider'),
@@ -29,10 +33,14 @@ jest.mock('~/server/services/PermissionService', () => ({
   getResourcePermissionsMap: jest.fn(),
 }));
 
+const mockRemoveAgentFromUserFavorites = jest.fn();
+
 jest.mock('~/models', () => ({
+  aggregateAclEntries: jest.fn(),
   searchPrincipals: jest.fn(),
   sortPrincipalsByRelevance: jest.fn(),
   calculateRelevanceScore: jest.fn(),
+  removeAgentFromUserFavorites: (...args) => mockRemoveAgentFromUserFavorites(...args),
 }));
 
 jest.mock('~/server/services/GraphApiService', () => ({
@@ -40,21 +48,12 @@ jest.mock('~/server/services/GraphApiService', () => ({
   searchEntraIdPrincipals: jest.fn(),
 }));
 
-const mockAgentFindOne = jest.fn();
-const mockUserUpdateMany = jest.fn();
-
-jest.mock('~/db/models', () => ({
-  Agent: {
-    findOne: (...args) => mockAgentFindOne(...args),
-  },
-  AclEntry: {},
-  AccessRole: {},
-  User: {
-    updateMany: (...args) => mockUserUpdateMany(...args),
-  },
-}));
-
-const { updateResourcePermissions } = require('../PermissionsController');
+const db = require('~/models');
+const {
+  updateResourcePermissions,
+  searchPrincipals,
+  getResourcePermissions,
+} = require('../PermissionsController');
 
 const createMockReq = (overrides = {}) => ({
   params: { resourceType: ResourceType.AGENT, resourceId: '507f1f77bcf86cd799439011' },
@@ -76,6 +75,180 @@ const flushPromises = () => new Promise((resolve) => setImmediate(resolve));
 describe('PermissionsController', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetTenantId.mockReturnValue(undefined);
+  });
+
+  describe('searchPrincipals', () => {
+    beforeEach(() => {
+      db.searchPrincipals.mockResolvedValue([]);
+      db.calculateRelevanceScore.mockReturnValue(50);
+      db.sortPrincipalsByRelevance.mockImplementation((results) => results);
+    });
+
+    it('rejects non-string query parameters', async () => {
+      const req = createMockReq({
+        query: { q: ['alice'] },
+      });
+      const res = createMockRes();
+
+      await searchPrincipals(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Query parameter "q" is required and must not be empty',
+      });
+      expect(db.searchPrincipals).not.toHaveBeenCalled();
+    });
+
+    it('searches with the trimmed literal query', async () => {
+      db.searchPrincipals.mockResolvedValue([
+        {
+          id: 'user-1',
+          type: PrincipalType.USER,
+          name: 'Regex [invalid User',
+          source: 'local',
+        },
+      ]);
+
+      const req = createMockReq({
+        query: { q: '  [invalid  ', limit: '5', types: PrincipalType.USER },
+      });
+      const res = createMockRes();
+
+      await searchPrincipals(req, res);
+
+      expect(db.searchPrincipals).toHaveBeenCalledWith('[invalid', 5, [PrincipalType.USER]);
+      expect(db.calculateRelevanceScore).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Regex [invalid User' }),
+        '[invalid',
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: '[invalid',
+          limit: 5,
+          count: 1,
+        }),
+      );
+    });
+
+    it('does not expose internal error details on search failures', async () => {
+      db.searchPrincipals.mockRejectedValue(new Error('database failure with internal detail'));
+
+      const req = createMockReq({
+        query: { q: 'alice' },
+      });
+      const res = createMockRes();
+
+      await searchPrincipals(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Failed to search principals',
+      });
+    });
+  });
+
+  describe('getResourcePermissions — principal details', () => {
+    const currentTenantId = 'tenant-a';
+    const otherTenantId = 'tenant-b';
+    const userId = new mongoose.Types.ObjectId();
+    const groupId = new mongoose.Types.ObjectId();
+
+    it('omits joined user and group details outside the current request context', async () => {
+      mockGetTenantId.mockReturnValue(currentTenantId);
+      db.aggregateAclEntries.mockResolvedValue([
+        {
+          principalType: PrincipalType.USER,
+          accessRoleId: AccessRoleIds.AGENT_VIEWER,
+          userInfo: {
+            _id: userId,
+            tenantId: otherTenantId,
+            name: 'Outside User',
+            email: 'outside-user@example.com',
+            avatar: 'outside-user.png',
+          },
+        },
+        {
+          principalType: PrincipalType.GROUP,
+          accessRoleId: AccessRoleIds.AGENT_VIEWER,
+          groupInfo: {
+            _id: groupId,
+            tenantId: otherTenantId,
+            name: 'Outside Group',
+            email: 'outside-group@example.com',
+            avatar: 'outside-group.png',
+          },
+        },
+        {
+          principalType: PrincipalType.PUBLIC,
+          accessRoleId: AccessRoleIds.AGENT_VIEWER,
+        },
+      ]);
+
+      const req = createMockReq();
+      const res = createMockRes();
+
+      await getResourcePermissions(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        resourceType: ResourceType.AGENT,
+        resourceId: req.params.resourceId,
+        principals: [],
+        public: true,
+        publicAccessRoleId: AccessRoleIds.AGENT_VIEWER,
+      });
+      expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain('outside-user@example.com');
+      expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain('outside-group@example.com');
+    });
+
+    it('includes joined user and group details in the current request context', async () => {
+      mockGetTenantId.mockReturnValue(currentTenantId);
+      db.aggregateAclEntries.mockResolvedValue([
+        {
+          principalType: PrincipalType.USER,
+          accessRoleId: AccessRoleIds.AGENT_VIEWER,
+          userInfo: {
+            _id: userId,
+            tenantId: currentTenantId,
+            name: 'Current User',
+            email: 'current-user@example.com',
+            avatar: 'current-user.png',
+          },
+        },
+        {
+          principalType: PrincipalType.GROUP,
+          accessRoleId: AccessRoleIds.AGENT_VIEWER,
+          groupInfo: {
+            _id: groupId,
+            tenantId: currentTenantId,
+            name: 'Current Group',
+            email: 'current-group@example.com',
+            avatar: 'current-group.png',
+          },
+        },
+      ]);
+
+      const req = createMockReq();
+      const res = createMockRes();
+
+      await getResourcePermissions(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json.mock.calls[0][0].principals).toEqual([
+        expect.objectContaining({
+          type: PrincipalType.USER,
+          id: userId.toString(),
+          email: 'current-user@example.com',
+        }),
+        expect.objectContaining({
+          type: PrincipalType.GROUP,
+          id: groupId.toString(),
+          email: 'current-group@example.com',
+        }),
+      ]);
+    });
   });
 
   describe('updateResourcePermissions — favorites cleanup', () => {
@@ -90,10 +263,7 @@ describe('PermissionsController', () => {
         errors: [],
       });
 
-      mockAgentFindOne.mockReturnValue({
-        lean: () => Promise.resolve({ _id: agentObjectId, id: 'agent_abc123' }),
-      });
-      mockUserUpdateMany.mockResolvedValue({ modifiedCount: 1 });
+      mockRemoveAgentFromUserFavorites.mockResolvedValue(undefined);
     });
 
     it('removes agent from revoked users favorites on AGENT resource type', async () => {
@@ -111,11 +281,7 @@ describe('PermissionsController', () => {
       await flushPromises();
 
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(mockAgentFindOne).toHaveBeenCalledWith({ _id: agentObjectId }, { id: 1 });
-      expect(mockUserUpdateMany).toHaveBeenCalledWith(
-        { _id: { $in: [revokedUserId] }, 'favorites.agentId': 'agent_abc123' },
-        { $pull: { favorites: { agentId: 'agent_abc123' } } },
-      );
+      expect(mockRemoveAgentFromUserFavorites).toHaveBeenCalledWith(agentObjectId, [revokedUserId]);
     });
 
     it('removes agent from revoked users favorites on REMOTE_AGENT resource type', async () => {
@@ -132,8 +298,7 @@ describe('PermissionsController', () => {
       await updateResourcePermissions(req, res);
       await flushPromises();
 
-      expect(mockAgentFindOne).toHaveBeenCalledWith({ _id: agentObjectId }, { id: 1 });
-      expect(mockUserUpdateMany).toHaveBeenCalled();
+      expect(mockRemoveAgentFromUserFavorites).toHaveBeenCalledWith(agentObjectId, [revokedUserId]);
     });
 
     it('uses results.revoked (validated) not raw request payload', async () => {
@@ -163,10 +328,7 @@ describe('PermissionsController', () => {
       await updateResourcePermissions(req, res);
       await flushPromises();
 
-      expect(mockUserUpdateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ _id: { $in: [validId] } }),
-        expect.any(Object),
-      );
+      expect(mockRemoveAgentFromUserFavorites).toHaveBeenCalledWith(agentObjectId, [validId]);
     });
 
     it('skips cleanup when no USER principals are revoked', async () => {
@@ -190,8 +352,7 @@ describe('PermissionsController', () => {
       await updateResourcePermissions(req, res);
       await flushPromises();
 
-      expect(mockAgentFindOne).not.toHaveBeenCalled();
-      expect(mockUserUpdateMany).not.toHaveBeenCalled();
+      expect(mockRemoveAgentFromUserFavorites).not.toHaveBeenCalled();
     });
 
     it('skips cleanup for non-agent resource types', async () => {
@@ -216,13 +377,11 @@ describe('PermissionsController', () => {
       await flushPromises();
 
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(mockAgentFindOne).not.toHaveBeenCalled();
+      expect(mockRemoveAgentFromUserFavorites).not.toHaveBeenCalled();
     });
 
     it('handles agent not found gracefully', async () => {
-      mockAgentFindOne.mockReturnValue({
-        lean: () => Promise.resolve(null),
-      });
+      mockRemoveAgentFromUserFavorites.mockResolvedValue(undefined);
 
       const req = createMockReq({
         params: { resourceType: ResourceType.AGENT, resourceId: agentObjectId },
@@ -237,13 +396,12 @@ describe('PermissionsController', () => {
       await updateResourcePermissions(req, res);
       await flushPromises();
 
-      expect(mockAgentFindOne).toHaveBeenCalled();
-      expect(mockUserUpdateMany).not.toHaveBeenCalled();
+      expect(mockRemoveAgentFromUserFavorites).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    it('logs error when User.updateMany fails without blocking response', async () => {
-      mockUserUpdateMany.mockRejectedValue(new Error('DB connection lost'));
+    it('logs error when removeAgentFromUserFavorites fails without blocking response', async () => {
+      mockRemoveAgentFromUserFavorites.mockRejectedValue(new Error('DB connection lost'));
 
       const req = createMockReq({
         params: { resourceType: ResourceType.AGENT, resourceId: agentObjectId },

@@ -57,8 +57,15 @@ function adfsFormsUrlFromWia(wiaUrl: string): string {
   const url = new URL(wiaUrl);
   // Switch to the forms-based endpoint
   url.pathname = url.pathname.replace(/\/wia$/, '/');
-  // Remove the TLS/WIA device-auth hint so ADFS doesn't bounce back to WIA
+  // Remove the TLS/WIA device-auth hint so ADFS doesn't carry it forward
   url.searchParams.delete('deviceAuthenticationMethod');
+  // Remove the authmethod override that ADFS was ignoring and bouncing back to WIA
+  url.searchParams.delete('authmethod');
+  // wauth tells the WS-Federation relying party (Azure AD / Microsoft Online)
+  // which auth method it prefers. Setting it to the SAML password auth URN
+  // signals that interactive password entry is expected, which prompts ADFS to
+  // serve the forms login page instead of routing to Windows Integrated Auth.
+  url.searchParams.set('wauth', 'urn:oasis:names:tc:SAML:1.0:am:password');
   return url.toString();
 }
 
@@ -91,10 +98,31 @@ async function fillAdfsCredentials(
       waitUntil: 'domcontentloaded',
       timeout: 30000,
     });
+
+    // ADFS may still redirect back to WIA even after the wauth override
+    // (e.g. strict WIA policy on the CI runner network). Detect and fail fast.
+    if (isAdfsWiaPage(page.url())) {
+      throw new Error(
+        `ADFS redirected back to WIA after wauth=password override. ` +
+          `Current URL: ${page.url()}. ` +
+          `ADFS WIA policy may be enforced at the network/realm level — ` +
+          `check that the CI runner's IP is not classified as intranet by ADFS.`,
+      );
+    }
   }
 
-  await usernameInput.waitFor({ state: 'visible', timeout: 30000 });
-  await usernameInput.fill(adfsUsername);
+  // ADFS may pre-fill the username from the URL query param (username=...) and
+  // hide the username field, advancing straight to the password step.
+  // Only fill the username if the field is actually visible.
+  const usernameVisible = await usernameInput.isVisible().catch(() => false);
+  if (usernameVisible) {
+    await usernameInput.fill(adfsUsername);
+    console.log('  ✓ Filled username on ADFS');
+  } else {
+    console.log('  ↪ ADFS pre-filled username from URL — skipping to password step');
+  }
+
+  await passwordInput.waitFor({ state: 'visible', timeout: 30000 });
   await passwordInput.fill(password);
   await submitButton.click();
   console.log('  ✓ Submitted credentials on ADFS');

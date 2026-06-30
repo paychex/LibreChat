@@ -3,6 +3,7 @@ const mockDeleteMessages = jest.fn();
 const mockDeleteAllUserSessions = jest.fn();
 const mockDeleteUserById = jest.fn();
 const mockDeleteAllSharedLinks = jest.fn();
+const mockDeleteAllSharedLinksWithCleanup = jest.fn();
 const mockDeletePresets = jest.fn();
 const mockDeleteUserKey = jest.fn();
 const mockDeleteConvos = jest.fn();
@@ -17,6 +18,7 @@ const mockProcessDeleteRequest = jest.fn();
 const mockDeleteToolCalls = jest.fn();
 const mockDeleteUserAgents = jest.fn();
 const mockDeleteUserPrompts = jest.fn();
+const mockDeleteUserSkills = jest.fn();
 
 jest.mock('@librechat/data-schemas', () => ({
   logger: { error: jest.fn(), info: jest.fn() },
@@ -35,6 +37,9 @@ jest.mock('@librechat/api', () => ({
   MCPTokenStorage: {},
   normalizeHttpError: jest.fn(),
   extractWebSearchEnvVars: jest.fn(),
+  needsRefresh: jest.fn(),
+  getNewS3URL: jest.fn(),
+  deleteAllSharedLinksWithCleanup: (...args) => mockDeleteAllSharedLinksWithCleanup(...args),
 }));
 
 jest.mock('~/models', () => ({
@@ -51,20 +56,21 @@ jest.mock('~/models', () => ({
   updateUser: (...args) => mockUpdateUser(...args),
   findToken: (...args) => mockFindToken(...args),
   getFiles: (...args) => mockGetFiles(...args),
-}));
-
-jest.mock('~/db/models', () => ({
-  ConversationTag: { deleteMany: jest.fn() },
-  AgentApiKey: { deleteMany: jest.fn() },
-  Transaction: { deleteMany: jest.fn() },
-  MemoryEntry: { deleteMany: jest.fn() },
-  Assistant: { deleteMany: jest.fn() },
-  AclEntry: { deleteMany: jest.fn() },
-  Balance: { deleteMany: jest.fn() },
-  Action: { deleteMany: jest.fn() },
-  Group: { updateMany: jest.fn() },
-  Token: { deleteMany: jest.fn() },
-  User: {},
+  deleteToolCalls: (...args) => mockDeleteToolCalls(...args),
+  deleteUserAgents: (...args) => mockDeleteUserAgents(...args),
+  deleteUserPrompts: (...args) => mockDeleteUserPrompts(...args),
+  deleteUserSkills: (...args) => mockDeleteUserSkills(...args),
+  deleteTransactions: jest.fn(),
+  deleteBalances: jest.fn(),
+  deleteAllAgentApiKeys: jest.fn(),
+  deleteAssistants: jest.fn(),
+  deleteConversationTags: jest.fn(),
+  deleteAllUserMemories: jest.fn(),
+  deleteActions: jest.fn(),
+  deleteTokens: jest.fn(),
+  removeUserFromAllGroups: jest.fn(),
+  deleteAclEntries: jest.fn(),
+  getSoleOwnedResourceIds: jest.fn().mockResolvedValue([]),
 }));
 
 jest.mock('~/server/services/PluginService', () => ({
@@ -91,33 +97,12 @@ jest.mock('~/server/services/Config/getCachedTools', () => ({
   invalidateCachedTools: jest.fn(),
 }));
 
-jest.mock('~/server/services/Files/S3/crud', () => ({
-  needsRefresh: jest.fn(),
-  getNewS3URL: jest.fn(),
-}));
-
 jest.mock('~/server/services/Files/process', () => ({
   processDeleteRequest: (...args) => mockProcessDeleteRequest(...args),
 }));
 
 jest.mock('~/server/services/Config', () => ({
   getAppConfig: jest.fn(),
-}));
-
-jest.mock('~/server/services/PermissionService', () => ({
-  getSoleOwnedResourceIds: jest.fn().mockResolvedValue([]),
-}));
-
-jest.mock('~/models/ToolCall', () => ({
-  deleteToolCalls: (...args) => mockDeleteToolCalls(...args),
-}));
-
-jest.mock('~/models/Prompt', () => ({
-  deleteUserPrompts: (...args) => mockDeleteUserPrompts(...args),
-}));
-
-jest.mock('~/models/Agent', () => ({
-  deleteUserAgents: (...args) => mockDeleteUserAgents(...args),
 }));
 
 jest.mock('~/cache', () => ({
@@ -143,12 +128,14 @@ function stubDeletionMocks() {
   mockDeleteUserPluginAuth.mockResolvedValue();
   mockDeleteUserById.mockResolvedValue();
   mockDeleteAllSharedLinks.mockResolvedValue();
+  mockDeleteAllSharedLinksWithCleanup.mockResolvedValue({ deletedCount: 0 });
   mockGetFiles.mockResolvedValue([]);
-  mockProcessDeleteRequest.mockResolvedValue();
+  mockProcessDeleteRequest.mockResolvedValue({ deletedFileIds: [], failedFileIds: [] });
   mockDeleteFiles.mockResolvedValue();
   mockDeleteToolCalls.mockResolvedValue();
   mockDeleteUserAgents.mockResolvedValue();
   mockDeleteUserPrompts.mockResolvedValue();
+  mockDeleteUserSkills.mockResolvedValue(0);
 }
 
 beforeEach(() => {
@@ -167,6 +154,9 @@ describe('deleteUserController - 2FA enforcement', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.send).toHaveBeenCalledWith({ message: 'User deleted' });
     expect(mockDeleteMessages).toHaveBeenCalled();
+    expect(mockDeleteUserAgents).toHaveBeenCalledWith('user1');
+    expect(mockDeleteUserPrompts).toHaveBeenCalledWith('user1');
+    expect(mockDeleteUserSkills).toHaveBeenCalledWith('user1');
     expect(mockVerifyOTPOrBackupCode).not.toHaveBeenCalled();
   });
 

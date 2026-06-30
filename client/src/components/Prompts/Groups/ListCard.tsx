@@ -1,6 +1,6 @@
 import React from 'react';
 import { Label } from '@librechat/client';
-import CategoryIcon from '~/components/Prompts/Groups/CategoryIcon';
+import CategoryIcon from '~/components/Prompts/utils/CategoryIcon';
 import { useLocalize } from '~/hooks';
 
 export default function ListCard({

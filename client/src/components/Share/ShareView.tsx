@@ -16,12 +16,12 @@ import {
   OGDialogContent,
   OGDialogTrigger,
 } from '@librechat/client';
-import { ThemeSelector, LangSelector } from '~/components/Nav/SettingsTabs/General/General';
+import { ThemeSelector, LangSelector } from '~/components/Nav/SettingsTabs/General/Selectors';
+import { ShareMessagesProvider } from './ShareMessagesProvider';
+import { useGetSharedStartupConfig } from '~/data-provider';
 import { ShareArtifactsContainer } from './ShareArtifacts';
 import { useLocalize, useDocumentTitle } from '~/hooks';
-import { useGetStartupConfig } from '~/data-provider';
 import { ShareContext } from '~/Providers';
-import { ShareMessagesProvider } from './ShareMessagesProvider';
 import MessagesView from './MessagesView';
 import Footer from '../Chat/Footer';
 import { cn } from '~/utils';
@@ -29,9 +29,9 @@ import store from '~/store';
 
 function SharedView() {
   const localize = useLocalize();
-  const { data: config } = useGetStartupConfig();
   const { theme, setTheme } = useContext(ThemeContext);
   const { shareId } = useParams();
+  const { data: config } = useGetSharedStartupConfig(shareId);
   const { data, isLoading } = useGetSharedMessages(shareId ?? '');
   const dataTree = data && buildTree({ messages: data.messages });
   const messagesTree = dataTree?.length === 0 ? null : (dataTree ?? null);
@@ -80,10 +80,6 @@ function SharedView() {
             : null) ?? 'en-US';
       }
 
-      requestAnimationFrame(() => {
-        document.documentElement.lang = userLang;
-      });
-
       setLangcode(userLang);
       Cookies.set('lang', userLang, { expires: 365 });
     },
@@ -124,7 +120,10 @@ function SharedView() {
 
   const footer = (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-surface-secondary from-40% to-transparent">
-      <Footer className="pointer-events-auto relative mx-auto flex max-w-[55rem] flex-wrap items-center justify-center gap-2 px-3 pb-4 pt-6 text-center text-xs text-text-secondary" />
+      <Footer
+        startupConfig={config ?? null}
+        className="pointer-events-auto relative mx-auto flex max-w-[55rem] flex-wrap items-center justify-center gap-2 px-3 pb-4 pt-6 text-center text-xs text-text-secondary"
+      />
     </div>
   );
 
@@ -149,7 +148,7 @@ function SharedView() {
     );
 
   return (
-    <ShareContext.Provider value={{ isSharedConvo: true }}>
+    <ShareContext.Provider value={{ isSharedConvo: true, shareId }}>
       <div className="relative flex h-screen w-full overflow-hidden dark:bg-surface-secondary">
         <main className="relative flex w-full grow overflow-hidden dark:bg-surface-secondary">
           {artifactsContainer}

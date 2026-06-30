@@ -86,8 +86,6 @@ mcpSettings:
     - '*.paychex.com'
 endpoints:
   azureOpenAI:
-endpoints:
-  azureOpenAI:
     # Endpoint-level configuration
     titleModel: "gpt-5.4-mini"
     plugins: false

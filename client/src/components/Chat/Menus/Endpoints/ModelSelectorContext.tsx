@@ -1,5 +1,5 @@
-import debounce from 'lodash/debounce';
 import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
+import debounce from 'lodash/debounce';
 import { EModelEndpoint, isAgentsEndpoint, isAssistantsEndpoint } from 'librechat-data-provider';
 import type * as t from 'librechat-data-provider';
 import type { Endpoint, SelectedValues } from '~/common';
@@ -161,8 +161,8 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
       return null;
     }
     const allItems = [...modelSpecs, ...mappedEndpoints];
-    return filterItems(allItems, searchValue, agentsMap, assistantsMap || {});
-  }, [searchValue, modelSpecs, mappedEndpoints, agentsMap, assistantsMap]);
+    return filterItems(allItems, searchValue, agentsMap, assistantsMap || {}, localize);
+  }, [searchValue, modelSpecs, mappedEndpoints, agentsMap, assistantsMap, localize]);
 
   const setDebouncedSearchValue = useMemo(
     () =>
@@ -181,7 +181,6 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
   const handleSelectSpec = useCallback(
     (spec: t.TModelSpec) => {
       let model = spec.preset.model ?? null;
-      onSelectSpec?.(spec);
       if (isAgentsEndpoint(spec.preset.endpoint)) {
         model = spec.preset.agent_id ?? '';
       } else if (isAssistantsEndpoint(spec.preset.endpoint)) {
@@ -192,6 +191,7 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
         model,
         modelSpec: spec.name,
       });
+      onSelectSpec?.(spec);
     },
     [onSelectSpec],
   );

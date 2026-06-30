@@ -7,7 +7,10 @@ import type {
   TAttachment,
   TMessage,
   TBanner,
+  ReasoningResponseKey,
+  ReasoningParameterFormat,
 } from './schemas';
+import type { RefillIntervalUnit } from './balance';
 import type { SettingDefinition } from './generate';
 import type { TMinimalFeedback } from './feedback';
 import type { ContentTypes } from './types/runs';
@@ -50,10 +53,12 @@ export type TEndpointOption = Pick<
   | 'additionalModelRequestFields'
   // Anthropic-specific
   | 'promptCache'
+  | 'promptCacheTtl'
   | 'thinking'
   | 'thinkingBudget'
   | 'thinkingLevel'
   | 'effort'
+  | 'thinkingDisplay'
   // Assistant/Agent fields
   | 'assistant_id'
   | 'agent_id'
@@ -67,6 +72,7 @@ export type TEndpointOption = Pick<
   | 'file_ids'
   // System field
   | 'system'
+  | 'chatProjectId'
   // Google examples
   | 'examples'
   // Context
@@ -101,6 +107,7 @@ export type TEphemeralAgent = {
   file_search?: boolean;
   execute_code?: boolean;
   artifacts?: string;
+  skills?: boolean;
 };
 
 export type TPayload = Partial<TMessage> &
@@ -114,6 +121,15 @@ export type TPayload = Partial<TMessage> &
     editedContent?: TEditedContent | null;
     /** Added conversation for multi-convo feature */
     addedConvo?: TConversation;
+    /**
+     * Skills the user selected via the `$` popover for this turn. Names, not IDs
+     * — the backend resolves them against the user's ACL-accessible skill set,
+     * loads each SKILL.md body, and prepends one meta user message per skill
+     * before the LLM turn runs.
+     */
+    manualSkills?: string[];
+    /** Browser IANA timezone (e.g. `America/New_York`) used to resolve local-time prompt variables server-side. */
+    timezone?: string;
   };
 
 export type TEditedContent =
@@ -134,6 +150,8 @@ export type TSubmission = {
   isContinued?: boolean;
   isTemporary: boolean;
   messages: TMessage[];
+  /** Client-only full message context used to restore branch siblings after scoped regenerate. */
+  regenerateMessages?: TMessage[];
   isRegenerate?: boolean;
   initialResponse?: TMessage;
   conversation: Partial<TConversation>;
@@ -143,6 +161,8 @@ export type TSubmission = {
   editedContent?: TEditedContent | null;
   /** Added conversation for multi-convo feature */
   addedConvo?: TConversation;
+  /** Skills the user invoked via the `$` popover for this submission. */
+  manualSkills?: string[];
 };
 
 export type EventSubmission = Omit<TSubmission, 'initialResponse'> & { initialResponse: TMessage };
@@ -201,6 +221,7 @@ export type TUser = {
   avatar: string;
   role: string;
   provider: string;
+  tenantId?: string;
   plugins?: string[];
   twoFactorEnabled?: boolean;
   backupCodes?: TBackupCode[];
@@ -272,6 +293,43 @@ export type TUpdateConversationRequest = {
 
 export type TUpdateConversationResponse = TConversation;
 
+export type TChatProject = {
+  _id: string;
+  name: string;
+  description?: string;
+  user?: string;
+  conversationCount: number;
+  lastConversationAt?: string | null;
+  lastConversationId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TCreateChatProjectRequest = {
+  name: string;
+  description?: string;
+};
+
+export type TUpdateChatProjectRequest = Partial<TCreateChatProjectRequest> & {
+  projectId: string;
+};
+
+export type TDeleteChatProjectResponse = {
+  deletedCount: number;
+  modifiedCount: number;
+};
+
+export type TAssignConversationToProjectRequest = {
+  conversationId: string;
+  projectId: string | null;
+};
+
+export type TAssignConversationToProjectResponse = {
+  conversation: TConversation;
+  previousProjectId: string | null;
+  projectId: string | null;
+};
+
 export type TDeleteConversationRequest = {
   conversationId?: string;
   thread_id?: string;
@@ -295,19 +353,32 @@ export type TArchiveConversationRequest = {
 
 export type TArchiveConversationResponse = TConversation;
 
+export type TPinConversationRequest = {
+  conversationId: string;
+  pinned: boolean;
+};
+
+export type TPinConversationResponse = TConversation;
+
 export type TSharedMessagesResponse = Omit<TSharedLink, 'messages'> & {
   messages: TMessage[];
 };
 
 export type TCreateShareLinkRequest = Pick<TConversation, 'conversationId'>;
 
-export type TUpdateShareLinkRequest = Pick<TSharedLink, 'shareId'>;
+export type TUpdateShareLinkRequest = Pick<TSharedLink, 'shareId' | 'targetMessageId'>;
 
 export type TSharedLinkResponse = Pick<TSharedLink, 'shareId'> &
-  Pick<TConversation, 'conversationId'>;
+  Pick<TSharedLink, 'targetMessageId'> &
+  Pick<TConversation, 'conversationId'> & {
+    _id?: string;
+  };
 
-export type TSharedLinkGetResponse = TSharedLinkResponse & {
+export type TSharedLinkGetResponse = Omit<TSharedLinkResponse, 'shareId'> & {
+  shareId: string | null;
   success: boolean;
+  /** Per-link "share files" choice; absent on legacy links (treated as enabled). */
+  snapshotFiles?: boolean;
 };
 
 // type for getting conversation tags
@@ -366,6 +437,7 @@ export type TConfig = {
   azure?: boolean;
   availableTools?: [];
   availableRegions?: string[];
+  allowedProviders?: (string | EModelEndpoint)[];
   plugins?: Record<string, string>;
   name?: string;
   iconURL?: string;
@@ -373,11 +445,19 @@ export type TConfig = {
   modelDisplayLabel?: string;
   userProvide?: boolean | null;
   userProvideURL?: boolean | null;
+  userProvideAccessKeyId?: boolean;
+  userProvideSecretAccessKey?: boolean;
+  userProvideSessionToken?: boolean;
+  userProvideBearerToken?: boolean;
   disableBuilder?: boolean;
   retrievalModels?: string[];
   capabilities?: string[];
   customParams?: {
     defaultParamsEndpoint?: string;
+    reasoningFormat?: ReasoningParameterFormat;
+    reasoningKey?: ReasoningResponseKey;
+    includeReasoningContent?: boolean;
+    includeReasoningHistory?: boolean;
     paramDefinitions?: Partial<SettingDefinition>[];
   };
 };
@@ -387,6 +467,18 @@ export type TEndpointsConfig =
   | undefined;
 
 export type TModelsConfig = Record<string, string[]>;
+
+/** Server-resolved context window and pricing for one model. Rates are USD per 1M tokens. */
+export type TModelTokenomics = {
+  context?: number;
+  prompt?: number;
+  completion?: number;
+  cacheWrite?: number;
+  cacheRead?: number;
+};
+
+/** endpoint → model → resolved tokenomics, from GET /api/endpoints/token-config */
+export type TTokenConfigMap = Record<string, Record<string, TModelTokenomics>>;
 
 export type TUpdateTokenCountResponse = {
   count: number;
@@ -539,6 +631,7 @@ export type TPromptGroup = {
   productionPrompt?: Pick<TPrompt, 'prompt'> | null;
   author: string;
   authorName: string;
+  isPublic?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
   _id?: string;
@@ -587,9 +680,7 @@ export type TCreatePromptResponse = {
   group?: TPromptGroup;
 };
 
-export type TUpdatePromptGroupPayload = Partial<TPromptGroup> & {
-  removeProjectIds?: string[];
-};
+export type TUpdatePromptGroupPayload = Partial<TPromptGroup>;
 
 export type TUpdatePromptGroupVariables = {
   id: string;
@@ -673,7 +764,59 @@ export type TBalanceResponse = {
   // Automatic refill settings
   autoRefillEnabled: boolean;
   refillIntervalValue?: number;
-  refillIntervalUnit?: 'seconds' | 'minutes' | 'hours' | 'days' | 'weeks' | 'months';
-  lastRefill?: Date;
+  refillIntervalUnit?: RefillIntervalUnit;
+  lastRefill?: Date | string;
   refillAmount?: number;
+};
+
+/* -------------------------------------------------------------------------- */
+/* Skill UI extensions (not yet persisted — phase 2 backend will fill these)  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * @deprecated Superseded by the persisted `userInvocable` /
+ * `disableModelInvocation` pair derived from frontmatter. Retained for the
+ * transition window so older UI forms and tests still type-check; the
+ * backend no longer reads or writes it.
+ */
+export enum InvocationMode {
+  auto = 'auto',
+  manual = 'manual',
+  both = 'both',
+}
+
+/**
+ * Node in the filesystem-style skill tree view. Phase 1 derives these from
+ * the flat `TSkillFile[]` list; phase 2 will have the backend serve them
+ * directly from a persisted folder hierarchy. Kept in the shared types so
+ * tree UI helpers can be imported from both client and server.
+ */
+export type TSkillNode = {
+  _id: string;
+  skillId: string;
+  parentId: string | null;
+  type: 'file' | 'folder';
+  name: string;
+  fileId?: string;
+  order: number;
+  author: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TSkillTreeResponse = {
+  nodes: TSkillNode[];
+};
+
+export type TCreateSkillNodeRequest = {
+  type: 'file' | 'folder';
+  name: string;
+  parentId?: string | null;
+  order?: number;
+};
+
+export type TUpdateSkillNodeRequest = {
+  name?: string;
+  parentId?: string | null;
+  order?: number;
 };

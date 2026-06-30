@@ -1,10 +1,13 @@
 const mongoose = require('mongoose');
-const { logger, webSearchKeys } = require('@librechat/data-schemas');
+const { logger, getTenantId, webSearchKeys } = require('@librechat/data-schemas');
 const {
+  getNewS3URL,
+  needsRefresh,
   MCPOAuthHandler,
   MCPTokenStorage,
   normalizeHttpError,
   extractWebSearchEnvVars,
+  deleteAllSharedLinksWithCleanup,
 } = require('@librechat/api');
 const {
   Tools,
@@ -13,59 +16,57 @@ const {
   FileSources,
   ResourceType,
 } = require('librechat-data-provider');
-const {
-  deleteAllUserSessions,
-  deleteAllSharedLinks,
-  updateUserPlugins,
-  deleteUserById,
-  deleteMessages,
-  deletePresets,
-  deleteUserKey,
-  getUserById,
-  deleteConvos,
-  deleteFiles,
-  updateUser,
-  findToken,
-  getFiles,
-} = require('~/models');
-const {
-  ConversationTag,
-  AgentApiKey,
-  Transaction,
-  MemoryEntry,
-  Assistant,
-  AclEntry,
-  Balance,
-  Action,
-  Group,
-  Token,
-  User,
-} = require('~/db/models');
 const { updateUserPluginAuth, deleteUserPluginAuth } = require('~/server/services/PluginService');
 const { verifyOTPOrBackupCode } = require('~/server/services/twoFactorService');
 const { verifyEmail, resendVerificationEmail } = require('~/server/services/AuthService');
 const { getMCPManager, getFlowStateManager, getMCPServersRegistry } = require('~/config');
 const { invalidateCachedTools } = require('~/server/services/Config/getCachedTools');
-const { needsRefresh, getNewS3URL } = require('~/server/services/Files/S3/crud');
 const { processDeleteRequest } = require('~/server/services/Files/process');
 const { getAppConfig } = require('~/server/services/Config');
-const { deleteToolCalls } = require('~/models/ToolCall');
-const { deleteUserPrompts } = require('~/models/Prompt');
-const { deleteUserAgents } = require('~/models/Agent');
-const { getSoleOwnedResourceIds } = require('~/server/services/PermissionService');
 const { getLogStores } = require('~/cache');
+const db = require('~/models');
+
+const PUBLIC_USER_RESPONSE_FIELDS = [
+  '_id',
+  'id',
+  'name',
+  'username',
+  'email',
+  'emailVerified',
+  'avatar',
+  'provider',
+  'role',
+  'plugins',
+  'twoFactorEnabled',
+  'termsAccepted',
+  'personalization',
+  'favorites',
+  'skillStates',
+  'createdAt',
+  'updatedAt',
+  'tenantId',
+];
+
+const sanitizeUserForResponse = (user) => {
+  const source = user.toObject != null ? user.toObject() : user;
+  return PUBLIC_USER_RESPONSE_FIELDS.reduce((userData, field) => {
+    if (source[field] !== undefined) {
+      userData[field] = source[field];
+    }
+    return userData;
+  }, {});
+};
 
 const getUserController = async (req, res) => {
-  const appConfig = await getAppConfig({ role: req.user?.role });
+  const appConfig =
+    req.config ??
+    (await getAppConfig({
+      role: req.user?.role,
+      userId: req.user?.id,
+      tenantId: req.user?.tenantId,
+    }));
   /** @type {IUser} */
-  const userData = req.user.toObject != null ? req.user.toObject() : { ...req.user };
-  /**
-   * These fields should not exist due to secure field selection, but deletion
-   * is done in case of alternate database incompatibility with Mongo API
-   * */
-  delete userData.password;
-  delete userData.totpSecret;
-  delete userData.backupCodes;
+  const userData = sanitizeUserForResponse(req.user);
   if (appConfig.fileStrategy === FileSources.s3 && userData.avatar) {
     const avatarNeedsRefresh = needsRefresh(userData.avatar, 3600);
     if (!avatarNeedsRefresh) {
@@ -74,7 +75,7 @@ const getUserController = async (req, res) => {
     const originalAvatar = userData.avatar;
     try {
       userData.avatar = await getNewS3URL(userData.avatar);
-      await updateUser(userData.id, { avatar: userData.avatar });
+      await db.updateUser(userData.id, { avatar: userData.avatar });
     } catch (error) {
       userData.avatar = originalAvatar;
       logger.error('Error getting new S3 URL for avatar:', error);
@@ -85,7 +86,7 @@ const getUserController = async (req, res) => {
 
 const getTermsStatusController = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await db.getUserById(req.user.id, 'termsAccepted');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -98,7 +99,7 @@ const getTermsStatusController = async (req, res) => {
 
 const acceptTermsController = async (req, res) => {
   try {
-    const user = await User.findByIdAndUpdate(req.user.id, { termsAccepted: true }, { new: true });
+    const user = await db.updateUser(req.user.id, { termsAccepted: true });
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -111,7 +112,7 @@ const acceptTermsController = async (req, res) => {
 
 const deleteUserFiles = async (req) => {
   try {
-    const userFiles = await getFiles({ user: req.user.id });
+    const userFiles = await db.getFiles({ user: req.user.id });
     await processDeleteRequest({
       req,
       files: userFiles,
@@ -134,12 +135,13 @@ const deleteUserFiles = async (req) => {
 const deleteUserMcpServers = async (userId) => {
   try {
     const MCPServer = mongoose.models.MCPServer;
+    const AclEntry = mongoose.models.AclEntry;
     if (!MCPServer) {
       return;
     }
 
     const userObjectId = new mongoose.Types.ObjectId(userId);
-    const soleOwnedIds = await getSoleOwnedResourceIds(userObjectId, ResourceType.MCPSERVER);
+    const soleOwnedIds = await db.getSoleOwnedResourceIds(userObjectId, ResourceType.MCPSERVER);
 
     const authoredServers = await MCPServer.find({ author: userObjectId })
       .select('_id serverName')
@@ -194,12 +196,18 @@ const deleteUserMcpServers = async (userId) => {
 };
 
 const updateUserPluginsController = async (req, res) => {
-  const appConfig = await getAppConfig({ role: req.user?.role });
+  const appConfig =
+    req.config ??
+    (await getAppConfig({
+      role: req.user?.role,
+      userId: req.user?.id,
+      tenantId: req.user?.tenantId,
+    }));
   const { user } = req;
   const { pluginKey, action, auth, isEntityTool } = req.body;
   try {
     if (!isEntityTool) {
-      await updateUserPlugins(user._id, user.plugins, pluginKey, action);
+      await db.updateUserPlugins(user._id, user.plugins, pluginKey, action);
     }
 
     if (auth == null) {
@@ -323,7 +331,7 @@ const deleteUserController = async (req, res) => {
   const { user } = req;
 
   try {
-    const existingUser = await getUserById(
+    const existingUser = await db.getUserById(
       user.id,
       '+totpSecret +backupCodes _id twoFactorEnabled',
     );
@@ -339,38 +347,35 @@ const deleteUserController = async (req, res) => {
       }
     }
 
-    await deleteMessages({ user: user.id }); // delete user messages
-    await deleteAllUserSessions({ userId: user.id }); // delete user sessions
-    await Transaction.deleteMany({ user: user.id }); // delete user transactions
-    await deleteUserKey({ userId: user.id, all: true }); // delete user keys
-    await Balance.deleteMany({ user: user._id }); // delete user balances
-    await deletePresets(user.id); // delete user presets
+    await db.deleteMessages({ user: user.id });
+    await db.deleteAllUserSessions({ userId: user.id });
+    await db.deleteTransactions({ user: user.id });
+    await db.deleteUserKey({ userId: user.id, all: true });
+    await db.deleteBalances({ user: user._id });
+    await db.deletePresets(user.id);
     try {
-      await deleteConvos(user.id); // delete user convos
+      await db.deleteConvos(user.id);
     } catch (error) {
       logger.error('[deleteUserController] Error deleting user convos, likely no convos', error);
     }
-    await deleteUserPluginAuth(user.id, null, true); // delete user plugin auth
-    await deleteUserById(user.id); // delete user
-    await deleteAllSharedLinks(user.id); // delete user shared links
-    await deleteUserFiles(req); // delete user files
-    await deleteFiles(null, user.id); // delete database files in case of orphaned files from previous steps
-    await deleteToolCalls(user.id); // delete user tool calls
-    await deleteUserAgents(user.id); // delete user agents
-    await AgentApiKey.deleteMany({ user: user._id }); // delete user agent API keys
-    await Assistant.deleteMany({ user: user.id }); // delete user assistants
-    await ConversationTag.deleteMany({ user: user.id }); // delete user conversation tags
-    await MemoryEntry.deleteMany({ userId: user.id }); // delete user memory entries
-    await deleteUserPrompts(user.id); // delete user prompts
-    await deleteUserMcpServers(user.id); // delete user MCP servers
-    await Action.deleteMany({ user: user.id }); // delete user actions
-    await Token.deleteMany({ userId: user.id }); // delete user OAuth tokens
-    await Group.updateMany(
-      // remove user from all groups
-      { memberIds: user.id },
-      { $pull: { memberIds: user.id } },
-    );
-    await AclEntry.deleteMany({ principalId: user._id }); // delete user ACL entries
+    await deleteUserPluginAuth(user.id, null, true);
+    await db.deleteUserById(user.id);
+    await deleteAllSharedLinksWithCleanup(user.id);
+    await deleteUserFiles(req);
+    await db.deleteFiles(null, user.id);
+    await db.deleteToolCalls(user.id);
+    await db.deleteUserAgents(user.id);
+    await db.deleteAllAgentApiKeys(user._id);
+    await db.deleteAssistants({ user: user.id });
+    await db.deleteConversationTags({ user: user.id });
+    await db.deleteAllUserMemories(user.id);
+    await db.deleteUserPrompts(user.id);
+    await db.deleteUserSkills(user.id);
+    await deleteUserMcpServers(user.id);
+    await db.deleteActions({ user: user.id });
+    await db.deleteTokens({ userId: user.id });
+    await db.removeUserFromAllGroups(user.id);
+    await db.deleteAclEntries({ principalId: user._id });
     logger.info(`User deleted account. Email: ${user.email} ID: ${user.id}`);
     res.status(200).send({ message: 'User deleted' });
   } catch (err) {
@@ -383,7 +388,7 @@ const verifyEmailController = async (req, res) => {
   try {
     const verifyEmailService = await verifyEmail(req);
     if (verifyEmailService instanceof Error) {
-      return res.status(400).json(verifyEmailService);
+      return res.status(400).json({ message: verifyEmailService.message });
     } else {
       return res.status(200).json(verifyEmailService);
     }
@@ -397,9 +402,9 @@ const resendVerificationController = async (req, res) => {
   try {
     const result = await resendVerificationEmail(req);
     if (result instanceof Error) {
-      return res.status(400).json(result);
+      return res.status(400).json({ message: result.message });
     } else {
-      return res.status(200).json(result);
+      return res.status(result.status ?? 200).json({ message: result.message });
     }
   } catch (e) {
     logger.error('[verifyEmailController]', e);
@@ -407,9 +412,61 @@ const resendVerificationController = async (req, res) => {
   }
 };
 
-/**
- * OAuth MCP specific uninstall logic
- */
+/** Best-effort cleanup of stored MCP OAuth tokens and flow state. */
+const clearStoredMCPOAuthState = async (userId, serverName) => {
+  try {
+    await MCPTokenStorage.deleteUserTokens({
+      userId,
+      serverName,
+      deleteToken: async (filter) => {
+        await db.deleteTokens(filter);
+      },
+    });
+  } catch (error) {
+    logger.warn(
+      `[clearStoredMCPOAuthState] Failed to delete MCP OAuth tokens for ${serverName}:`,
+      error,
+    );
+  }
+
+  try {
+    const flowsCache = getLogStores(CacheKeys.FLOWS);
+    const flowManager = getFlowStateManager(flowsCache);
+    const baseFlowId = MCPOAuthHandler.generateFlowId(userId, serverName);
+    const tenantId = getTenantId();
+    const tokenFlowId = MCPOAuthHandler.generateTokenFlowId(userId, serverName, tenantId);
+    const oauthFlowId = MCPOAuthHandler.generateFlowId(userId, serverName, tenantId);
+    const flowDeletes = [
+      [tokenFlowId, 'mcp_get_tokens'],
+      [oauthFlowId, 'mcp_oauth'],
+      [baseFlowId, 'mcp_get_tokens'],
+      [baseFlowId, 'mcp_oauth'],
+    ].filter(
+      ([flowId, type], index, deletes) =>
+        deletes.findIndex(([candidateId, candidateType]) => {
+          return candidateId === flowId && candidateType === type;
+        }) === index,
+    );
+    const results = await Promise.allSettled(
+      flowDeletes.map(([flowId, type]) => flowManager.deleteFlow(flowId, type)),
+    );
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        logger.warn(
+          `[clearStoredMCPOAuthState] Failed to clear MCP OAuth flow state for ${serverName}:`,
+          result.reason,
+        );
+      }
+    }
+  } catch (error) {
+    logger.warn(
+      `[clearStoredMCPOAuthState] Failed to clear MCP OAuth flow state for ${serverName}:`,
+      error,
+    );
+  }
+};
+
+/** Revokes MCP OAuth tokens at the provider when possible, then clears local state. */
 const maybeUninstallOAuthMCP = async (userId, pluginKey, appConfig) => {
   if (!pluginKey.startsWith(Constants.mcp_prefix)) {
     // this is not an MCP server, so nothing to do here
@@ -421,28 +478,50 @@ const maybeUninstallOAuthMCP = async (userId, pluginKey, appConfig) => {
     (await getMCPServersRegistry().getServerConfig(serverName, userId)) ??
     appConfig?.mcpServers?.[serverName];
   const oauthServers = await getMCPServersRegistry().getOAuthServers(userId);
-  if (!oauthServers.has(serverName)) {
-    // this server does not use OAuth, so nothing to do here as well
+  if (!oauthServers.has(serverName) || !serverConfig) {
+    await clearStoredMCPOAuthState(userId, serverName);
     return;
   }
 
   // 1. get client info used for revocation (client id, secret)
-  const clientTokenData = await MCPTokenStorage.getClientInfoAndMetadata({
-    userId,
-    serverName,
-    findToken,
-  });
+  let clientTokenData = null;
+  try {
+    clientTokenData = await MCPTokenStorage.getClientInfoAndMetadata({
+      userId,
+      serverName,
+      findToken: db.findToken,
+    });
+  } catch (error) {
+    logger.warn(
+      `[maybeUninstallOAuthMCP] Unable to load OAuth client metadata for ${serverName}; clearing local MCP OAuth state only.`,
+      error,
+    );
+    await clearStoredMCPOAuthState(userId, serverName);
+    return;
+  }
   if (clientTokenData == null) {
+    logger.info(
+      `[maybeUninstallOAuthMCP] Missing OAuth client metadata for ${serverName}; clearing local MCP OAuth state only.`,
+    );
+    await clearStoredMCPOAuthState(userId, serverName);
     return;
   }
   const { clientInfo, clientMetadata } = clientTokenData;
 
   // 2. get decrypted tokens before deletion
-  const tokens = await MCPTokenStorage.getTokens({
-    userId,
-    serverName,
-    findToken,
-  });
+  let tokens = null;
+  try {
+    tokens = await MCPTokenStorage.getTokens({
+      userId,
+      serverName,
+      findToken: db.findToken,
+    });
+  } catch (error) {
+    logger.warn(
+      `[maybeUninstallOAuthMCP] Unable to load OAuth tokens for ${serverName}; clearing local token state.`,
+      error,
+    );
+  }
 
   // 3. revoke OAuth tokens at the provider
   const revocationEndpoint =
@@ -451,7 +530,10 @@ const maybeUninstallOAuthMCP = async (userId, pluginKey, appConfig) => {
     serverConfig.oauth?.revocation_endpoint_auth_methods_supported ??
     clientMetadata.revocation_endpoint_auth_methods_supported;
   const oauthHeaders = serverConfig.oauth_headers ?? {};
-  const allowedDomains = getMCPServersRegistry().getAllowedDomains();
+  // Use the request's merged (tenant/principal-scoped) allowlists so admin-panel mcpSettings
+  // overrides are honored for OAuth revocation, consistent with inspection/connection.
+  const allowedDomains = appConfig?.mcpSettings?.allowedDomains;
+  const allowedAddresses = appConfig?.mcpSettings?.allowedAddresses;
 
   if (tokens?.access_token) {
     try {
@@ -468,9 +550,13 @@ const maybeUninstallOAuthMCP = async (userId, pluginKey, appConfig) => {
         },
         oauthHeaders,
         allowedDomains,
+        allowedAddresses,
       );
     } catch (error) {
-      logger.error(`Error revoking OAuth access token for ${serverName}:`, error);
+      logger.error(
+        `[maybeUninstallOAuthMCP] Error revoking OAuth access token for ${serverName}:`,
+        error,
+      );
     }
   }
 
@@ -489,27 +575,18 @@ const maybeUninstallOAuthMCP = async (userId, pluginKey, appConfig) => {
         },
         oauthHeaders,
         allowedDomains,
+        allowedAddresses,
       );
     } catch (error) {
-      logger.error(`Error revoking OAuth refresh token for ${serverName}:`, error);
+      logger.error(
+        `[maybeUninstallOAuthMCP] Error revoking OAuth refresh token for ${serverName}:`,
+        error,
+      );
     }
   }
 
-  // 4. delete tokens from the DB after revocation attempts
-  await MCPTokenStorage.deleteUserTokens({
-    userId,
-    serverName,
-    deleteToken: async (filter) => {
-      await Token.deleteOne(filter);
-    },
-  });
-
-  // 5. clear the flow state for the OAuth tokens
-  const flowsCache = getLogStores(CacheKeys.FLOWS);
-  const flowManager = getFlowStateManager(flowsCache);
-  const flowId = MCPOAuthHandler.generateFlowId(userId, serverName);
-  await flowManager.deleteFlow(flowId, 'mcp_get_tokens');
-  await flowManager.deleteFlow(flowId, 'mcp_oauth');
+  // 4. delete tokens from the DB and clear the flow state after revocation attempts
+  await clearStoredMCPOAuthState(userId, serverName);
 };
 
 module.exports = {
@@ -521,4 +598,5 @@ module.exports = {
   updateUserPluginsController,
   resendVerificationController,
   deleteUserMcpServers,
+  maybeUninstallOAuthMCP,
 };

@@ -45,6 +45,7 @@ export const fullMimeTypesList = [
   'text/x-tex',
   'text/plain',
   'text/css',
+  'text/calendar',
   'text/vtt',
   'image/jpeg',
   'text/javascript',
@@ -60,6 +61,7 @@ export const fullMimeTypesList = [
   'application/vnd.coffeescript',
   'application/xml',
   'application/zip',
+  'application/x-zip-compressed',
   'application/x-parquet',
   'application/vnd.oasis.opendocument.text',
   'application/vnd.oasis.opendocument.spreadsheet',
@@ -109,6 +111,7 @@ export const codeInterpreterMimeTypesList = [
   'text/x-tex',
   'text/plain',
   'text/css',
+  'text/calendar',
   'image/jpeg',
   'text/javascript',
   'image/gif',
@@ -119,6 +122,7 @@ export const codeInterpreterMimeTypesList = [
   'application/typescript',
   'application/xml',
   'application/zip',
+  'application/x-zip-compressed',
   'application/x-parquet',
   ...excelFileTypes,
 ];
@@ -180,10 +184,10 @@ export const excelMimeTypes =
   /^application\/(vnd\.ms-excel|msexcel|x-msexcel|x-ms-excel|x-excel|x-dos_ms_excel|xls|x-xls|vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet)$/;
 
 export const textMimeTypes =
-  /^(text\/(x-c|x-csharp|tab-separated-values|x-c\+\+|x-h|x-java|html|markdown|x-php|x-python|x-script\.python|x-ruby|x-tex|plain|css|vtt|javascript|csv|xml))$/;
+  /^(text\/(x-c|x-csharp|tab-separated-values|x-c\+\+|x-h|x-java|html|markdown|x-php|x-python|x-script\.python|x-ruby|x-tex|plain|css|vtt|javascript|csv|xml|calendar))$/;
 
 export const applicationMimeTypes =
-  /^(application\/(epub\+zip|csv|json|msword|pdf|x-tar|x-sh|typescript|sql|yaml|x-parquet|vnd\.apache\.parquet|vnd\.coffeescript|vnd\.openxmlformats-officedocument\.(wordprocessingml\.document|presentationml\.presentation|spreadsheetml\.sheet)|vnd\.oasis\.opendocument\.(text|spreadsheet|presentation|graphics)|xml|zip))$/;
+  /^(application\/(epub\+zip|csv|json|msword|pdf|x-tar|x-sh|x-zip-compressed|typescript|sql|yaml|x-parquet|vnd\.apache\.parquet|vnd\.coffeescript|vnd\.openxmlformats-officedocument\.(wordprocessingml\.document|presentationml\.presentation|spreadsheetml\.sheet)|vnd\.oasis\.opendocument\.(text|spreadsheet|presentation|graphics)|xml|zip))$/;
 
 export const imageMimeTypes = /^image\/(jpeg|gif|png|webp|heic|heif)$/;
 
@@ -351,6 +355,10 @@ export const codeTypeMapping: { [key: string]: string } = {
   ods: 'application/vnd.oasis.opendocument.spreadsheet', // .ods - OpenDocument Spreadsheet
   odp: 'application/vnd.oasis.opendocument.presentation', // .odp - OpenDocument Presentation
   odg: 'application/vnd.oasis.opendocument.graphics', // .odg - OpenDocument Graphics
+  ics: 'text/calendar', // .ics - iCalendar
+  ical: 'text/calendar', // .ical - iCalendar
+  ifb: 'text/calendar', // .ifb - iCalendar free/busy
+  icalendar: 'text/calendar', // .icalendar - iCalendar
 };
 
 /** Maps image extensions to MIME types for formats browsers may not recognize */
@@ -361,7 +369,9 @@ export const imageTypeMapping: { [key: string]: string } = {
 
 /** Normalizes non-standard MIME types that browsers may report to their canonical forms */
 export const mimeTypeAliases: Readonly<Record<string, string>> = {
+  'application/x-zip-compressed': 'application/zip',
   'text/x-python-script': 'text/x-python',
+  'text/x-markdown': 'text/markdown',
 };
 
 /**
@@ -390,6 +400,7 @@ export const megabyte = 1024 * 1024;
 export const mbToBytes = (mb: number): number => mb * megabyte;
 
 const defaultSizeLimit = mbToBytes(512);
+const defaultSkillImportSizeLimit = mbToBytes(50);
 const defaultTokenLimit = 100000;
 const assistantsFileConfig = {
   fileLimit: 10,
@@ -419,6 +430,9 @@ export const fileConfig = {
       disabled: false,
     },
   },
+  skills: {
+    fileSizeLimit: defaultSkillImportSizeLimit,
+  },
   serverFileSizeLimit: defaultSizeLimit,
   avatarSizeLimit: mbToBytes(2),
   fileTokenLimit: defaultTokenLimit,
@@ -442,22 +456,7 @@ export const fileConfig = {
   },
 };
 
-const supportedMimeTypesSchema = z
-  .array(z.any())
-  .optional()
-  .refine(
-    (mimeTypes) => {
-      if (!mimeTypes) {
-        return true;
-      }
-      return mimeTypes.every(
-        (mimeType) => mimeType instanceof RegExp || typeof mimeType === 'string',
-      );
-    },
-    {
-      message: 'Each mimeType must be a string or a RegExp object.',
-    },
-  );
+const supportedMimeTypesSchema = z.array(z.string()).optional();
 
 export const endpointFileConfigSchema = z.object({
   disabled: z.boolean().optional(),
@@ -467,8 +466,13 @@ export const endpointFileConfigSchema = z.object({
   supportedMimeTypes: supportedMimeTypesSchema.optional(),
 });
 
+const skillFileConfigSchema = z.object({
+  fileSizeLimit: z.number().min(0).optional(),
+});
+
 export const fileConfigSchema = z.object({
   endpoints: z.record(endpointFileConfigSchema).optional(),
+  skills: skillFileConfigSchema.optional(),
   serverFileSizeLimit: z.number().min(0).optional(),
   avatarSizeLimit: z.number().min(0).optional(),
   fileTokenLimit: z.number().min(0).optional(),
@@ -511,6 +515,14 @@ export const convertStringsToRegex = (patterns: string[]): RegExp[] =>
     }
     return acc;
   }, []);
+
+/** Detects whether the given MIME type patterns accept all file types (e.g., `.*` or `.+`). */
+export const isPermissiveMimeConfig = (types?: RegExp[]): boolean => {
+  if (!types || types.length === 0) {
+    return false;
+  }
+  return types.some((regex) => regex.test('x-librechat/x-probe'));
+};
 
 /**
  * Gets the appropriate endpoint file configuration with standardized lookup logic.
@@ -652,6 +664,9 @@ export function mergeFileConfig(dynamic: z.infer<typeof fileConfigSchema> | unde
     endpoints: {
       ...fileConfig.endpoints,
     },
+    skills: {
+      ...fileConfig.skills,
+    },
     ocr: {
       ...fileConfig.ocr,
       supportedMimeTypes: fileConfig.ocr?.supportedMimeTypes || [],
@@ -681,6 +696,13 @@ export function mergeFileConfig(dynamic: z.infer<typeof fileConfigSchema> | unde
     mergedConfig.fileTokenLimit = dynamic.fileTokenLimit;
   }
 
+  if (dynamic.skills?.fileSizeLimit !== undefined) {
+    mergedConfig.skills = {
+      ...mergedConfig.skills,
+      fileSizeLimit: mbToBytes(dynamic.skills.fileSizeLimit),
+    };
+  }
+
   // Merge clientImageResize configuration
   if (dynamic.clientImageResize !== undefined) {
     mergedConfig.clientImageResize = {
@@ -690,22 +712,24 @@ export function mergeFileConfig(dynamic: z.infer<typeof fileConfigSchema> | unde
   }
 
   if (dynamic.ocr !== undefined) {
+    const { supportedMimeTypes: ocrMimeTypes, ...ocrRest } = dynamic.ocr;
     mergedConfig.ocr = {
       ...mergedConfig.ocr,
-      ...dynamic.ocr,
+      ...ocrRest,
     };
-    if (dynamic.ocr.supportedMimeTypes) {
-      mergedConfig.ocr.supportedMimeTypes = convertStringsToRegex(dynamic.ocr.supportedMimeTypes);
+    if (ocrMimeTypes) {
+      mergedConfig.ocr.supportedMimeTypes = convertStringsToRegex(ocrMimeTypes);
     }
   }
 
   if (dynamic.text !== undefined) {
+    const { supportedMimeTypes: textMimeTypes, ...textRest } = dynamic.text;
     mergedConfig.text = {
       ...mergedConfig.text,
-      ...dynamic.text,
+      ...textRest,
     };
-    if (dynamic.text.supportedMimeTypes) {
-      mergedConfig.text.supportedMimeTypes = convertStringsToRegex(dynamic.text.supportedMimeTypes);
+    if (textMimeTypes) {
+      mergedConfig.text.supportedMimeTypes = convertStringsToRegex(textMimeTypes);
     }
   }
 

@@ -28,6 +28,7 @@ export interface IPreset extends Document {
   file_ids?: string[];
   resendImages?: boolean;
   promptCache?: boolean;
+  promptCacheTtl?: '5m' | '1h';
   thinking?: boolean;
   thinkingBudget?: number;
   effort?: string;
@@ -51,15 +52,16 @@ export interface IPreset extends Document {
   verbosity?: string;
   useResponsesApi?: boolean;
   web_search?: boolean;
+  url_context?: boolean;
   disableStreaming?: boolean;
   fileTokenLimit?: number;
+  tenantId?: string;
 }
 
 const presetSchema: Schema<IPreset> = new Schema(
   {
     presetId: {
       type: String,
-      unique: true,
       required: true,
       index: true,
     },
@@ -79,8 +81,14 @@ const presetSchema: Schema<IPreset> = new Schema(
       type: Number,
     },
     ...conversationPreset,
+    tenantId: {
+      type: String,
+      index: true,
+    },
   },
   { timestamps: true },
 );
+
+presetSchema.index({ presetId: 1, tenantId: 1 }, { unique: true });
 
 export default presetSchema;

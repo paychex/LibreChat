@@ -11,6 +11,9 @@ module.exports = {
       delete: jest.fn(),
     })),
     logAxiosError: jest.fn(),
+    restoreTenantContextFromReq: jest.fn((req, res, next) => next()),
+    deleteConvoSharedLinksWithCleanup: jest.fn(),
+    deleteAllSharedLinksWithCleanup: jest.fn(),
     ...overrides,
   }),
 
@@ -48,8 +51,13 @@ module.exports = {
   toolCallModel: () => ({ deleteToolCalls: jest.fn() }),
 
   sharedModels: () => ({
+    getConvosByCursor: jest.fn(),
+    getConvo: jest.fn(),
+    deleteConvos: jest.fn(),
+    saveConvo: jest.fn(),
     deleteAllSharedLinks: jest.fn(),
     deleteConvoSharedLink: jest.fn(),
+    deleteToolCalls: jest.fn(),
   }),
 
   requireJwtAuth: () => (req, res, next) => next(),

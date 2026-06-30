@@ -56,6 +56,229 @@ check_pattern() {
     fi
 }
 
+echo "======================================"
+echo "POST-MERGE STRUCTURAL CHECKS"
+echo "======================================"
+echo ""
+
+# ─── 0a. Conflict Marker Scan ────────────────────────────────────────────────
+echo "0a. Conflict Marker Scan"
+# Searches all tracked source files for unresolved git conflict markers.
+# git grep respects .gitignore so node_modules are automatically excluded.
+CONFLICT_FILES=$(git grep -rl "^<<<<<<< " -- "*.js" "*.ts" "*.tsx" "*.json" "*.yaml" "*.yml" "*.md" 2>/dev/null)
+if [ -n "$CONFLICT_FILES" ]; then
+    echo -e "${RED}✗ FAIL${NC}: Unresolved git conflict markers found in the following files:"
+    echo "$CONFLICT_FILES" | while IFS= read -r f; do
+        echo "         $f"
+        git grep -n "^<<<<<<< " -- "$f" | head -3 | while IFS= read -r line; do echo "           $line"; done
+    done
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+else
+    echo -e "${GREEN}✓ PASS${NC}: No unresolved conflict markers found in tracked source files"
+    PASS_COUNT=$((PASS_COUNT + 1))
+fi
+
+echo ""
+
+# ─── 0b. JavaScript Syntax Validation ───────────────────────────────────────
+echo "0b. JavaScript Syntax Validation (node --check on api/**/*.js)"
+# Runs Node.js parser-only check on every JS file under api/.
+# A duplicate const, stray token, or merge artifact in one file will crash
+# every test suite that transitively imports it — catching this early prevents
+# 20+ test suites from failing simultaneously in CI.
+JS_ERROR_COUNT=0
+while IFS= read -r -d '' jsfile; do
+    ERROR_OUTPUT=$(node --check "$jsfile" 2>&1)
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}✗ FAIL${NC}: Syntax error in $jsfile"
+        echo "$ERROR_OUTPUT" | head -5 | while IFS= read -r line; do echo "         $line"; done
+        JS_ERROR_COUNT=$((JS_ERROR_COUNT + 1))
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+done < <(find api/ -name "*.js" -not -path "*/node_modules/*" -print0 2>/dev/null)
+
+if [ $JS_ERROR_COUNT -eq 0 ]; then
+    echo -e "${GREEN}✓ PASS${NC}: All api/**/*.js files pass Node.js syntax check"
+    PASS_COUNT=$((PASS_COUNT + 1))
+fi
+
+echo ""
+
+# ─── 0c. TypeScript Type Check ──────────────────────────────────────────────
+echo "0c. TypeScript Type Check (packages/api tsc --noEmit)"
+# Catches broken imports, missing exports, and wrong type paths that surface
+# as CI failures but are invisible without running the compiler.
+# Requires: npm install already run and sibling packages built.
+if [ -f "packages/api/tsconfig.json" ]; then
+    TS_OUTPUT=$(cd packages/api && npx tsc --noEmit 2>&1)
+    TS_EXIT=$?
+    TS_ERROR_COUNT=$(echo "$TS_OUTPUT" | grep -c "error TS" || true)
+    if [ $TS_EXIT -eq 0 ]; then
+        echo -e "${GREEN}✓ PASS${NC}: packages/api TypeScript type check passed (0 errors)"
+        PASS_COUNT=$((PASS_COUNT + 1))
+    else
+        echo -e "${RED}✗ FAIL${NC}: packages/api TypeScript type check found $TS_ERROR_COUNT error(s)"
+        echo "$TS_OUTPUT" | grep "error TS" | head -10 | while IFS= read -r line; do echo "         $line"; done
+        if [ "$TS_ERROR_COUNT" -gt 10 ]; then
+            echo "         ... ($(( TS_ERROR_COUNT - 10 )) more errors — run: cd packages/api && npx tsc --noEmit)"
+        fi
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+else
+    echo -e "${YELLOW}⚠ WARN${NC}: packages/api/tsconfig.json not found — skipping TS check"
+    WARN_COUNT=$((WARN_COUNT + 1))
+fi
+
+echo ""
+
+# ─── 0d. Package API Export Validation ──────────────────────────────────────
+echo "0d. Package API Export Validation (@librechat/api and @librechat/data-schemas)"
+# When upstream moves a function from one package to another (e.g., createTempChatExpirationDate
+# moved from @librechat/api to @librechat/data-schemas in v0.8.6), JS files that destructure
+# from the old package silently receive `undefined` at runtime — invisible to node --check and tsc.
+# This check scans api/**/*.js for all destructured require() imports from these packages and
+# verifies each named export still exists in the installed package version.
+PKG_EXPORT_ERRORS=$(node --no-warnings - << 'NODEJS_EOF'
+const fs = require('fs');
+const { execSync } = require('child_process');
+const PKGS = ['@librechat/api', '@librechat/data-schemas'];
+const pattern = /const\s*\{([^}]+)\}\s*=\s*require\(['"](@librechat\/(?:api|data-schemas))['"]\)/g;
+const used = {};
+
+let files;
+try {
+  files = execSync('find api/ -name "*.js" -not -path "*/node_modules/*" 2>/dev/null')
+    .toString().trim().split('\n').filter(Boolean);
+} catch (e) {
+  process.exit(0); // find not available; skip check
+}
+
+for (const file of files) {
+  let src;
+  try { src = fs.readFileSync(file, 'utf8'); } catch (e) { continue; }
+  let m;
+  while ((m = pattern.exec(src)) !== null) {
+    const pkg = m[2];
+    if (!used[pkg]) used[pkg] = {};
+    m[1].split(',')
+      .map(s => s.trim().replace(/\/\/.*$/, '').split(/\s+as\s+/)[0].trim())
+      .filter(Boolean)
+      .forEach(name => { if (!used[pkg][name]) used[pkg][name] = []; used[pkg][name].push(file); });
+  }
+}
+
+const missing = [];
+for (const pkg of PKGS) {
+  if (!used[pkg]) continue;
+  let pkgExp;
+  try { pkgExp = require(pkg); } catch (e) {
+    process.stderr.write('WARN: could not require ' + pkg + ' — skipping export check\n');
+    continue;
+  }
+  for (const [name, files] of Object.entries(used[pkg])) {
+    if (!(name in pkgExp)) {
+      missing.push('MISSING ' + name + ' from ' + pkg + ' (used in ' + files[0] + ')');
+    }
+  }
+}
+
+if (missing.length > 0) { missing.forEach(l => process.stderr.write(l + '\n')); process.exit(1); }
+NODEJS_EOF
+2>&1)
+PKG_EXIT=$?
+if [ $PKG_EXIT -ne 0 ]; then
+  echo -e "${RED}✗ FAIL${NC}: Package exports missing — a function likely moved between @librechat packages:"
+  echo "$PKG_EXPORT_ERRORS" | while IFS= read -r line; do echo "         $line"; done
+  echo "         Fix: update the require() source to match where the function now lives."
+  FAIL_COUNT=$((FAIL_COUNT + 1))
+else
+  if echo "$PKG_EXPORT_ERRORS" | grep -q "WARN:"; then
+    echo -e "${YELLOW}⚠ WARN${NC}: Some packages could not be required — run 'npm install' first"
+    WARN_COUNT=$((WARN_COUNT + 1))
+  else
+    echo -e "${GREEN}✓ PASS${NC}: All @librechat package imports are valid exports"
+    PASS_COUNT=$((PASS_COUNT + 1))
+  fi
+fi
+
+echo ""
+
+# ─── 0e. Intra-repo Require Export Validation ───────────────────────────────
+echo "0e. Intra-repo Require Export Validation (key internal modules)"
+# When upstream moves a function between internal api/ files (e.g., getSoleOwnedResourceIds
+# moved from PermissionService.js to api/models/index.js in v0.8.6 commit 87a3b82),
+# the importing file silently gets `undefined`. Unlike 0d (which covers @librechat/ packages),
+# this check uses a static grep to confirm that names destructured from key internal modules
+# are still present in those modules' module.exports blocks.
+INTERNAL_FAIL=0
+
+# Usage: check_internal_require FILE_IMPORTING ALIAS_USED MODULE_FILE
+# Greps FILE_IMPORTING for destructured require(ALIAS_USED) imports, then checks each
+# name exists in MODULE_FILE (either in module.exports block or as a named export pattern).
+check_internal_require() {
+  local importer_glob="$1"   # glob of files that import from the module, e.g. "api/models/*.js"
+  local require_alias="$2"   # alias used in require(), e.g. "~/server/services/PermissionService"
+  local module_file="$3"     # path to the module being imported
+
+  if [ ! -f "$module_file" ]; then
+    echo -e "${YELLOW}⚠ WARN${NC}: Module file not found: $module_file"
+    WARN_COUNT=$((WARN_COUNT + 1))
+    return
+  fi
+
+  # Extract what module_file exports (names that appear in or near module.exports)
+  local exports_block
+  exports_block=$(awk '/module\.exports\s*=\s*\{/,/^\}/' "$module_file" 2>/dev/null)
+
+  for importer in $importer_glob; do
+    [ -f "$importer" ] || continue
+    # Get all destructured names from require(alias) in this file
+    local names
+    names=$(grep "require('$require_alias')\|require(\"$require_alias\")" "$importer" 2>/dev/null \
+      | grep -oP "(?<=\{)[^}]+" \
+      | tr ',' '\n' \
+      | sed 's/[[:space:]]//g; s|//.*||' \
+      | grep -v '^$')
+    while IFS= read -r name; do
+      [ -z "$name" ] && continue
+      # Check if name appears in the exports block OR is spread-exported (module exports ...methods)
+      if ! echo "$exports_block" | grep -qw "$name" && \
+         ! grep -qP "^\s+$name[,\s]" "$module_file"; then
+        echo -e "${RED}✗ FAIL${NC}: '$name' imported from '$require_alias' in $importer — not found in $module_file exports"
+        INTERNAL_FAIL=$((INTERNAL_FAIL + 1))
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+      fi
+    done <<< "$names"
+  done
+}
+
+# PermissionService.js: Paychex model files import from here; functions move upstream frequently
+check_internal_require "api/models/*.js" "~/server/services/PermissionService" \
+  "api/server/services/PermissionService.js"
+
+if [ $INTERNAL_FAIL -eq 0 ]; then
+  echo -e "${GREEN}✓ PASS${NC}: All destructured imports from key internal modules are present in their exports"
+  PASS_COUNT=$((PASS_COUNT + 1))
+fi
+
+echo ""
+
+# ─── 0f. Paychex-added @librechat/api source exports ────────────────────────
+echo "0f. Paychex-added @librechat/api source exports (packages/api/src/utils/index.ts)"
+# packages/api/src/utils/index.ts is overwritten by upstream merges (both upstream and
+# Paychex modify it). Paychex-added re-exports (e.g. schema.ts for sanitizeSchemaMetadata)
+# are silently dropped when upstream's version wins the merge. Check 0d only validates the
+# compiled dist, which is stale until npm run build:api is run — so this check validates
+# the SOURCE directly and catches the drop before a rebuild exposes it at runtime.
+check_pattern \
+    "packages/api/src/utils/index.ts" \
+    "export \* from './schema'" \
+    "sanitizeSchemaMetadata source export present (packages/api/src/utils/index.ts re-exports schema.ts)" \
+    "critical"
+
+echo ""
+
+echo "======================================"
 echo "Checking Critical Paychex Customizations..."
 echo ""
 
@@ -141,6 +364,46 @@ check_pattern \
     "packages/client/src/components/DropdownPopup.tsx" \
     "transition-colors duration-200" \
     "CSS transitions for smooth hover effects" \
+    "warning"
+
+echo ""
+
+# 5b. File Attach Menu Descriptions
+echo "5b. File Attach Menu Descriptions (AttachFileMenu.tsx + translation.json)"
+check_pattern \
+    "client/src/components/Chat/Input/Files/AttachFileMenu.tsx" \
+    "com_ui_upload_image_input_description" \
+    "Upload Image menu item has description property" \
+    "warning"
+
+check_pattern \
+    "client/src/components/Chat/Input/Files/AttachFileMenu.tsx" \
+    "com_ui_upload_ocr_text_description" \
+    "Upload as Text menu item has description property" \
+    "warning"
+
+check_pattern \
+    "client/src/components/Chat/Input/Files/AttachFileMenu.tsx" \
+    "com_ui_upload_provider_description" \
+    "Upload to Provider menu item has description property" \
+    "warning"
+
+check_pattern \
+    "client/src/locales/en/translation.json" \
+    "com_ui_upload_image_input_description" \
+    "Upload Image description locale key exists in translation.json" \
+    "warning"
+
+check_pattern \
+    "client/src/locales/en/translation.json" \
+    "com_ui_upload_ocr_text_description" \
+    "Upload as Text description locale key exists in translation.json" \
+    "warning"
+
+check_pattern \
+    "client/src/locales/en/translation.json" \
+    "com_ui_upload_provider_description" \
+    "Upload to Provider description locale key exists in translation.json" \
     "warning"
 
 echo ""
@@ -416,6 +679,223 @@ else
 fi
 
 echo ""
+
+# 17. SSO Rate Limit Fix
+echo "17. SSO Rate Limit Fix (loginLimiter.js)"
+check_pattern \
+    "api/server/middleware/limiters/loginLimiter.js" \
+    "skipSuccessfulRequests: true" \
+    "skipSuccessfulRequests prevents SSO redirect 302s from counting against login rate limit" \
+    "critical"
+
+echo ""
+
+# 18. OpenID Token Refresh Middleware
+echo "18. OpenID Token Refresh Middleware (refreshOpenIDToken.js)"
+check_pattern \
+    "api/server/middleware/refreshOpenIDToken.js" \
+    "isAccessTokenExpiredOrExpiringSoon" \
+    "Proactive access_token expiry detection before agent requests" \
+    "critical"
+
+check_pattern \
+    "api/server/middleware/refreshOpenIDToken.js" \
+    "_inflight" \
+    "Concurrent refresh deduplication map prevents invalid_grant race on Azure AD" \
+    "critical"
+
+check_pattern \
+    "api/server/routes/agents/index.js" \
+    "refreshOpenIDToken" \
+    "refreshOpenIDToken middleware wired into agents router" \
+    "critical"
+
+echo ""
+
+# 19. RAG Context 404 Graceful Handling
+echo "19. RAG Context 404 Graceful Handling (createContextHandlers.js)"
+check_pattern \
+    "api/app/clients/prompts/createContextHandlers.js" \
+    "Promise.allSettled" \
+    "Promise.allSettled isolates per-file 404 failures instead of crashing entire generation" \
+    "warning"
+
+echo ""
+
+# 20. MCP SSE Noise Reduction + stopReconnecting
+echo "20. MCP SSE Noise Reduction + stopReconnecting (connection.ts, MCPServerInspector.ts)"
+check_pattern \
+    "packages/api/src/mcp/connection.ts" \
+    "shouldStopReconnecting" \
+    "shouldStopReconnecting flag prevents reconnection storm after inspection disconnect" \
+    "warning"
+
+check_pattern \
+    "packages/api/src/mcp/registry/MCPServerInspector.ts" \
+    "stopReconnecting" \
+    "MCPServerInspector calls stopReconnecting() before disconnect for temp connections" \
+    "warning"
+
+echo ""
+
+# 21. Azure OpenAI Custom Icon (GPTIconDark)
+echo "21. Azure OpenAI Custom Icon (Icons.tsx)"
+check_pattern \
+    "client/src/hooks/Endpoint/Icons.tsx" \
+    "GPTIconDark" \
+    "Azure OpenAI uses GPTIconDark instead of AzureMinimalIcon for visual consistency" \
+    "warning"
+
+echo ""
+
+# 22. Paychex Changelog Link
+echo "22. Paychex Changelog Link (Footer.tsx, AccountSettings.tsx)"
+check_pattern \
+    "client/src/components/Chat/Footer.tsx" \
+    "changelogURL" \
+    "Changelog link rendered in chat footer from config.changelogURL" \
+    "warning"
+
+check_pattern \
+    "client/src/components/Nav/AccountSettings.tsx" \
+    "startupConfig?.changelogURL" \
+    "Changelog link rendered in account settings menu" \
+    "warning"
+
+echo ""
+
+# 23. Native DEFAULT Badge on ModelSpecItem
+echo "23. Native DEFAULT Badge (ModelSpecItem.tsx)"
+check_pattern \
+    "client/src/components/Chat/Menus/Endpoints/components/ModelSpecItem.tsx" \
+    "spec.default === true" \
+    "Native DEFAULT badge renders when spec.default is true (replaces Pendo-injected badge)" \
+    "warning"
+
+echo ""
+
+# 24. Claude SSE Parsing Fix for Kong
+echo "24. Claude SSE Parsing Fix for Kong (generators.ts)"
+check_pattern \
+    "packages/api/src/utils/generators.ts" \
+    "data.choices = \[\]" \
+    "Normalize missing choices array in Claude SSE chunks when Kong omits it" \
+    "critical"
+
+check_pattern \
+    "packages/api/src/utils/generators.ts" \
+    "Kong SSE" \
+    "Comment documenting Kong SSE workaround for parallel tool call and missing choices bugs" \
+    "warning"
+
+# 25. Prompt Catalog Route Wiring (file exists but must be mounted)
+echo "25. Prompt Catalog Route Wiring (prompthub.js → server mount)"
+check_pattern \
+    "api/server/routes/prompthub.js" \
+    "resolve-insert" \
+    "prompthub.js route file exists with POST /resolve-insert" \
+    "critical"
+
+check_pattern \
+    "api/server/routes/index.js" \
+    "require('./prompthub')" \
+    "prompthub imported in routes/index.js" \
+    "critical"
+
+check_pattern \
+    "api/server/routes/index.js" \
+    "prompthub," \
+    "prompthub exported from routes/index.js" \
+    "critical"
+
+check_pattern \
+    "api/server/index.js" \
+    "/api/prompthub" \
+    "prompthub route mounted in api/server/index.js" \
+    "critical"
+
+check_pattern \
+    "api/server/experimental.js" \
+    "/api/prompthub" \
+    "prompthub route mounted in api/server/experimental.js" \
+    "critical"
+
+echo ""
+
+# 26. MCP.js Import Dependencies (imports required by Gemini code paths)
+echo "26. MCP.js Import Dependencies"
+check_pattern \
+    "api/server/services/MCP.js" \
+    "ContentTypes" \
+    "ContentTypes imported (required by Gemini MCP result formatting at line ~752)" \
+    "critical"
+
+echo ""
+
+# 27. MCPConnection public stopReconnecting() method
+echo "27. MCPConnection stopReconnecting() Method (connection.ts)"
+check_pattern \
+    "packages/api/src/mcp/connection.ts" \
+    "public stopReconnecting" \
+    "Public stopReconnecting() method exists (called by MCPServerInspector for temp connections)" \
+    "critical"
+
+echo ""
+
+# 28. Paychex i18n Keys in translation.json
+# translation.json is the most dangerous merge file — Paychex keys are interleaved
+# alphabetically and get silently dropped when upstream regions are accepted wholesale.
+echo "28. Paychex i18n Keys (client/src/locales/en/translation.json)"
+TRANSLATION_FILE="client/src/locales/en/translation.json"
+
+check_pattern \
+    "$TRANSLATION_FILE" \
+    "com_ui_prompt_catalog_insert_error" \
+    "Prompt Catalog error toast key exists" \
+    "critical"
+
+check_pattern \
+    "$TRANSLATION_FILE" \
+    "com_nav_changelog" \
+    "Paychex Changelog nav link label exists" \
+    "warning"
+
+check_pattern \
+    "$TRANSLATION_FILE" \
+    "com_ui_default_model" \
+    "DEFAULT model badge label exists" \
+    "warning"
+
+check_pattern \
+    "$TRANSLATION_FILE" \
+    "com_ui_default_model_aria" \
+    "DEFAULT model badge aria label exists" \
+    "warning"
+
+echo ""
+
+# 29. Pendo Analytics (PendoInitializer in AuthLayout)
+echo "29. Pendo Analytics (PendoInitializer wrapping AuthLayout content)"
+check_pattern \
+    "client/src/routes/index.tsx" \
+    "PendoInitializer" \
+    "PendoInitializer component imported and used in routes/index.tsx" \
+    "critical"
+
+check_pattern \
+    "client/src/routes/index.tsx" \
+    "from '~/hooks/Pendo'" \
+    "PendoInitializer imported from ~/hooks/Pendo" \
+    "critical"
+
+check_pattern \
+    "client/src/hooks/Pendo/PendoInitializer.tsx" \
+    "usePendo" \
+    "PendoInitializer component file exists with usePendo hook" \
+    "critical"
+
+echo ""
+
 echo "======================================"
 echo "Verification Summary"
 echo "======================================"

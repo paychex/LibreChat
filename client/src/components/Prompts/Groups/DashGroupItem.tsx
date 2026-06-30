@@ -12,7 +12,7 @@ import {
   TrashIcon,
 } from '@librechat/client';
 import { useDeletePromptGroup, useUpdatePromptGroup } from '~/data-provider';
-import CategoryIcon from '~/components/Prompts/Groups/CategoryIcon';
+import CategoryIcon from '~/components/Prompts/utils/CategoryIcon';
 import { useLocalize, useResourcePermissions } from '~/hooks';
 import { useLiveAnnouncer } from '~/Providers';
 import { cn } from '~/utils';

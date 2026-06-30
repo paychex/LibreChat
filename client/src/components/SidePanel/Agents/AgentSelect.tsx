@@ -106,7 +106,26 @@ function AgentSelect({
           return;
         }
 
+        if (
+          name === 'skills' &&
+          Array.isArray(value) &&
+          value.every((item) => typeof item === 'string')
+        ) {
+          formValues[name] = value;
+          return;
+        }
+
+        if (name === 'skills_enabled' && typeof value === 'boolean') {
+          formValues[name] = value;
+          return;
+        }
+
         if (name === 'edges' && Array.isArray(value)) {
+          formValues[name] = value;
+          return;
+        }
+
+        if (name === 'subagents' && typeof value === 'object' && value !== null) {
           formValues[name] = value;
           return;
         }
@@ -215,7 +234,7 @@ function AgentSelect({
             ]
           }
           className={cn(
-            'z-50 flex h-[40px] w-full flex-none items-center justify-center truncate rounded-md bg-transparent font-bold',
+            'z-50 flex h-9 w-full flex-none items-center justify-center truncate rounded-md bg-transparent font-bold',
           )}
           ariaLabel={localize('com_ui_agent')}
           isCollapsed={false}

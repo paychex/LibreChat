@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { Tools } from './types/assistants';
 import type { TMessageContentParts, FunctionTool, FunctionToolCall } from './types/assistants';
-import { TFeedback, feedbackSchema } from './feedback';
 import type { SearchResultData } from './types/web';
 import type { TFile } from './types/files';
+import { TFeedback, feedbackSchema } from './feedback';
+import { Tools } from './types/assistants';
 
 export const isUUID = z.string().uuid();
 
@@ -77,6 +77,33 @@ const openAILikeProviders = new Set<string>([
 
 export const isOpenAILikeProvider = (provider?: string | null): boolean => {
   return openAILikeProviders.has(provider ?? '');
+};
+
+/**
+ * Providers whose `usage_metadata.input_tokens` ALREADY INCLUDES cached tokens
+ * (`input_token_details.cache_*` is a subset, not an additional charge):
+ * Google/Vertex (`promptTokenCount`), OpenAI/Azure (`prompt_tokens`), and the
+ * OpenAI-compatible family. `@librechat/agents`' `getAnthropicUsageMetadata`
+ * folds `cache_creation` + `cache_read` into `input_tokens`, so Anthropic is a
+ * subset provider too; without this the cache portion is billed twice. Bedrock
+ * stays additive — its Converse path passes AWS `inputTokens` through unmodified.
+ * Single source of truth shared by the backend billing path
+ * (`packages/api/src/agents/usage.ts`) and the client usage normalization.
+ */
+export const cacheSubsetProviders = new Set<string>([
+  Providers.OPENAI,
+  Providers.AZURE,
+  Providers.GOOGLE,
+  Providers.VERTEXAI,
+  Providers.XAI,
+  Providers.DEEPSEEK,
+  Providers.OPENROUTER,
+  Providers.MOONSHOT,
+  Providers.ANTHROPIC,
+]);
+
+export const inputTokensIncludesCache = (provider?: string | null): boolean => {
+  return cacheSubsetProviders.has(provider ?? '');
 };
 
 export const isDocumentSupportedProvider = (provider?: string | null): boolean => {
@@ -177,13 +204,47 @@ export enum ReasoningEffort {
   xhigh = 'xhigh',
 }
 
+export enum ReasoningParameterFormat {
+  disabled = 'disabled',
+  reasoningEffort = 'reasoning_effort',
+  reasoningObject = 'reasoning_object',
+}
+
+export enum ReasoningResponseKey {
+  reasoning = 'reasoning',
+  reasoningContent = 'reasoning_content',
+}
+
 export enum AnthropicEffort {
   unset = '',
   low = 'low',
   medium = 'medium',
   high = 'high',
+  xhigh = 'xhigh',
   max = 'max',
 }
+
+/**
+ * Controls whether the model's reasoning content is returned in responses.
+ *
+ * - `'auto'` - LibreChat decides: opt in to `'summarized'` for models that
+ *   omit by default (Opus 4.7+), leave the field off for older models.
+ * - `'summarized'` - always request a post-hoc summary of the reasoning.
+ * - `'omitted'` - always suppress reasoning content. Slightly lower latency.
+ *
+ * See https://platform.claude.com/docs/en/about-claude/models/whats-new-claude-4-7#thinking-content-omitted-by-default
+ */
+export enum ThinkingDisplay {
+  auto = 'auto',
+  summarized = 'summarized',
+  omitted = 'omitted',
+}
+
+/**
+ * Wire-level values accepted by the Anthropic Messages API `thinking.display`
+ * field. Excludes the LibreChat-only `'auto'` sentinel.
+ */
+export type ThinkingDisplayWireValue = Exclude<ThinkingDisplay, ThinkingDisplay.auto>;
 
 export enum BedrockReasoningConfig {
   low = 'low',
@@ -227,7 +288,10 @@ export const imageDetailValue = {
 
 export const eImageDetailSchema = z.nativeEnum(ImageDetail);
 export const eReasoningEffortSchema = z.nativeEnum(ReasoningEffort);
+export const eReasoningParameterFormatSchema = z.nativeEnum(ReasoningParameterFormat);
+export const eReasoningResponseKeySchema = z.nativeEnum(ReasoningResponseKey);
 export const eAnthropicEffortSchema = z.nativeEnum(AnthropicEffort);
+export const eThinkingDisplaySchema = z.nativeEnum(ThinkingDisplay);
 export const eReasoningSummarySchema = z.nativeEnum(ReasoningSummary);
 export const eVerbositySchema = z.nativeEnum(Verbosity);
 export const eThinkingLevelSchema = z.nativeEnum(ThinkingLevel);
@@ -258,11 +322,8 @@ export const defaultAgentFormValues = {
   tools: [],
   tool_options: {},
   provider: {},
-  projectIds: [],
   edges: [],
   artifacts: '',
-  /** @deprecated Use ACL permissions instead */
-  isCollaborative: false,
   recursion_limit: undefined,
   [Tools.execute_code]: false,
   [Tools.file_search]: false,
@@ -272,6 +333,16 @@ export const defaultAgentFormValues = {
     name: '',
     email: '',
   },
+  /** Optional allowlist. Only applies when `skills_enabled === true`.
+   *  Empty/undefined + enabled = full catalog; non-empty + enabled = narrow to ids. */
+  skills: undefined as string[] | undefined,
+  /** Master toggle for skill use on this agent. `true` activates skills
+   *  (full catalog unless `skills` narrows it). Anything else = inactive. */
+  skills_enabled: undefined as boolean | undefined,
+  /** `undefined` = feature disabled by default (no subagent tool injected). */
+  subagents: undefined as
+    | { enabled?: boolean; allowSelf?: boolean; agent_ids?: string[] }
+    | undefined,
 };
 
 export const ImageVisionTool: FunctionTool = {
@@ -335,15 +406,45 @@ export const openAISettings = {
   },
 };
 
+/**
+ * `65535` (not 65536) is the value valid on both Google AI Studio and Vertex AI:
+ * Vertex caps current Gemini text models at 65,535 output tokens, so defaulting to
+ * 65,536 would make otherwise-default Vertex requests fail validation.
+ */
+const GOOGLE_MAX_OUTPUT = 65535 as const;
+const GOOGLE_IMAGE_MAX_OUTPUT = 32768 as const;
+const GOOGLE_LEGACY_MAX_OUTPUT = 8192 as const;
+
+/**
+ * Resolves the documented max output-token limit for a Google/Gemini model.
+ * Current Gemini text models (2.5 and 3+) support 64K output tokens; their image
+ * variants (e.g. `gemini-2.5-flash-image`) cap at 32K; legacy/deprecated models
+ * (2.0 and earlier, including legacy image models) and Gemma retain the 8K limit.
+ */
+const getGoogleMaxOutputTokens = (modelName: string): number => {
+  if (/gemini-(?:2\.5|[3-9]|\d{2,})/i.test(modelName)) {
+    if (/image/i.test(modelName)) {
+      return GOOGLE_IMAGE_MAX_OUTPUT;
+    }
+    return GOOGLE_MAX_OUTPUT;
+  }
+  return GOOGLE_LEGACY_MAX_OUTPUT;
+};
+
 export const googleSettings = {
   model: {
     default: 'gemini-1.5-flash-latest' as const,
   },
   maxOutputTokens: {
     min: 1 as const,
-    max: 64000 as const,
+    max: GOOGLE_MAX_OUTPUT,
     step: 1 as const,
-    default: 8192 as const,
+    default: GOOGLE_LEGACY_MAX_OUTPUT,
+    reset: (modelName: string): number => getGoogleMaxOutputTokens(modelName),
+    set: (value: number, modelName: string): number => {
+      const max = getGoogleMaxOutputTokens(modelName);
+      return value > max ? max : value;
+    },
   },
   temperature: {
     min: 0 as const,
@@ -385,6 +486,27 @@ const CLAUDE_4_64K_MAX_OUTPUT = 64000 as const;
 const CLAUDE_32K_MAX_OUTPUT = 32000 as const;
 const DEFAULT_MAX_OUTPUT = 8192 as const;
 const LEGACY_ANTHROPIC_MAX_OUTPUT = 4096 as const;
+
+/**
+ * Claude "Mythos-class" model families — new top-level classes (peers of
+ * `opus`/`sonnet`/`haiku`) that ship with the post-Opus-4.7 modern profile:
+ * adaptive thinking always on, raw thinking omitted by default (summarized
+ * opt-in), sampling parameters rejected, and a 1M context window. The tier
+ * word is the class name itself, so the `opus`/`sonnet` version parsers don't
+ * cover them.
+ *
+ * Single source of truth: add a future sibling class name here and every
+ * Mythos-class gate (adaptive thinking, sampling omission, prompt caching, 1M
+ * context, 128K output) picks it up.
+ */
+export const MYTHOS_CLASS_FAMILIES = ['fable', 'mythos'] as const;
+const MYTHOS_CLASS_PATTERN = new RegExp(`claude-(?:${MYTHOS_CLASS_FAMILIES.join('|')})[-.]?\\d`);
+
+/** Whether the model is a Claude Mythos-class model (e.g. `claude-fable-5`). */
+export function isMythosClassModel(model: string): boolean {
+  return MYTHOS_CLASS_PATTERN.test(model);
+}
+
 export const anthropicSettings = {
   model: {
     default: 'claude-3-5-sonnet-latest' as const,
@@ -397,6 +519,9 @@ export const anthropicSettings = {
   },
   promptCache: {
     default: true as const,
+  },
+  promptCacheTtl: {
+    default: undefined,
   },
   thinking: {
     default: true as const,
@@ -413,6 +538,10 @@ export const anthropicSettings = {
     step: 1 as const,
     default: DEFAULT_MAX_OUTPUT,
     reset: (modelName: string) => {
+      if (isMythosClassModel(modelName)) {
+        return ANTHROPIC_MAX_OUTPUT;
+      }
+
       if (/claude-opus[-.]?(?:4[-.]?(?:[6-9]|\d{2,})|[5-9]|\d{2,})/.test(modelName)) {
         return ANTHROPIC_MAX_OUTPUT;
       }
@@ -432,6 +561,13 @@ export const anthropicSettings = {
       return DEFAULT_MAX_OUTPUT;
     },
     set: (value: number, modelName: string) => {
+      if (isMythosClassModel(modelName)) {
+        if (value > ANTHROPIC_MAX_OUTPUT) {
+          return ANTHROPIC_MAX_OUTPUT;
+        }
+        return value;
+      }
+
       if (/claude-opus[-.]?(?:4[-.]?(?:[6-9]|\d{2,})|[5-9]|\d{2,})/.test(modelName)) {
         if (value > ANTHROPIC_MAX_OUTPUT) {
           return ANTHROPIC_MAX_OUTPUT;
@@ -494,8 +630,13 @@ export const anthropicSettings = {
       AnthropicEffort.low,
       AnthropicEffort.medium,
       AnthropicEffort.high,
+      AnthropicEffort.xhigh,
       AnthropicEffort.max,
     ],
+  },
+  thinkingDisplay: {
+    default: ThinkingDisplay.auto,
+    options: [ThinkingDisplay.auto, ThinkingDisplay.summarized, ThinkingDisplay.omitted],
   },
   web_search: {
     default: false as const,
@@ -563,6 +704,8 @@ export const tPluginAuthConfigSchema = z.object({
   label: z.string(),
   description: z.string(),
   optional: z.boolean().optional(),
+  /** Whether the field holds a secret and should be masked in the UI (defaults to masked when omitted). */
+  sensitive: z.boolean().optional(),
 });
 
 export type TPluginAuthConfig = z.infer<typeof tPluginAuthConfigSchema>;
@@ -612,6 +755,8 @@ export const tMessageSchema = z.object({
   /** @deprecated */
   generation: z.string().nullable().optional(),
   isCreatedByUser: z.boolean(),
+  isTemporary: z.boolean().optional(),
+  expiredAt: z.string().nullable().optional(),
   error: z.boolean().optional(),
   clientTimestamp: z.string().optional(),
   createdAt: z
@@ -633,6 +778,49 @@ export const tMessageSchema = z.object({
   feedback: feedbackSchema.optional(),
   /** metadata */
   metadata: z.record(z.unknown()).optional(),
+  /** Output tokens for assistant messages, calibrated prompt-side estimate for user messages */
+  tokenCount: z.number().optional(),
+  contextMeta: z
+    .object({
+      calibrationRatio: z
+        .number()
+        .optional()
+        .describe(
+          'EMA ratio of provider-reported vs local token estimates; seeds the pruner on subsequent runs',
+        ),
+      encoding: z
+        .string()
+        .optional()
+        .describe(
+          'Tokenizer encoding used when this ratio was computed (e.g. "claude", "o200k_base")',
+        ),
+    })
+    .optional(),
+  /**
+   * Skill names the user invoked manually via the `$` popover on this turn.
+   * Purely UI metadata — `SkillPills` renders these above the message
+   * bubble so users can see which skills they asked for in history and on
+   * reload. Runtime resolution uses the top-level payload field with the
+   * same name. Empty / absent for model-invoked skills (shown as tool_call
+   * content parts on the assistant message instead).
+   */
+  manualSkills: z.array(z.string()).optional(),
+  /**
+   * Skill names auto-primed on this turn because their `always-apply`
+   * frontmatter flag is set. Persisted at turn time so the pinned-variant
+   * pills on the user bubble survive reload and stay stable across later
+   * edits to the skill's `alwaysApply` flag (the user bubble reflects
+   * what actually ran, not the current catalog).
+   */
+  alwaysAppliedSkills: z.array(z.string()).optional(),
+  /**
+   * Verbatim excerpts the user quoted (via the "Add to chat" selection
+   * popup) to reference on this turn. UI metadata that `MessageQuotes`
+   * renders above the user bubble so the references persist on reload. The
+   * excerpts are merged into the user message text sent to the model at
+   * request time and counted in the user message token count.
+   */
+  quotes: z.array(z.string()).optional(),
 });
 
 export type MemoryArtifact = {
@@ -711,6 +899,7 @@ export const tConversationSchema = z.object({
   endpoint: eModelEndpointSchema.nullable(),
   endpointType: eModelEndpointSchema.nullable().optional(),
   isArchived: z.boolean().optional(),
+  pinned: z.boolean().optional(),
   title: z.string().nullable().or(z.literal('New Chat')).default('New Chat'),
   user: z.string().optional(),
   messages: z.array(z.string()).optional(),
@@ -731,6 +920,7 @@ export const tConversationSchema = z.object({
   max_tokens: coerceNumber.optional(),
   /* Anthropic */
   promptCache: z.boolean().optional(),
+  promptCacheTtl: z.enum(['5m', '1h']).optional(),
   system: z.string().optional(),
   thinking: z.boolean().optional(),
   thinkingBudget: coerceNumber.optional(),
@@ -743,6 +933,7 @@ export const tConversationSchema = z.object({
   examples: z.array(tExampleSchema).optional(),
   /* DB */
   tags: z.array(z.string()).optional(),
+  chatProjectId: z.string().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   /* Files */
@@ -759,8 +950,12 @@ export const tConversationSchema = z.object({
   useResponsesApi: z.boolean().optional(),
   /* Anthropic: Effort control */
   effort: eAnthropicEffortSchema.optional().nullable(),
+  /* Anthropic: Thinking visibility (Opus 4.7+ opt-in) */
+  thinkingDisplay: eThinkingDisplaySchema.optional().nullable(),
   /* OpenAI Responses API / Anthropic API / Google API */
   web_search: z.boolean().optional(),
+  /* Google API: URL Context tool (+ native YouTube video understanding) */
+  url_context: z.boolean().optional(),
   /* disable streaming */
   disableStreaming: z.boolean().optional(),
   /* assistant */
@@ -784,6 +979,7 @@ export const tConversationSchema = z.object({
   iconURL: z.string().nullable().optional(),
   /* temporary chat */
   expiredAt: z.string().nullable().optional(),
+  isTemporary: z.boolean().optional(),
   /* file token limits */
   fileTokenLimit: coerceNumber.optional(),
   /** @deprecated */
@@ -795,6 +991,7 @@ export const tConversationSchema = z.object({
 export const tPresetSchema = tConversationSchema
   .omit({
     conversationId: true,
+    chatProjectId: true,
     createdAt: true,
     updatedAt: true,
     title: true,
@@ -869,6 +1066,8 @@ export const tQueryParamsSchema = tConversationSchema
     useResponsesApi: true,
     /** @endpoints openAI, anthropic, google */
     web_search: true,
+    /** @endpoints google */
+    url_context: true,
     /** @endpoints openAI, custom, azureOpenAI */
     disableStreaming: true,
     /** @endpoints google, anthropic, bedrock */
@@ -879,10 +1078,12 @@ export const tQueryParamsSchema = tConversationSchema
     maxOutputTokens: true,
     /** @endpoints anthropic */
     promptCache: true,
+    promptCacheTtl: true,
     thinking: true,
     thinkingBudget: true,
     thinkingLevel: true,
     effort: true,
+    thinkingDisplay: true,
     /** @endpoints bedrock */
     region: true,
     /** @endpoints bedrock */
@@ -910,6 +1111,34 @@ export const tQueryParamsSchema = tConversationSchema
     }),
   );
 
+/** Narrowed preset schema for use in model specs — omits system/DB/deprecated fields.
+ *
+ * `greeting` and `iconURL` are admin-configurable display fields on a model spec's
+ * preset (landing greeting, preset-level icon fallback) and must be preserved.
+ * `spec` is set by the client from `modelSpec.name` via `getModelSpecPreset` and is
+ * omitted to avoid duplicate configuration surface.
+ */
+export const tModelSpecPresetSchema = tPresetSchema.omit({
+  conversationId: true,
+  presetId: true,
+  title: true,
+  defaultPreset: true,
+  order: true,
+  isArchived: true,
+  user: true,
+  messages: true,
+  tags: true,
+  file_ids: true,
+  expiredAt: true,
+  parentMessageId: true,
+  resendImages: true,
+  chatGptLabel: true,
+  presetOverride: true,
+  spec: true,
+});
+
+export type TModelSpecPreset = z.infer<typeof tModelSpecPresetSchema>;
+
 export type TPreset = z.infer<typeof tPresetSchema>;
 
 export type TSetOption = (
@@ -924,8 +1153,8 @@ export type TConversation = z.infer<typeof tConversationSchema> & {
 export const tSharedLinkSchema = z.object({
   conversationId: z.string(),
   shareId: z.string(),
+  targetMessageId: z.string().optional(),
   messages: z.array(z.string()),
-  isPublic: z.boolean(),
   title: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -946,6 +1175,7 @@ export const tConversationTagSchema = z.object({
 export type TConversationTag = z.infer<typeof tConversationTagSchema>;
 
 export const googleBaseSchema = tConversationSchema.pick({
+  chatProjectId: true,
   model: true,
   modelLabel: true,
   promptPrefix: true,
@@ -959,6 +1189,7 @@ export const googleBaseSchema = tConversationSchema.pick({
   thinkingBudget: true,
   thinkingLevel: true,
   web_search: true,
+  url_context: true,
   fileTokenLimit: true,
   iconURL: true,
   greeting: true,
@@ -993,6 +1224,7 @@ export const googleGenConfigSchema = z
       })
       .optional(),
     web_search: z.boolean().optional(),
+    url_context: z.boolean().optional(),
   })
   .strip()
   .optional();
@@ -1017,6 +1249,7 @@ export function removeNullishValues<T extends Record<string, unknown>>(
 }
 
 const assistantBaseSchema = tConversationSchema.pick({
+  chatProjectId: true,
   model: true,
   assistant_id: true,
   instructions: true,
@@ -1052,6 +1285,7 @@ export const assistantSchema = assistantBaseSchema
   }));
 
 const compactAssistantBaseSchema = tConversationSchema.pick({
+  chatProjectId: true,
   model: true,
   assistant_id: true,
   instructions: true,
@@ -1067,6 +1301,7 @@ export const compactAssistantSchema = compactAssistantBaseSchema
   .catch(() => ({}));
 
 export const agentsBaseSchema = tConversationSchema.pick({
+  chatProjectId: true,
   model: true,
   modelLabel: true,
   temperature: true,
@@ -1120,6 +1355,7 @@ export const agentsSchema = agentsBaseSchema
   }));
 
 export const openAIBaseSchema = tConversationSchema.pick({
+  chatProjectId: true,
   model: true,
   modelLabel: true,
   chatGptLabel: true,
@@ -1150,13 +1386,18 @@ export const openAISchema = openAIBaseSchema
   .transform((obj: Partial<TConversation>) => removeNullishValues(obj, true))
   .catch(() => ({}));
 
+export const openRouterSchema = openAIBaseSchema
+  .merge(tConversationSchema.pick({ promptCache: true, promptCacheTtl: true }))
+  .transform((obj: Partial<TConversation>) => removeNullishValues(obj, true))
+  .catch(() => ({}));
+
 export const compactGoogleSchema = googleBaseSchema
   .transform((obj) => {
     const newObj: Partial<TConversation> = { ...obj };
     if (newObj.temperature === google.temperature.default) {
       delete newObj.temperature;
     }
-    if (newObj.maxOutputTokens === google.maxOutputTokens.default) {
+    if (newObj.maxOutputTokens === google.maxOutputTokens.reset(newObj.model ?? '')) {
       delete newObj.maxOutputTokens;
     }
     if (newObj.topP === google.topP.default) {
@@ -1171,6 +1412,7 @@ export const compactGoogleSchema = googleBaseSchema
   .catch(() => ({}));
 
 export const anthropicBaseSchema = tConversationSchema.pick({
+  chatProjectId: true,
   model: true,
   modelLabel: true,
   promptPrefix: true,
@@ -1180,9 +1422,11 @@ export const anthropicBaseSchema = tConversationSchema.pick({
   topK: true,
   resendFiles: true,
   promptCache: true,
+  promptCacheTtl: true,
   thinking: true,
   thinkingBudget: true,
   effort: true,
+  thinkingDisplay: true,
   artifacts: true,
   iconURL: true,
   greeting: true,
@@ -1211,6 +1455,7 @@ export const tBannerSchema = z.object({
 export type TBanner = z.infer<typeof tBannerSchema>;
 
 export const compactAgentsBaseSchema = tConversationSchema.pick({
+  chatProjectId: true,
   spec: true,
   // model: true,
   iconURL: true,

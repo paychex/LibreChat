@@ -1,8 +1,8 @@
 import { logger } from '@librechat/data-schemas';
 import type * as t from './types';
 import { MCPServersRegistry } from '~/mcp/registry/MCPServersRegistry';
+import { isUserSourced, requiresUserScopedConnection } from './utils';
 import { MCPConnectionFactory } from '~/mcp/MCPConnectionFactory';
-import { hasCustomUserVars } from './utils';
 import { MCPConnection } from './connection';
 
 const CONNECT_CONCURRENCY = 3;
@@ -78,13 +78,16 @@ export class ConnectionsRepository {
       }
     }
     const registry = MCPServersRegistry.getInstance();
+    const { allowedDomains, allowedAddresses, useSSRFProtection } =
+      await registry.resolveAllowlists({ userId: this.ownerId });
     const connection = await MCPConnectionFactory.create(
       {
         serverName,
         serverConfig,
-        dbSourced: !!(serverConfig as t.ParsedServerConfig).dbId,
-        useSSRFProtection: registry.shouldEnableSSRFProtection(),
-        allowedDomains: registry.getAllowedDomains(),
+        dbSourced: isUserSourced(serverConfig as t.ParsedServerConfig),
+        useSSRFProtection,
+        allowedDomains,
+        allowedAddresses,
       },
       this.oauthOpts,
     );
@@ -146,6 +149,8 @@ export class ConnectionsRepository {
    * App-level (shared) connections cannot serve servers that need per-user context:
    * env/header placeholders like `{{MY_KEY}}` are only resolved by `processMCPEnv()`
    * when real `customUserVars` values exist — which requires a user-level connection.
+   * OBO servers also require a user-level connection because each tool call
+   * uses the current user's bearer token.
    */
   private isAllowedToConnectToServer(config: t.ParsedServerConfig) {
     if (config.inspectionFailed) {
@@ -153,7 +158,7 @@ export class ConnectionsRepository {
     }
     if (
       this.ownerId === undefined &&
-      (config.startup === false || config.requiresOAuth || hasCustomUserVars(config))
+      (config.startup === false || requiresUserScopedConnection(config))
     ) {
       return false;
     }

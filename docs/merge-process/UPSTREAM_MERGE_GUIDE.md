@@ -2,7 +2,7 @@
 
 **Purpose:** Standard operating procedure for merging upstream LibreChat releases into the Paychex develop branch while preserving all custom functionality.
 
-**Last Updated:** April 2026 (v0.8.1 → v0.8.4 merge)
+**Last Updated:** June 2026 (updated for v0.8.6 target; reflects post-v0.8.4 Paychex customizations)
 
 ---
 
@@ -32,9 +32,8 @@
 
 ## 🎯 Merge Workflow
 
-### Phase 1: Analysis & Planning
+### Phase 1: Fetch & Identify Target Version
 
-#### 1.1 Fetch and Identify Target Version
 ```bash
 # Fetch latest upstream data
 git fetch upstream --tags
@@ -46,22 +45,48 @@ git tag -l "v0.*" | tail -20
 TARGET_VERSION="v0.8.5"
 ```
 
-#### 1.2 Analyze Scope of Changes
+---
+
+### Phase 2: Switch to (or Create) the Integration Branch
+
+All merge work is done directly on `upstream/v${TARGET_VERSION}-integration`. This branch may already exist with Paychex prep commits that must be preserved — **do not discard them**. Switch to it before running any analysis so all subsequent steps operate on the correct branch state.
+
 ```bash
-# Check merge base (common ancestor)
-git merge-base develop v${TARGET_VERSION}
+# Check if the integration branch already exists
+git branch -a | grep "upstream/v${TARGET_VERSION}-integration"
 
-# Count commits to merge
-git rev-list --left-right --count develop...v${TARGET_VERSION}
+# If it exists — use it
+git checkout upstream/v${TARGET_VERSION}-integration
+git pull origin upstream/v${TARGET_VERSION}-integration
 
-# Preview changed files
-git diff --stat develop v${TARGET_VERSION} | tail -30
-
-# Check for deletion conflicts
-git diff --name-status develop v${TARGET_VERSION} | grep "^D"
+# If it does NOT exist — create it from develop
+git checkout develop
+git pull origin develop
+git checkout -b upstream/v${TARGET_VERSION}-integration
 ```
 
-#### 1.3 Review Upstream Changelog
+Confirm you are on `upstream/v${TARGET_VERSION}-integration` before proceeding.
+
+---
+
+### Phase 3: Analyze Scope & Planning
+
+#### 3.1 Analyze Scope of Changes
+```bash
+# Check merge base (common ancestor)
+git merge-base upstream/v${TARGET_VERSION}-integration v${TARGET_VERSION}
+
+# Count commits to merge
+git rev-list --left-right --count upstream/v${TARGET_VERSION}-integration...v${TARGET_VERSION}
+
+# Preview changed files
+git diff --stat upstream/v${TARGET_VERSION}-integration v${TARGET_VERSION} | tail -30
+
+# Check for deletion conflicts
+git diff --name-status upstream/v${TARGET_VERSION}-integration v${TARGET_VERSION} | grep "^D"
+```
+
+#### 3.2 Review Upstream Changelog
 ```bash
 # Read what changed
 git show v${TARGET_VERSION}:CHANGELOG.md | head -200
@@ -80,13 +105,9 @@ Create a merge planning document with:
 
 ---
 
-### Phase 2: Create Merge Branch
+### Phase 4: Initiate Merge
 
 ```bash
-# Create new branch from develop
-git checkout develop
-git checkout -b merge-upstream-v${TARGET_VERSION}
-
 # Attempt merge (don't commit yet)
 git merge --no-commit --no-ff v${TARGET_VERSION}
 
@@ -98,9 +119,9 @@ git status --short | grep "^UU\|^AA\|^DD\|^DU\|^UD" | wc -l
 
 ---
 
-### Phase 3: Systematic Conflict Resolution
+### Phase 5: Systematic Conflict Resolution
 
-#### 3.1 Categorize Conflicts
+#### 5.1 Categorize Conflicts
 
 Create a conflict inventory:
 ```bash
@@ -116,7 +137,7 @@ echo -e "\n=== Added by Both (AA) ===" >> conflict_analysis.txt
 git status --short | grep "^AA" >> conflict_analysis.txt
 ```
 
-#### 3.2 Prioritize Resolution Order
+#### 5.2 Prioritize Resolution Order
 
 Resolve in this order:
 1. ✅ **Low-Risk**: Documentation, workflow files, test files
@@ -129,7 +150,7 @@ Resolve in this order:
 
 ---
 
-### Phase 4: Paychex Customization Preservation Rules
+### Phase 6: Paychex Customization Preservation Rules
 
 #### 🔒 **CRITICAL PAYCHEX CUSTOMIZATIONS** (Must Always Preserve)
 
@@ -142,16 +163,38 @@ Resolve in this order:
 | **Menu Descriptions** | `packages/client/src/components/DropdownPopup.tsx` | c9ae3725 | Enhanced UX for developers |
 | **OpenID Passthrough** | Header resolution logic | 6d0e02ac | LangGraph authentication |
 | **Dockerfile Build Fixes** | `Dockerfile` | d902674 | Proper error handling in CI/CD |
+| **MCPConnection stopReconnecting()** | `packages/api/src/mcp/connection.ts` | Post v0.8.4 | Public method called by MCPServerInspector for temp connections |
+| **MCP.js ContentTypes import** | `api/server/services/MCP.js` | Post v0.8.4 | Required by Gemini MCP result formatting code path |
+| **Prompt Catalog route wiring** | `routes/index.js`, `server/index.js`, `experimental.js` | e1a50fc | Route file alone is useless without mount |
+| **Paychex i18n keys** | `client/src/locales/en/translation.json` | Various | Interleaved keys silently dropped during merge |
+
+#### ⚠️ **High-Risk Merge Patterns (v0.8.6 lessons learned)**
+
+These failure modes were discovered during the v0.8.6 merge and are now guarded by the verification script:
+
+1. **Translation file silent drops**: `translation.json` is ~1750 lines, alphabetically sorted, and upstream rewrites large sections every release. Paychex keys interleaved throughout get silently dropped when upstream's version of a conflicted region is accepted. Always cross-reference `develop` for Paychex keys after resolving this file.
+
+2. **Barrel file / index wiring drops**: A route or module file can survive the merge while its `require()`/export in the corresponding `index.js` gets dropped. Always verify the full import → export → mount chain, not just the file's existence.
+
+3. **Import block truncation**: When upstream rewrites an import block (e.g., the `librechat-data-provider` destructure in MCP.js), Paychex-added imports like `ContentTypes` can be lost even though the code that uses them survives. Check that every symbol used in Paychex code paths is still imported.
+
+4. **Cross-file method contracts**: A method call in file A (e.g., `this.connection.stopReconnecting()`) can survive the merge while the method definition in file B gets dropped. Verify both sides of public API contracts.
+
+5. **Package API surface changes — function moved between packages**: Upstream may move a function from one package to another (e.g., `createTempChatExpirationDate` moved from `@librechat/api` → `@librechat/data-schemas` in v0.8.6). CommonJS files that still destructure from the old package silently receive `undefined` — no syntax error, no TypeScript error, just a runtime `TypeError: X is not a function` when the function is first called. **`node --check` and `tsc --noEmit` cannot detect this.** Use the package API export validation check (0d in the verification script, step 1d in the pre-commit checklist) to catch it.
+
+6. **`dbModels` model removal**: Upstream may remove a model from `createModels()` in `@librechat/data-schemas` (e.g., `Project` in v0.8.6). Since `api/db/models.js` spreads `...createModels(mongoose)`, the model silently disappears from `dbModels` exports. Any Paychex spec file that does `Project = dbModels.Project` and then calls `Project.create()` throws `TypeError: Cannot read properties of undefined (reading 'create')`. After each version bump, grep for `dbModels.X` patterns in Paychex spec files and verify each model is still exported from `api/db/models.js`.
+
+7. **Intra-repo function moves (silent no-op via try-catch)**: Upstream may consolidate functions between internal `api/` modules without updating all callers (e.g., `getSoleOwnedResourceIds` moved from `PermissionService.js` → `api/models/index.js` in v0.8.6 commit `87a3b82`). Unlike `@librechat/` package moves, this is NOT caught by check 0d. The caller destructures `undefined`, but model functions like `deleteUserPrompts` wrap everything in `try { ... } catch (error) { logger.error(...) }` — so the TypeError is swallowed and the entire operation silently becomes a no-op. Use check 0e (intra-repo require validation) or manually grep `PermissionService.js` exports after the merge.
 
 #### 🔍 **How to Identify Paychex Customizations**
 
 For each conflicting file:
 ```bash
 # Check what Paychex added since last merge
-git log develop --oneline -- <file_path> | grep -v "Merge"
+git log upstream/v${TARGET_VERSION}-integration --oneline -- <file_path> | grep -v "Merge"
 
 # See detailed changes
-git diff <LAST_UPSTREAM_VERSION> develop -- <file_path>
+git diff <LAST_UPSTREAM_VERSION> upstream/v${TARGET_VERSION}-integration -- <file_path>
 
 # Find commit that introduced key logic
 git log -p develop -- <file_path> | grep -B5 -A5 "<search_term>"
@@ -167,7 +210,7 @@ git log -p develop -- <file_path> | grep -B5 -A5 "<search_term>"
 
 ---
 
-### Phase 5: Conflict Resolution Decision Matrix
+### Phase 7: Conflict Resolution Decision Matrix
 
 Use this matrix for every conflicting file:
 
@@ -203,9 +246,9 @@ Use this matrix for every conflicting file:
 
 ---
 
-### Phase 6: File-Specific Handling
+### Phase 8: File-Specific Handling
 
-#### 6.1 Deleted Files (UD conflicts)
+#### 8.1 Deleted Files (UD conflicts)
 
 **Process:**
 1. Check if file contains Paychex customizations:
@@ -243,7 +286,7 @@ const {
 } = require('@librechat/api');
 ```
 
-#### 6.2 Modified Files (UU conflicts)
+#### 8.2 Modified Files (UU conflicts)
 
 **Critical Files Requiring Manual Review:**
 
@@ -272,8 +315,8 @@ git show v${TARGET_VERSION}:<file> > /tmp/upstream_version.txt
 diff -u /tmp/develop_version.txt /tmp/upstream_version.txt
 
 # 2. Check for Paychex customizations
-git log develop --oneline -- <file> | head -10
-git diff <LAST_UPSTREAM_VERSION> develop -- <file>
+git log upstream/v${TARGET_VERSION}-integration --oneline -- <file> | head -10
+git diff <LAST_UPSTREAM_VERSION> upstream/v${TARGET_VERSION}-integration -- <file>
 
 # 3a. If NO Paychex customizations:
 git checkout --theirs <file>
@@ -286,7 +329,7 @@ git add <file>
 # - Document decision in commit message
 ```
 
-#### 6.3 Configuration Files
+#### 8.3 Configuration Files
 
 **package.json conflicts:**
 - ✅ Accept upstream dependency versions unless Paychex pinned for stability
@@ -305,19 +348,64 @@ git add <file>
 
 ---
 
-### Phase 7: Verification & Testing
+### Phase 9: Verification & Testing
 
-#### 7.1 Pre-Commit Verification
+#### 9.1 Pre-Commit Verification
 
 ```bash
-# Check for lingering conflict markers
-git diff --check
+# ── STEP 1: Conflict marker scan (run this first — fast and critical) ────────
+# git diff --check is good but misses markers inside already-staged files.
+# git grep is exhaustive across all tracked source files.
+git grep -rn "^<<<<<<< " -- "*.js" "*.ts" "*.tsx" "*.json" "*.yaml" "*.yml" "*.md"
+# Must return EMPTY. Any output means an unresolved conflict marker remains.
 
-# Verify no unresolved conflicts
+# ── STEP 2: JavaScript syntax validation ─────────────────────────────────────
+# node --check parses each file without executing it — fast (seconds, not minutes).
+# A single duplicate `const` or stray merge token crashes every Jest test suite
+# that transitively imports the affected file (20+ suites failed in v0.8.6 from
+# one duplicated declaration in checkPeoplePickerAccess.js). This also catches
+# the "Identifier X has already been declared" error that the rollup:api
+# circular-dependency CI step reports (found in importConversations.js in v0.8.6).
+find api/ -name "*.js" -not -path "*/node_modules/*" | xargs -I{} node --check {}
+# Must complete with no output (errors print to stderr).
+
+# ── STEP 3: TypeScript type check ────────────────────────────────────────────
+# Catches broken import paths and missing exports that won't surface until CI.
+# (A wrong ~/types import in schema.spec.ts caused a TS2305 error in v0.8.6.)
+cd packages/api && npx tsc --noEmit 2>&1 | grep "error TS"
+cd ../..
+# Must return EMPTY.
+
+# ── STEP 4: Package API export validation ────────────────────────────────────
+# When upstream moves a function between @librechat packages, CommonJS files
+# silently receive `undefined` — invisible to node --check and tsc because
+# require() is a runtime operation. This catches it pre-commit.
+# (createTempChatExpirationDate moved @librechat/api → @librechat/data-schemas in v0.8.6)
+./scripts/verify-paychex-customizations.sh  # check 0d covers this automatically
+# OR run manually (requires npm install to have been run):
+# node --no-warnings -e "
+#   const PKGS=['@librechat/api','@librechat/data-schemas'];
+#   const {execSync}=require('child_process');const fs=require('fs');
+#   const pat=/const\s*\{([^}]+)\}\s*=\s*require\(['\"](@librechat\/(?:api|data-schemas))['\"]\)/g;
+#   const used={};
+#   const files=execSync('find api/ -name \"*.js\" -not -path \"*/node_modules/*\"').toString().trim().split('\n').filter(Boolean);
+#   for(const f of files){const s=fs.readFileSync(f,'utf8');let m;while((m=pat.exec(s))!==null){const p=m[2];if(!used[p])used[p]={};m[1].split(',').map(x=>x.trim().replace(/\/\/.*/,'').split(/\s+as\s+/)[0].trim()).filter(Boolean).forEach(n=>{if(!used[p][n])used[p][n]=[];used[p][n].push(f)});}}
+#   for(const p of PKGS){if(!used[p])continue;const e=require(p);for(const[n,fs]of Object.entries(used[p])){if(!(n in e))console.error('MISSING '+n+' from '+p+' ('+fs[0]+')');}}"
+# Must return EMPTY.
+
+# ── STEP 5: dbModels completeness check (after data-schemas version bump) ────
+# If upstream removed a model from createModels() in @librechat/data-schemas, it
+# silently disappears from dbModels — Paychex spec files calling dbModels.X.create()
+# throw TypeError: Cannot read properties of undefined. (Project removed in v0.8.6)
+grep -rh "dbModels\." api/ --include="*.spec.js" | grep -oP 'dbModels\.\K[A-Z][a-zA-Z]+' | sort -u
+# Compare this list against api/db/models.js. Any model NOT in that file needs to be added.
+
+# ── STEP 6: Unresolved conflict status ────────────────────────────────────────
+git diff --check
 git status --short | grep "^UU\|^AA\|^DD\|^DU\|^UD" | wc -l
 # Should output: 0
 
-# Check for syntax errors
+# Check for syntax errors in build
 npm run build 2>&1 | grep -i "error"
 
 # Verify critical Paychex customizations
@@ -368,7 +456,7 @@ grep -n "hasStoredModelSelection" client/src/routes/ChatRoute.tsx || echo "⚠�
 > This was the root cause of the v0.8.4 post-merge Tavily auto-select regression: the TypeScript
 > source was fixed but the dist was never rebuilt, so the backend continued serving the old response.
 
-#### 7.2 Build & Test
+#### 9.2 Build & Test
 
 ```bash
 # Clean build
@@ -384,7 +472,7 @@ grep -E "(Test Suites:|Tests:)" test-results.txt
 # Investigate: Any new failures compared to pre-merge develop
 ```
 
-#### 7.3 Manual Testing Checklist
+#### 9.3 Manual Testing Checklist
 
 Test these critical paths:
 
@@ -420,9 +508,9 @@ Test these critical paths:
 
 ---
 
-### Phase 8: Documentation & Commit
+### Phase 10: Documentation & Commit
 
-#### 8.1 Create Comprehensive Commit Message
+#### 10.1 Create Comprehensive Commit Message
 
 Template:
 ```
@@ -440,9 +528,13 @@ Merged LibreChat v${CURRENT_VERSION} → v${TARGET_VERSION}
 - ✅ Tool call filtering (BaseClient.filterCrossProviderToolCalls)
 - ✅ Schema sanitization for Gemini (tools.js)
 - ✅ Custom Gemini endpoint support (MCP.js)
+- ✅ Anthropic image encoding block order (encode.js)
+- ✅ Prompt Catalog deep-link integration (prompthub.js, useQueryParams.ts)
+- ✅ SSO rate limit fix — skipSuccessfulRequests (loginLimiter.js)
+- ✅ OpenID token refresh middleware (refreshOpenIDToken.js, agents/index.js)
+- ✅ Claude SSE choices normalization for Kong (generators.ts)
 - ✅ Pendo analytics tracking (ModelSelector.tsx)
 - ✅ Menu descriptions (DropdownPopup.tsx)
-- ✅ OpenID passthrough for LangGraph
 - ✅ Dockerfile build error handling
 
 ## Migration Actions Taken:
@@ -466,7 +558,7 @@ Merged LibreChat v${CURRENT_VERSION} → v${TARGET_VERSION}
 Co-authored-by: [Your Name] <your.email@paychex.com>
 ```
 
-#### 8.2 Commit Strategy
+#### 10.2 Commit Strategy
 
 ```bash
 # Stage all changes
@@ -479,10 +571,10 @@ git commit -F commit-message.txt
 git log -1 --stat
 
 # Push to remote
-git push origin merge-upstream-v${TARGET_VERSION}
+git push origin upstream/v${TARGET_VERSION}-integration
 ```
 
-#### 8.3 Post-Merge Documentation
+#### 10.3 Post-Merge Documentation
 
 Update these files:
 1. **CHANGELOG.md** - Document the merge
@@ -510,24 +602,28 @@ Critical Paychex Customizations to Preserve:
 1. filterCrossProviderToolCalls in BaseClient.js (prevents Gemini errors)
 2. sanitizeSchemaMetadata in tools.js (Gemini tool compatibility)
 3. Custom Gemini endpoint detection in MCP.js
-4. Pendo analytics tracking elements
-5. OpenID passthrough for LangGraph agents
-6. Menu description support in UI components
-7. Dockerfile build error handling (using && not ;)
+4. Anthropic image encoding block order in encode.js (before VisionModes.agents check)
+5. Prompt Catalog deep-link integration (prompthub.js, useQueryParams.ts, ChatRoute.tsx)
+6. SSO rate limit fix — skipSuccessfulRequests: true in loginLimiter.js
+7. OpenID token refresh middleware (refreshOpenIDToken.js wired in agents/index.js)
+8. Claude SSE choices normalization for Kong in generators.ts
+9. Pendo analytics tracking elements (ModelSelector.tsx)
+10. Menu description support in UI components (DropdownPopup.tsx)
+11. Dockerfile build error handling (using && not ;)
 
 Merge Conflicts: ${CONFLICT_COUNT} files
 
 Your Task:
-- Follow UPSTREAM_MERGE_GUIDE.md Phase 3-8
-- For each conflict, use the Decision Matrix in Phase 5
+- Follow UPSTREAM_MERGE_GUIDE.md Phase 5-10
+- For each conflict, use the Decision Matrix in Phase 7
 - NEVER blindly accept upstream changes
 - ALWAYS check git history to identify Paychex customizations
 - PRESERVE all Paychex logic while integrating upstream improvements
 - ASK CLARIFYING QUESTIONS when uncertain
 
 Before resolving ANY conflict:
-1. Check: `git log develop -- <file>` for Paychex changes
-2. Check: `git diff v${CURRENT_VERSION} develop -- <file>` for what Paychex added
+1. Check: `git log upstream/v${TARGET_VERSION}-integration -- <file>` for Paychex changes
+2. Check: `git diff v${CURRENT_VERSION} upstream/v${TARGET_VERSION}-integration -- <file>` for what Paychex added
 3. Verify: Is this Paychex logic or pure upstream code?
 4. If Paychex logic found: Explain what will be preserved and why
 5. If uncertain: ASK before proceeding
@@ -587,12 +683,18 @@ The AI should demonstrate:
 ### Common Pitfalls to Avoid
 
 1. ❌ **Blindly accepting upstream** - Always check for Paychex customizations first
-2. ❌ **Forgetting to check git history** - Use `git log develop -- <file>` religiously
+2. ❌ **Forgetting to check git history** - Use `git log upstream/v${TARGET_VERSION}-integration -- <file>` religiously
 3. ❌ **Not verifying deleted file migrations** - Find where functionality moved
 4. ❌ **Skipping tests** - Always run the test suite before committing
 5. ❌ **Poor commit messages** - Document what was preserved and why
 6. ❌ **Not checking for lingering references** - Verify deleted files aren't referenced
 7. ❌ **Assuming upstream knows best** - Sometimes Paychex fixes upstream regressions
+8. ❌ **Accepting upstream's `translation.json` wholesale** - Paychex i18n keys are interleaved alphabetically and silently vanish; always cross-check `develop` for Paychex keys afterward
+9. ❌ **Assuming a file's existence means it's wired** - Barrel/index files and route mounts can be dropped while the implementation file survives (happened with `prompthub.js` in v0.8.6)
+10. ❌ **Only verifying one side of a cross-file contract** - A method call can survive while the method definition is dropped (happened with `stopReconnecting()` in v0.8.6)
+11. ❌ **Not checking import blocks after upstream rewrites them** - Paychex-added imports (e.g., `ContentTypes`) can be lost even though the code using them survives (happened in `MCP.js` in v0.8.6)
+12. ❌ **Relying solely on `git diff --check` for conflict detection** - It misses markers inside already-staged files; always also run `git grep -rn "^<<<<<<< "` (a leftover marker in `Dockerfile.multi` caused a Docker build failure in v0.8.6)
+13. ❌ **Skipping JS syntax validation and TypeScript type checks** - A duplicate `const` declaration caused 20 test suites to fail at parse time in v0.8.6; a wrong import path (`~/types` vs `~/tools/classification`) caused a TS type-check CI failure. Running `node --check` and `tsc --noEmit` takes seconds and catches both classes of error before CI
 
 ### Success Metrics
 
@@ -708,8 +810,8 @@ git status --short | grep "^UD"                    # Deleted upstream, modified 
 git status --short | grep "^DU"                    # Modified upstream, deleted local
 
 # Identify Paychex Changes
-git log develop --oneline -- <file>                # See commit history
-git diff v${CURRENT_VERSION} develop -- <file>     # See what Paychex added
+git log upstream/v${TARGET_VERSION}-integration --oneline -- <file>                # See commit history
+git diff v${CURRENT_VERSION} upstream/v${TARGET_VERSION}-integration -- <file>     # See what Paychex added
 git log -p develop -- <file> | grep -A5 <term>     # Find specific logic
 
 # Resolve Conflicts
@@ -717,10 +819,22 @@ git checkout --ours <file>                         # Keep develop version
 git checkout --theirs <file>                       # Keep upstream version
 git checkout --ours <file> && git checkout --theirs <file> # Manual merge needed
 
-# Verification
+# Post-Resolution Structural Checks (run BEFORE customization verification)
+git grep -rn "^<<<<<<< " -- "*.js" "*.ts" "*.tsx" "*.json" "*.yaml" "*.md"  # conflict markers
+find api/ -name "*.js" -not -path "*/node_modules/*" | xargs -I{} node --check {}  # JS syntax
+cd packages/api && npx tsc --noEmit 2>&1 | grep "error TS"; cd ../..             # TS types
+./scripts/verify-paychex-customizations.sh                                        # includes pkg export check (0d)
+grep -rh "dbModels\." api/ --include="*.spec.js" | grep -oP 'dbModels\.\K[A-Z][a-zA-Z]+' | sort -u  # dbModels check
+
+# Customization Verification
 grep -n "filterCrossProviderToolCalls" api/app/clients/BaseClient.js
 grep -n "sanitizeSchemaMetadata" api/server/services/start/tools.js
 grep -n "providerLower.includes('gemini')" api/server/services/MCP.js
+grep -n "skipSuccessfulRequests" api/server/middleware/limiters/loginLimiter.js
+grep -n "isAccessTokenExpiredOrExpiringSoon" api/server/middleware/refreshOpenIDToken.js
+grep -n "refreshOpenIDToken" api/server/routes/agents/index.js
+grep -n "data.choices = \[\]" packages/api/src/utils/generators.ts
+./scripts/verify-paychex-customizations.sh
 npm run build && npm test
 
 # Commit
@@ -739,7 +853,8 @@ If you encounter issues:
 
 ---
 
-**Document Version:** 1.0  
+**Document Version:** 1.1  
 **Last Successful Merge:** v0.8.1 → v0.8.4 (April 2026)  
+**Next Target Merge:** v0.8.4 → v0.8.6 (branch: `upstream/v0.8.6-integration`)  
 **Next Review:** After next upstream merge
 

@@ -1,6 +1,7 @@
 version: 1.0.0
 cache: true
 interface:
+  runCode: false
   agents: true
   modelSelect: true
   parameters: true

@@ -1,8 +1,20 @@
 import { useEffect, useCallback, useRef } from 'react';
 import type { TUser } from 'librechat-data-provider';
 
+declare global {
+  interface Window {
+    pendo?: {
+      initialize: (options: PendoInitializeOptions) => void;
+      identify: (options: PendoInitializeOptions) => void;
+      track: (eventName: string, properties?: Record<string, string | number | boolean>) => void;
+      clearSession: () => void;
+      isReady: () => boolean;
+    };
+  }
+}
+
 /** Pendo Public API Key */
-const PENDO_API_KEY = 'efb1128b-760d-4ff7-7726-b5aef752cd38'; // NOTE - this is a public key from https://github.com/paychex/LibreChat/commit/327cc4d66eebdd19afa1e5939d6fc8c56799af06
+const PENDO_API_KEY: string = 'efb1128b-760d-4ff7-7726-b5aef752cd38'; // NOTE - this is a public key from https://github.com/paychex/LibreChat/commit/327cc4d66eebdd19afa1e5939d6fc8c56799af06
 
 /** Interval to check if pendo is ready (ms) */
 const PENDO_READY_CHECK_INTERVAL = 100;

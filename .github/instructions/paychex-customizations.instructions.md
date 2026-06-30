@@ -91,7 +91,17 @@ Complete catalog of Paychex-specific modifications to LibreChat.
 
 ### Analytics & Tracking
 
-**9. Pendo Analytics Integration**
+**9. Pendo Analytics Integration (PendoInitializer Wrapper)**
+- **File:** `client/src/routes/index.tsx`
+- **Import:** `import { PendoInitializer } from '~/hooks/Pendo';`
+- **Pattern:** `<PendoInitializer>` wrapping content inside `AuthLayout`
+- **Purpose:** Initializes Pendo analytics SDK for the authenticated user session. Required for the "See newest features" Resource Center button, in-app guides, and all Pendo tracking.
+- **Criticality:** CRITICAL - Pendo "See newest features" button and all analytics disappear without this
+- **Added:** v0.8.1 Paychex fork (hook migration in Dec 2025)
+- **Context:** Upstream v0.8.7 replaced this with `<WithRum>` (HyperDX). Both must coexist: `PendoInitializer` wraps `WithRum` inside `AuthLayout`.
+- **Anti-pattern (must be absent):** `AuthLayout` without `PendoInitializer` wrapping the content
+
+**9b. Pendo Tracking Element (ModelSelector)**
 - **File:** `client/src/components/Chat/Menus/Endpoints/ModelSelector.tsx`
 - **Element:** `<span id="agentUsers" className="sr-only" aria-hidden="true" />`
 - **Purpose:** Tracking element for Pendo to monitor AI agent usage metrics
@@ -112,6 +122,20 @@ Complete catalog of Paychex-specific modifications to LibreChat.
 - **Criticality:** WARNING - UX enhancement, app functions without it
 - **Added:** v0.8.2 Paychex UX improvements
 - **Context:** Improves usability by showing detailed descriptions in dropdowns
+
+**10b. File Attach Menu Descriptions**
+- **File:** `client/src/components/Chat/Input/Files/AttachFileMenu.tsx`
+- **Pattern:** `description: localize('com_ui_upload_image_input_description')` (and similar for each menu item)
+- **Locale keys (must be present in `client/src/locales/en/translation.json`):**
+  - `com_ui_upload_image_input_description`
+  - `com_ui_upload_ocr_text_description`
+  - `com_ui_upload_provider_description`
+  - `com_ui_upload_file_search_description`
+  - `com_ui_upload_code_environment_description`
+- **Purpose:** Each upload menu item shows a brief description explaining what it does. Relies on DropdownPopup (#10) to render descriptions.
+- **Criticality:** WARNING - UX enhancement, users lose context about upload options without it
+- **Added:** v0.8.2 Paychex UX (lost in v0.8.7 merge due to AttachFileMenu refactor, restored June 2026)
+- **Context:** Upstream frequently refactors this component. After each merge, verify that every `items.push({...})` call includes a `description:` property, and that the corresponding locale keys exist in translation.json.
 
 **11. Declarative ToolsDropdown Structure**
 - **File:** `client/src/components/Chat/Input/ToolsDropdown.tsx`
@@ -271,6 +295,89 @@ Complete catalog of Paychex-specific modifications to LibreChat.
 - **Context:** This is intentionally simpler than `feature/prompthub-integration`; preserve the ID-based same-origin flow and do not replace it with ticket/callback/export behavior unless scope changes.
 - **Build note:** `packages/api/src/promptCatalog/*.ts` compiles into `@librechat/api`, which the JS route layer loads from `packages/api/dist`. Any change here requires `npm run build:api` before restarting the backend, or use the updated `npm run backend:dev` script which rebuilds the compiled packages first.
 
+**35. MCP Select Infinite Loop Fix (chatMenu:false + startup:true)**
+- **Files:** `client/src/hooks/MCP/useMCPServerManager.ts`, `client/src/components/Chat/Input/MCPSelect.tsx`
+- **Patterns:**
+  - `servers: availableMCPServers` in the `useMCPSelect()` call (was `selectableServers`)
+  - `visibleSelected` / `visibleCount` in `MCPSelect.tsx` `displayText` computation
+- **Purpose:** Fixes an infinite render loop when a server has both `chatMenu: false` and `startup: true` (e.g. Tavily). The auto-select effect in `useMCPServerManager` uses `availableMCPServers` (unfiltered) to select startup servers, but `useMCPSelect` previously received only `selectableServers` (filtered, excludes `chatMenu: false`). The sync effect inside `useMCPSelect` would strip the hidden server from `mcpValues`, triggering the auto-select again, creating an infinite loop that caused the MCP button text to flicker between the placeholder and the hidden server name. Fix (1): pass `availableMCPServers` to `useMCPSelect` so the sync effect recognizes hidden servers as valid. Fix (2): compute `displayText` using only visible servers so hidden server names don't leak into the button label.
+- **Anti-pattern (must be absent):** `servers: selectableServers` in the `useMCPSelect()` call inside `useMCPServerManager`
+- **Criticality:** CRITICAL — Causes infinite render loop and visible UI flickering without this
+- **Added:** June 2026 (v0.8.6 merge fix)
+
+## Authentication Fixes (post-v0.8.4)
+
+**27. SSO Rate Limit Fix**
+- **File:** `api/server/middleware/limiters/loginLimiter.js`
+- **Pattern:** `skipSuccessfulRequests: true`
+- **Purpose:** OAuth SSO flows (`/oauth/openid` and `/oauth/openid/callback`) return 302 redirects. Without `skipSuccessfulRequests: true`, responses with status < 400 are counted against the rate limit window. When a JWT expires and all open tabs simultaneously re-authenticate through Azure Entra ID, this previously caused rate-limit false positives that locked users out.
+- **Criticality:** CRITICAL — Multi-tab SSO users get rate-limited without this
+- **Added:** May 2026 (PR #153)
+
+**28. OpenID Access Token Refresh Middleware**
+- **Files:** `api/server/middleware/refreshOpenIDToken.js`, `api/server/routes/agents/index.js`
+- **Patterns:**
+  - `isAccessTokenExpiredOrExpiringSoon` — proactive 30-second buffer check against session access_token
+  - `_inflight` — module-level Map deduplicating concurrent refresh grants for the same user
+  - `refreshOpenIDToken` imported and used in `api/server/routes/agents/index.js`
+- **Purpose:** Azure AD issues access_tokens with a ~15-min lifetime, shorter than the id_token (~60-90 min) used for LibreChat session auth. After the access_token expires, requireJwtAuth still passes (id_token valid) but the expired access_token forwarded to Paxton via `{{LIBRECHAT_OPENID_ACCESS_TOKEN}}` causes a 401. The middleware proactively refreshes before agent requests and deduplicates concurrent refresh attempts to prevent Azure AD `invalid_grant` rotation race conditions.
+- **Criticality:** CRITICAL — Paxton agent calls fail with 401 after ~15 min without this
+- **Added:** May 2026 (PRs #148, #150)
+
+## Backend Fixes (post-v0.8.4)
+
+**29. RAG Context 404 Graceful Handling**
+- **File:** `api/app/clients/prompts/createContextHandlers.js`
+- **Pattern:** `Promise.allSettled`
+- **Purpose:** When `RAG_USE_FULL_CONTEXT` is true and a file has not been indexed (e.g. image-only PDF with empty embeddings), the RAG API returns 404. The previous `Promise.all` caused the first 404 to reject and crash the entire generation, leaving the input field disabled. `Promise.allSettled` isolates per-file failures — 404s are logged and skipped, other files still provide context.
+- **Criticality:** WARNING — App appears broken for users with unindexed files without this
+- **Added:** April 2026 (PR #143)
+
+**30. MCP SSE Noise Reduction + stopReconnecting**
+- **Files:** `packages/api/src/mcp/connection.ts`, `packages/api/src/mcp/registry/MCPServerInspector.ts`
+- **Patterns:**
+  - `shouldStopReconnecting` in `connection.ts` — flag that halts the background reconnection loop before disconnect
+  - `stopReconnecting` in `MCPServerInspector.ts` — called before `disconnect()` for temporary inspection connections
+- **Purpose:** Transient SSE transport errors previously logged at error level, flooding Splunk. Non-transient errors (DNS failure, ECONNREFUSED) remain at error level. `stopReconnecting()` closes the race condition where a dropped SSE during server inspection triggered a reconnection storm under the placeholder `temp_server_name` identity.
+- **Criticality:** WARNING — Splunk noise and phantom reconnections without this
+- **Added:** April 2026 (PR #141)
+
+**31. Claude Custom-Endpoint SSE Parsing Fix for Kong**
+- **File:** `packages/api/src/utils/generators.ts`
+- **Patterns:**
+  - `data.choices = []` — normalizes missing `choices` array in Claude SSE chunks
+  - `Kong SSE` comment — documents the workaround
+- **Purpose:** Kong (Paychex's API gateway) omits the `choices` array from some Claude SSE chunks. LangChain's OpenAI-compatible SSE parser assumes `choices[0]` always exists and throws without it. The fix normalizes chunks without a `choices` array before they reach the parser.
+- **Criticality:** CRITICAL — Claude custom-endpoint streaming breaks silently without this
+- **Added:** June 2026 (PR #156)
+- **Build note:** TypeScript in `packages/api/src/`; requires `npm run build -w packages/api` after changes
+
+## Frontend Enhancements (post-v0.8.4)
+
+**32. Azure OpenAI Custom Icon (GPTIconDark)**
+- **File:** `client/src/hooks/Endpoint/Icons.tsx`
+- **Pattern:** `GPTIconDark`
+- **Purpose:** Replaces `AzureMinimalIcon` with a Paychex-styled `GPTIconDark` component for the Azure OpenAI endpoint icon — a dark circular badge containing the GPT icon. Provides visual consistency with the OpenAI endpoint icon while distinguishing Azure deployments.
+- **Anti-pattern (must be absent):** `AzureMinimalIcon` imported or used in `Icons.tsx`
+- **Criticality:** WARNING — Visual regression only
+- **Added:** April 2026 (PR #140)
+
+**33. Paychex Changelog Link**
+- **Files:** `client/src/components/Chat/Footer.tsx`, `client/src/components/Nav/AccountSettings.tsx`
+- **Patterns:**
+  - `changelogURL` in `Footer.tsx` — renders changelog link in chat footer from `config.changelogURL`
+  - `startupConfig?.changelogURL` in `AccountSettings.tsx` — renders changelog link in account settings menu
+- **Purpose:** Exposes the Paychex changelog URL (configured via `librechat.*.yml`) in both the chat footer and account settings for user-facing release notes.
+- **Criticality:** WARNING — User-facing feature, app functions without it
+- **Added:** April 2026 (PR #146)
+
+**34. Native DEFAULT Badge on ModelSpecItem**
+- **File:** `client/src/components/Chat/Menus/Endpoints/components/ModelSpecItem.tsx`
+- **Pattern:** `spec.default === true`
+- **Purpose:** Renders a native React DEFAULT badge when `spec.default === true`, replacing the previous Pendo-injected badge. Always tracks whichever model spec is marked as default in config, regardless of model name. Adds `com_ui_default_model` and `com_ui_default_model_aria` localization keys.
+- **Criticality:** WARNING — Visual regression only, Pendo badge no longer works for this
+- **Added:** May 2026 (PR #152)
+
 ## Verification Patterns
 
 Use these patterns when verifying customizations are present:
@@ -293,6 +400,7 @@ grep '"xlsx":' api/package.json packages/api/package.json   # must NOT be cdn.sh
 grep '"axios"' api/package.json packages/api/package.json packages/data-provider/package.json
 
 # 9-11. Frontend
+grep -r "PendoInitializer" client/src/routes/index.tsx
 grep -r 'id="agentUsers"' client/src/components/
 grep -r "item.description" packages/client/src/components/DropdownPopup.tsx
 grep -r "transition-colors duration-200" packages/client/src/components/
@@ -328,6 +436,43 @@ grep -n "s.config.startup === true" client/src/hooks/MCP/useMCPServerManager.ts
 grep -n "hasStoredModelSelection" client/src/routes/ChatRoute.tsx
 ```
 
+```bash
+# 35. MCP Select infinite loop fix
+grep -n "servers: availableMCPServers" client/src/hooks/MCP/useMCPServerManager.ts
+grep -n "visibleSelected\|visibleCount" client/src/components/Chat/Input/MCPSelect.tsx
+# Anti-pattern — must NOT pass selectableServers to useMCPSelect:
+grep -n "servers: selectableServers" client/src/hooks/MCP/useMCPServerManager.ts | grep -i "useMCPSelect"
+
+# 27. SSO rate limit fix
+grep -n "skipSuccessfulRequests" api/server/middleware/limiters/loginLimiter.js
+
+# 28. OpenID token refresh middleware
+grep -n "isAccessTokenExpiredOrExpiringSoon\|_inflight" api/server/middleware/refreshOpenIDToken.js
+grep -n "refreshOpenIDToken" api/server/routes/agents/index.js
+
+# 29. RAG context 404 graceful handling
+grep -n "Promise.allSettled" api/app/clients/prompts/createContextHandlers.js
+
+# 30. MCP SSE noise + stopReconnecting
+grep -n "shouldStopReconnecting" packages/api/src/mcp/connection.ts
+grep -n "stopReconnecting" packages/api/src/mcp/registry/MCPServerInspector.ts
+
+# 31. Claude SSE parsing fix (Kong)
+grep -n "data.choices = \[\]\|Kong SSE" packages/api/src/utils/generators.ts
+
+# 32. Azure OpenAI custom icon
+grep -n "GPTIconDark" client/src/hooks/Endpoint/Icons.tsx
+# Anti-pattern — AzureMinimalIcon must NOT be imported:
+grep -n "AzureMinimalIcon" client/src/hooks/Endpoint/Icons.tsx
+
+# 33. Paychex changelog link
+grep -n "changelogURL" client/src/components/Chat/Footer.tsx
+grep -n "startupConfig?.changelogURL" client/src/components/Nav/AccountSettings.tsx
+
+# 34. Native DEFAULT badge
+grep -n "spec.default === true" client/src/components/Chat/Menus/Endpoints/components/ModelSpecItem.tsx
+```
+
 ## Future Maintenance
 
 When adding new Paychex customizations:
@@ -348,6 +493,7 @@ When adding new Paychex customizations:
 - Critical dependency fixes
 - MCP server name normalization
 - MCP startup field and auto-select
+- MCP Select infinite loop fix (chatMenu:false + startup:true)
 
 **WARNING** - Feature degraded but application functions:
 - Analytics tracking

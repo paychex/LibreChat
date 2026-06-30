@@ -1,5 +1,5 @@
 import { sanitizeSchemaMetadata, sanitizeToolSchema } from '../schema';
-import type { JsonSchemaType } from '~/types';
+import type { JsonSchemaType } from '~/tools/classification';
 
 describe('sanitizeSchemaMetadata', () => {
   it('removes $schema field from top-level object', () => {

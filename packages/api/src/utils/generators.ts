@@ -3,22 +3,36 @@ import { Transform } from 'stream';
 import { logger } from '@librechat/data-schemas';
 import { GraphEvents, sleep } from '@librechat/agents';
 import type { Response as ServerResponse } from 'express';
+import type { Agent as HttpsAgent } from 'node:https';
+import type { Agent as HttpAgent } from 'node:http';
+import type { URL as NodeURL } from 'node:url';
 import type { ServerSentEvent } from '~/types';
 import { sendEvent } from './events';
+
+type SSRFSafeAgents = {
+  httpAgent: HttpAgent;
+  httpsAgent: HttpsAgent;
+};
 
 /**
  * Makes a function to make HTTP request and logs the process.
  * @param params
  * @param params.directEndpoint - Whether to use a direct endpoint.
  * @param params.reverseProxyUrl - The reverse proxy URL to use for the request.
+ * @param params.ssrfAgents - Optional SSRF-safe agents for user-provided URLs.
+ * @param params.redirect - Optional redirect policy for user-provided URLs.
  * @returns A promise that resolves to the response of the fetch request.
  */
 export function createFetch({
   directEndpoint = false,
   reverseProxyUrl = '',
+  ssrfAgents,
+  redirect,
 }: {
   directEndpoint?: boolean;
   reverseProxyUrl?: string;
+  ssrfAgents?: SSRFSafeAgents;
+  redirect?: fetch.RequestRedirect;
 }) {
   /**
    * Makes an HTTP request and logs the process.
@@ -36,7 +50,21 @@ export function createFetch({
     }
     logger.debug(`Making request to ${url}`);
 
-    const response = await fetch(url, init);
+    const requestInit = { ...init };
+    if (ssrfAgents) {
+      requestInit.agent = (parsedURL: NodeURL) =>
+        parsedURL.protocol === 'http:' ? ssrfAgents.httpAgent : ssrfAgents.httpsAgent;
+    }
+    if (redirect) {
+      requestInit.redirect = redirect;
+    }
+
+    let response: fetch.Response;
+    if (typeof Bun !== 'undefined') {
+      response = await fetch(url, requestInit);
+    } else {
+      response = await fetch(url, requestInit);
+    }
 
     // TEMPORARY WORKAROUND for Kong SSE bugs:
     // 1. Parallel Claude tool call SSE chunks can all arrive with index=0.
@@ -130,19 +158,23 @@ export function createFetch({
  * @param res - The response object to send events to
  * @returns Object containing handler functions
  */
-export function createStreamEventHandlers(res: ServerResponse) {
+export function createStreamEventHandlers(res: ServerResponse): {
+  on_run_step: (event: ServerSentEvent) => void;
+  on_message_delta: (event: ServerSentEvent) => void;
+  on_reasoning_delta: (event: ServerSentEvent) => void;
+} {
   return {
-    [GraphEvents.ON_RUN_STEP]: function (event: ServerSentEvent) {
+    [GraphEvents.ON_RUN_STEP]: function (event: ServerSentEvent): void {
       if (res) {
         sendEvent(res, event);
       }
     },
-    [GraphEvents.ON_MESSAGE_DELTA]: function (event: ServerSentEvent) {
+    [GraphEvents.ON_MESSAGE_DELTA]: function (event: ServerSentEvent): void {
       if (res) {
         sendEvent(res, event);
       }
     },
-    [GraphEvents.ON_REASONING_DELTA]: function (event: ServerSentEvent) {
+    [GraphEvents.ON_REASONING_DELTA]: function (event: ServerSentEvent): void {
       if (res) {
         sendEvent(res, event);
       }
@@ -151,7 +183,7 @@ export function createStreamEventHandlers(res: ServerResponse) {
 }
 
 export function createHandleLLMNewToken(streamRate: number) {
-  return async function () {
+  return async function (): Promise<void> {
     if (streamRate) {
       await sleep(streamRate);
     }

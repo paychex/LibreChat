@@ -73,7 +73,7 @@ All Paychex customizations are maintained on the `develop` branch and follow the
        container_name: LibreChat
        ports:
          - "${PORT}:${PORT}"
-       image: ghcr.io/danny-avila/librechat:v0.8.1  # Update version as needed
+       image: ghcr.io/danny-avila/librechat:v0.8.4  # Update version as needed
    ```
 
 4. **Start the application:**
@@ -170,6 +170,8 @@ All Paychex customizations are maintained on the `develop` branch and follow the
    ```
 
 3. **Resolve conflicts and test thoroughly**
+
+   > See `docs/merge-process/UPSTREAM_MERGE_GUIDE.md` for the full conflict resolution SOP and `docs/merge-process/MERGE_CHECKLIST.md` for a printable checklist. Run `./scripts/verify-paychex-customizations.sh` after resolving conflicts to confirm all Paychex customizations are intact.
 
 4. **Tag the upstream integration:**
    ```bash

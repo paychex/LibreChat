@@ -5,6 +5,7 @@ import type { TMessageContentParts } from 'librechat-data-provider';
 import type { TMessageProps, TMessageIcon } from '~/common';
 import { useMessageHelpers, useLocalize, useAttachments, useContentMetadata } from '~/hooks';
 import { cn, getHeaderPrefixForScreenReader, getMessageAriaLabel } from '~/utils';
+import MessageTimestamp from '~/components/Chat/Messages/ui/MessageTimestamp';
 import MessageIcon from '~/components/Chat/Messages/MessageIcon';
 import ContentParts from './Content/ContentParts';
 import { fontSizeAtom } from '~/store/fontSize';
@@ -107,7 +108,12 @@ export default function Message(props: TMessageProps) {
           <div
             id={messageId ?? ''}
             aria-label={getMessageAriaLabel(message, localize)}
-            className={cn(baseClasses.common, baseClasses.chat, 'message-render')}
+            className={cn(
+              baseClasses.common,
+              baseClasses.chat,
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-xheavy',
+              'message-render',
+            )}
           >
             {!hasParallelContent && (
               <div className="relative flex flex-shrink-0 flex-col items-center">
@@ -129,6 +135,7 @@ export default function Message(props: TMessageProps) {
                     {getHeaderPrefixForScreenReader(message, localize)}
                   </span>
                   {name}
+                  <MessageTimestamp value={message.createdAt ?? message.clientTimestamp} />
                 </h2>
               )}
               <div className="flex flex-col gap-1">
@@ -141,6 +148,7 @@ export default function Message(props: TMessageProps) {
                     attachments={attachments}
                     isSubmitting={isSubmitting}
                     searchResults={searchResults}
+                    manualSkills={message.manualSkills}
                     messageId={message.messageId}
                     setSiblingIdx={setSiblingIdx}
                     isCreatedByUser={message.isCreatedByUser}
@@ -179,7 +187,6 @@ export default function Message(props: TMessageProps) {
         </div>
       </div>
       <MultiMessage
-        key={messageId}
         messageId={messageId}
         conversation={conversation}
         messagesTree={children ?? []}
