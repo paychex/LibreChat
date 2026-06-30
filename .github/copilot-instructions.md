@@ -66,6 +66,12 @@ When working with code, always preserve these critical Paychex customizations:
 - **Purpose:** Enhanced UX for dropdown menus with descriptions
 - **Critical:** NO - UX enhancement, app functions without it
 
+### 5b. File Attach Menu Descriptions (client/src/components/Chat/Input/Files/AttachFileMenu.tsx)
+- **Pattern:** `description: localize('com_ui_upload_*_description')` on each `items.push({...})` call
+- **Purpose:** Each upload option shows a brief helper description (e.g. "Add an image for analysis.")
+- **Critical:** NO - UX enhancement, but frequently lost during upstream merges because this component is heavily refactored
+- **Context:** Relies on locale keys in `translation.json` (`com_ui_upload_image_input_description`, `com_ui_upload_ocr_text_description`, `com_ui_upload_provider_description`, `com_ui_upload_file_search_description`, `com_ui_upload_code_environment_description`)
+
 ### 6. ToolsDropdown Declarative Structure (client/src/components/Chat/Input/ToolsDropdown.tsx)
 - **Pattern:** Declarative `label`, `description`, `icon` properties
 - **Purpose:** Cleaner separation of data and presentation

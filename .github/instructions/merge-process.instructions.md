@@ -82,10 +82,12 @@ Apply this matrix when resolving each conflict:
 
 ### 🟡 Medium Priority (Review before accepting)
 - `client/src/components/**/*.tsx` — check for Changelog link, DEFAULT badge, Pendo element
+- `client/src/components/Chat/Input/Files/AttachFileMenu.tsx` — verify `description:` properties on all menu items (frequently refactored upstream)
 - `packages/client/src/components/*.tsx`
 - `api/server/middleware/*.js` — check for refreshOpenIDToken, loginLimiter skipSuccessfulRequests
 - `client/src/hooks/**/*.ts` — check for GPTIconDark, MCP startup auto-select
 - `client/src/hooks/Pendo/**` — PendoInitializer and usePendo hook (must not be deleted)
+- `client/src/locales/en/translation.json` — Paychex-specific keys interleaved alphabetically; accepting large upstream hunks can drop them
 - `packages/api/src/mcp/connection.ts` — check for shouldStopReconnecting flag and transient error log levels
 - `librechat.*.yml`
 - `az_container_app_definitions/*.yml`

@@ -123,6 +123,20 @@ Complete catalog of Paychex-specific modifications to LibreChat.
 - **Added:** v0.8.2 Paychex UX improvements
 - **Context:** Improves usability by showing detailed descriptions in dropdowns
 
+**10b. File Attach Menu Descriptions**
+- **File:** `client/src/components/Chat/Input/Files/AttachFileMenu.tsx`
+- **Pattern:** `description: localize('com_ui_upload_image_input_description')` (and similar for each menu item)
+- **Locale keys (must be present in `client/src/locales/en/translation.json`):**
+  - `com_ui_upload_image_input_description`
+  - `com_ui_upload_ocr_text_description`
+  - `com_ui_upload_provider_description`
+  - `com_ui_upload_file_search_description`
+  - `com_ui_upload_code_environment_description`
+- **Purpose:** Each upload menu item shows a brief description explaining what it does. Relies on DropdownPopup (#10) to render descriptions.
+- **Criticality:** WARNING - UX enhancement, users lose context about upload options without it
+- **Added:** v0.8.2 Paychex UX (lost in v0.8.7 merge due to AttachFileMenu refactor, restored June 2026)
+- **Context:** Upstream frequently refactors this component. After each merge, verify that every `items.push({...})` call includes a `description:` property, and that the corresponding locale keys exist in translation.json.
+
 **11. Declarative ToolsDropdown Structure**
 - **File:** `client/src/components/Chat/Input/ToolsDropdown.tsx`
 - **Pattern:** Items with `label:`, `description:`, `icon:` properties

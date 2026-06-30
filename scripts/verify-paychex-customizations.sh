@@ -368,6 +368,46 @@ check_pattern \
 
 echo ""
 
+# 5b. File Attach Menu Descriptions
+echo "5b. File Attach Menu Descriptions (AttachFileMenu.tsx + translation.json)"
+check_pattern \
+    "client/src/components/Chat/Input/Files/AttachFileMenu.tsx" \
+    "com_ui_upload_image_input_description" \
+    "Upload Image menu item has description property" \
+    "warning"
+
+check_pattern \
+    "client/src/components/Chat/Input/Files/AttachFileMenu.tsx" \
+    "com_ui_upload_ocr_text_description" \
+    "Upload as Text menu item has description property" \
+    "warning"
+
+check_pattern \
+    "client/src/components/Chat/Input/Files/AttachFileMenu.tsx" \
+    "com_ui_upload_provider_description" \
+    "Upload to Provider menu item has description property" \
+    "warning"
+
+check_pattern \
+    "client/src/locales/en/translation.json" \
+    "com_ui_upload_image_input_description" \
+    "Upload Image description locale key exists in translation.json" \
+    "warning"
+
+check_pattern \
+    "client/src/locales/en/translation.json" \
+    "com_ui_upload_ocr_text_description" \
+    "Upload as Text description locale key exists in translation.json" \
+    "warning"
+
+check_pattern \
+    "client/src/locales/en/translation.json" \
+    "com_ui_upload_provider_description" \
+    "Upload to Provider description locale key exists in translation.json" \
+    "warning"
+
+echo ""
+
 # 6. ToolsDropdown Declarative Structure
 echo "6. ToolsDropdown Declarative Structure"
 check_pattern \
