@@ -834,6 +834,28 @@ check_pattern \
 
 echo ""
 
+# 29. Pendo Analytics (PendoInitializer in AuthLayout)
+echo "29. Pendo Analytics (PendoInitializer wrapping AuthLayout content)"
+check_pattern \
+    "client/src/routes/index.tsx" \
+    "PendoInitializer" \
+    "PendoInitializer component imported and used in routes/index.tsx" \
+    "critical"
+
+check_pattern \
+    "client/src/routes/index.tsx" \
+    "from '~/hooks/Pendo'" \
+    "PendoInitializer imported from ~/hooks/Pendo" \
+    "critical"
+
+check_pattern \
+    "client/src/hooks/Pendo/PendoInitializer.tsx" \
+    "usePendo" \
+    "PendoInitializer component file exists with usePendo hook" \
+    "critical"
+
+echo ""
+
 echo "======================================"
 echo "Verification Summary"
 echo "======================================"

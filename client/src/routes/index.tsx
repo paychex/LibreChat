@@ -12,6 +12,7 @@ import { MarketplaceProvider } from '~/components/Agents/MarketplaceContext';
 import AgentMarketplace from '~/components/Agents/Marketplace';
 import { OAuthSuccess, OAuthError } from '~/components/OAuth';
 import { AuthContextProvider } from '~/hooks/AuthContext';
+import { PendoInitializer } from '~/hooks/Pendo';
 import WithRum from '~/lib/rum/WithRum';
 import RouteErrorBoundary from './RouteErrorBoundary';
 import StartupLayout from './Layouts/Startup';
@@ -24,9 +25,11 @@ import Root from './Root';
 
 const AuthLayout = () => (
   <AuthContextProvider>
-    <WithRum>
-      <Outlet />
-    </WithRum>
+    <PendoInitializer>
+      <WithRum>
+        <Outlet />
+      </WithRum>
+    </PendoInitializer>
     <ApiErrorWatcher />
   </AuthContextProvider>
 );

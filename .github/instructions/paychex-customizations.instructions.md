@@ -91,7 +91,17 @@ Complete catalog of Paychex-specific modifications to LibreChat.
 
 ### Analytics & Tracking
 
-**9. Pendo Analytics Integration**
+**9. Pendo Analytics Integration (PendoInitializer Wrapper)**
+- **File:** `client/src/routes/index.tsx`
+- **Import:** `import { PendoInitializer } from '~/hooks/Pendo';`
+- **Pattern:** `<PendoInitializer>` wrapping content inside `AuthLayout`
+- **Purpose:** Initializes Pendo analytics SDK for the authenticated user session. Required for the "See newest features" Resource Center button, in-app guides, and all Pendo tracking.
+- **Criticality:** CRITICAL - Pendo "See newest features" button and all analytics disappear without this
+- **Added:** v0.8.1 Paychex fork (hook migration in Dec 2025)
+- **Context:** Upstream v0.8.7 replaced this with `<WithRum>` (HyperDX). Both must coexist: `PendoInitializer` wraps `WithRum` inside `AuthLayout`.
+- **Anti-pattern (must be absent):** `AuthLayout` without `PendoInitializer` wrapping the content
+
+**9b. Pendo Tracking Element (ModelSelector)**
 - **File:** `client/src/components/Chat/Menus/Endpoints/ModelSelector.tsx`
 - **Element:** `<span id="agentUsers" className="sr-only" aria-hidden="true" />`
 - **Purpose:** Tracking element for Pendo to monitor AI agent usage metrics
@@ -376,6 +386,7 @@ grep '"xlsx":' api/package.json packages/api/package.json   # must NOT be cdn.sh
 grep '"axios"' api/package.json packages/api/package.json packages/data-provider/package.json
 
 # 9-11. Frontend
+grep -r "PendoInitializer" client/src/routes/index.tsx
 grep -r 'id="agentUsers"' client/src/components/
 grep -r "item.description" packages/client/src/components/DropdownPopup.tsx
 grep -r "transition-colors duration-200" packages/client/src/components/

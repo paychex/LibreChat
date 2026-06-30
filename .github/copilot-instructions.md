@@ -49,7 +49,14 @@ When working with code, always preserve these critical Paychex customizations:
 - **Purpose:** Detects custom Gemini endpoints and formats tool responses correctly
 - **Critical:** YES - Custom Gemini endpoints don't work without this (2 locations)
 
-### 4. Pendo Analytics (client/src/components/Chat/Menus/Endpoints/ModelSelector.tsx)
+### 4. Pendo Analytics (client/src/routes/index.tsx)
+- **Component:** `<PendoInitializer>` wrapping content in `AuthLayout`
+- **Import:** `import { PendoInitializer } from '~/hooks/Pendo';`
+- **Purpose:** Initializes Pendo SDK for the authenticated session — required for "See newest features" button and all analytics
+- **Critical:** YES - Pendo Resource Center and all tracking disappear without this
+- **Context:** Upstream v0.8.7 replaced this with `<WithRum>`. Both must coexist: `PendoInitializer` wraps `WithRum`.
+
+### 4b. Pendo Tracking Element (client/src/components/Chat/Menus/Endpoints/ModelSelector.tsx)
 - **Element:** `<span id="agentUsers" />`
 - **Purpose:** Business metrics tracking for AI agent usage
 - **Critical:** NO - Analytics only, app functions without it
@@ -101,6 +108,7 @@ When merging upstream LibreChat releases:
 - `packages/api/src/promptCatalog/handlers.ts` and `packages/api/src/index.ts` — Prompt Catalog resolver export loaded by `@librechat/api`
 - `client/src/hooks/Input/useQueryParams.ts` — `promptCatalogId` resolution, timeout, and toast behavior
 - `client/src/routes/ChatRoute.tsx` — Excludes Prompt Catalog query params from preset merging
+- `client/src/routes/index.tsx` — `PendoInitializer` wrapping `AuthLayout` content (upstream replaced with `WithRum`; both must coexist)
 - `Dockerfile` — Build error handling
 - `package.json` files — Dependency versions (use npm registry for xlsx, not CDN)
 

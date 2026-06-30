@@ -18,7 +18,8 @@ These customizations MUST be preserved during upstream merges. Verify after ever
 | Schema Sanitization | `api/server/services/start/tools.js` | `sanitizeSchemaMetadata` | Removes incompatible OpenAPI schema fields for Gemini - tool calls fail without this |
 | Gemini Endpoint Detection | `api/server/services/MCP.js` | `providerLower.includes('gemini') \|\| providerLower.includes('google')` | Enables custom Gemini endpoint support - appears in 2 locations |
 | MCP Server Name Normalization | `api/server/services/MCP.js`, `packages/api/src/mcp/registry/MCPServerInspector.ts` | `normalizeServerName(serverName)` in all toolKey construction | Prevents 400 validation errors for MCP server names containing spaces or special characters |
-| Pendo Analytics | `client/src/components/Chat/Menus/Endpoints/ModelSelector.tsx` | `<span id="agentUsers" />` | Business metrics tracking (non-breaking) |
+| Pendo Analytics | `client/src/routes/index.tsx` | `<PendoInitializer>` wrapping content in `AuthLayout` | Pendo "See newest features" button and all analytics disappear without this; upstream replaced with `<WithRum>` — both must coexist |
+| Pendo Tracking Element | `client/src/components/Chat/Menus/Endpoints/ModelSelector.tsx` | `<span id="agentUsers" />` | Business metrics tracking (non-breaking) |
 | Menu Descriptions | `packages/client/src/components/DropdownPopup.tsx` | `item.description`, `items-start`, CSS transitions | UX enhancement (non-breaking) |
 | Declarative Tools UI | `client/src/components/Chat/Input/ToolsDropdown.tsx` | `label:`, `description:`, `icon:` properties | Code organization (non-breaking) |
 | Dockerfile Error Handling | `Dockerfile` | `&&` operators (not `;`) | Prevents masked build failures - critical for CI/CD |
@@ -72,6 +73,7 @@ Apply this matrix when resolving each conflict:
 - `packages/api/src/utils/generators.ts`
 - `client/src/hooks/Input/useQueryParams.ts`
 - `client/src/routes/ChatRoute.tsx`
+- `client/src/routes/index.tsx`
 - `Dockerfile`
 - `api/package.json`
 - `packages/api/package.json`
@@ -83,6 +85,7 @@ Apply this matrix when resolving each conflict:
 - `packages/client/src/components/*.tsx`
 - `api/server/middleware/*.js` — check for refreshOpenIDToken, loginLimiter skipSuccessfulRequests
 - `client/src/hooks/**/*.ts` — check for GPTIconDark, MCP startup auto-select
+- `client/src/hooks/Pendo/**` — PendoInitializer and usePendo hook (must not be deleted)
 - `packages/api/src/mcp/connection.ts` — check for shouldStopReconnecting flag and transient error log levels
 - `librechat.*.yml`
 - `az_container_app_definitions/*.yml`
