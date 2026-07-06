@@ -83,6 +83,7 @@ mcpSettings:
   allowedDomains:
     - https://mcp.tavily.com
     - '*.paychex.com'
+    - https://paycm56stg-idwtpqsqijlw-ia.integration.us-ashburn-1.ocp.oraclecloud.com
 endpoints:
   azureOpenAI:
     # Endpoint-level configuration
