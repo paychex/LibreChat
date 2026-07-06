@@ -1,0 +1,21 @@
+name: Checkmarx One Scan
+on:
+  push:
+    branches:
+      - main
+      - feature/add-new-feature
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Checkmarx One CLI Action
+        uses: checkmarx/ast-github-action@main #Github Action version
+        with:
+          project_name: <Name of Checkmarx One Project>
+          cx_tenant: <Checkmarx One Tenant Account (paychex_dev|paychex_prod)>
+          base_uri: <Checkmarx One Base uri (https://us.ast.checkmarx.net)> 
+          cx_client_id: ${{ secrets.CX_CLIENT_ID_<DEV|PROD> }}
+          cx_client_secret: ${{ secrets.CX_CLIENT_SECRET_<DEV|PROD> }}
+		  additional_params: --scan-types sast
