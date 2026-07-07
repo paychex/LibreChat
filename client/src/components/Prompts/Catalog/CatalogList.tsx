@@ -1,22 +1,53 @@
 import { useMemo, useState } from 'react';
-import { FileText, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileText, Search, ChevronDown, ChevronUp, Tag, User } from 'lucide-react';
 import { Button, Skeleton } from '@librechat/client';
 import { useLocalize } from '~/hooks';
+import { useAuthContext } from '~/hooks';
 import { cn } from '~/utils';
-import { useGetPromptCatalog } from '~/data-provider';
+import { useGetPromptCatalog, useGetPromptCatalogCategories } from '~/data-provider';
 import CatalogItem from './CatalogItem';
 
 const LOCAL_PAGE_SIZE = 5;
 const API_PAGE_SIZE = 50;
 
+type SortBy = 'default' | 'az' | 'za' | 'newest' | 'oldest';
+
+const ALL_TAGS = [
+  'analysis',
+  'code-generation',
+  'debugging',
+  'documentation',
+  'email',
+  'explanation',
+  'hr',
+  'legal',
+  'marketing',
+  'paychex',
+  'productivity',
+  'refactoring',
+  'security',
+  'summarization',
+  'testing',
+  'translation',
+];
+
 export default function CatalogList() {
   const localize = useLocalize();
+  const { user } = useAuthContext();
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [tagInput, setTagInput] = useState('');
+  const [selectedTag, setSelectedTag] = useState('');
+  const [sortBy, setSortBy] = useState<SortBy>('default');
+  const [showMyPrompts, setShowMyPrompts] = useState(false);
   const [localPage, setLocalPage] = useState(1);
   const [isExpanded, setIsExpanded] = useState(true);
+  const [filteredTagSuggestionsOpen, setFilteredTagSuggestionsOpen] = useState(false);
 
-  // Which API page holds the current local page
+  const { data: categoriesQueryData } = useGetPromptCatalogCategories();
+  const availableCategories = categoriesQueryData ?? [];
+
   const apiPage = useMemo(
     () => Math.ceil((localPage * LOCAL_PAGE_SIZE) / API_PAGE_SIZE),
     [localPage],
@@ -24,21 +55,80 @@ export default function CatalogList() {
 
   const { data, isLoading } = useGetPromptCatalog({
     search: debouncedSearch || undefined,
+    category: selectedCategory || undefined,
+    tag: selectedTag || undefined,
     page: String(apiPage),
   });
 
-  const allPrompts = data?.prompts ?? [];
   const totalCount = data?.pagination?.total_count ?? 0;
-  const totalLocalPages = Math.ceil(totalCount / LOCAL_PAGE_SIZE);
 
-  // Slice the 50-item API page down to the 5 we want
+  const processedPrompts = useMemo(() => {
+    const source = data?.prompts ?? [];
+    let list = [...source];
+    if (showMyPrompts && user?.name) {
+      list = list.filter((p) => p.creator_name === user.name);
+    }
+    if (sortBy === 'az') {
+      list.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sortBy === 'za') {
+      list.sort((a, b) => b.title.localeCompare(a.title));
+    } else if (sortBy === 'newest') {
+      list.sort((a, b) => b.id - a.id);
+    } else if (sortBy === 'oldest') {
+      list.sort((a, b) => a.id - b.id);
+    }
+    return list;
+  }, [data?.prompts, showMyPrompts, sortBy, user?.name]);
+
   const offsetWithinApiPage = ((localPage - 1) * LOCAL_PAGE_SIZE) % API_PAGE_SIZE;
-  const prompts = allPrompts.slice(offsetWithinApiPage, offsetWithinApiPage + LOCAL_PAGE_SIZE);
+  const totalLocalPages = showMyPrompts
+    ? Math.ceil(processedPrompts.length / LOCAL_PAGE_SIZE)
+    : Math.ceil(totalCount / LOCAL_PAGE_SIZE);
+  const prompts = showMyPrompts
+    ? processedPrompts.slice((localPage - 1) * LOCAL_PAGE_SIZE, localPage * LOCAL_PAGE_SIZE)
+    : processedPrompts.slice(offsetWithinApiPage, offsetWithinApiPage + LOCAL_PAGE_SIZE);
+
+  const filteredTagSuggestions = tagInput.trim()
+    ? ALL_TAGS.filter((t) => t.includes(tagInput.toLowerCase()) && t !== selectedTag)
+    : [];
+
+  const resetPage = () => setLocalPage(1);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
-    setLocalPage(1);
     setDebouncedSearch(e.target.value);
+    resetPage();
+  };
+
+  const handleCategoryClick = (cat: string) => {
+    setSelectedCategory((prev) => (prev === cat ? '' : cat));
+    resetPage();
+  };
+
+  const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTagInput(e.target.value);
+    if (!e.target.value.trim()) {
+      setSelectedTag('');
+      resetPage();
+    }
+  };
+
+  const handleTagSelect = (tag: string) => {
+    setSelectedTag(tag);
+    setTagInput(tag);
+    setFilteredTagSuggestionsOpen(false);
+    resetPage();
+  };
+
+  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && tagInput.trim()) {
+      setSelectedTag(tagInput.trim());
+      setFilteredTagSuggestionsOpen(false);
+      resetPage();
+    }
+    if (e.key === 'Escape') {
+      setFilteredTagSuggestionsOpen(false);
+    }
   };
 
   return (
@@ -59,6 +149,7 @@ export default function CatalogList() {
 
       {isExpanded && (
         <>
+          {/* Search */}
           <div className="relative mt-1 px-1">
             <Search
               className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-secondary"
@@ -74,6 +165,139 @@ export default function CatalogList() {
             />
           </div>
 
+          {/* Category chips */}
+          <div
+            className="mt-2 flex flex-wrap gap-1 px-1"
+            role="group"
+            aria-label="Filter by category"
+          >
+            <button
+              type="button"
+              onClick={() => handleCategoryClick('')}
+              className={cn(
+                'rounded-full border px-2 py-0.5 text-xs transition-colors',
+                selectedCategory === ''
+                  ? 'border-brand-purple bg-brand-purple text-white'
+                  : 'border-border-light bg-surface-primary text-text-secondary hover:bg-surface-hover',
+              )}
+            >
+              {localize('com_ui_prompt_catalog_all')}
+            </button>
+            {availableCategories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => handleCategoryClick(cat)}
+                className={cn(
+                  'rounded-full border px-2 py-0.5 text-xs transition-colors',
+                  selectedCategory === cat
+                    ? 'border-brand-purple bg-brand-purple text-white'
+                    : 'border-border-light bg-surface-primary text-text-secondary hover:bg-surface-hover',
+                )}
+                aria-pressed={selectedCategory === cat}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          {/* Tag filter */}
+          <div className="relative mt-2 px-1">
+            <Tag
+              className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-secondary"
+              aria-hidden="true"
+            />
+            <input
+              type="text"
+              value={tagInput}
+              onChange={handleTagInputChange}
+              onKeyDown={handleTagInputKeyDown}
+              onFocus={() => setFilteredTagSuggestionsOpen(true)}
+              onBlur={() => setTimeout(() => setFilteredTagSuggestionsOpen(false), 150)}
+              placeholder={localize('com_ui_prompt_catalog_tag_filter')}
+              className="w-full rounded-lg border border-border-light bg-surface-primary py-1.5 pl-8 pr-3 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-1 focus:ring-border-heavy"
+              aria-label={localize('com_ui_prompt_catalog_tag_filter')}
+              aria-autocomplete="list"
+            />
+            {filteredTagSuggestionsOpen && filteredTagSuggestions.length > 0 && (
+              <ul
+                className="absolute z-10 mt-1 w-full rounded-lg border border-border-light bg-surface-primary py-1 shadow-md"
+                role="listbox"
+              >
+                {filteredTagSuggestions.map((tag) => (
+                  <li
+                    key={tag}
+                    role="option"
+                    aria-selected={selectedTag === tag}
+                    onMouseDown={() => handleTagSelect(tag)}
+                    className="cursor-pointer px-3 py-1.5 text-sm text-text-primary hover:bg-surface-hover"
+                  >
+                    {tag}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Active tag badge */}
+          {selectedTag && (
+            <div className="mt-1 flex items-center gap-1 px-1">
+              <span className="flex items-center gap-1 rounded-full border border-border-light bg-surface-tertiary px-2 py-0.5 text-xs text-text-secondary">
+                <Tag className="size-3" aria-hidden="true" />
+                {selectedTag}
+                <button
+                  type="button"
+                  aria-label={`Remove tag filter: ${selectedTag}`}
+                  onClick={() => {
+                    setSelectedTag('');
+                    setTagInput('');
+                    resetPage();
+                  }}
+                  className="ml-0.5 text-text-secondary hover:text-text-primary"
+                >
+                  ×
+                </button>
+              </span>
+            </div>
+          )}
+
+          {/* My Prompts toggle + Sort row */}
+          <div className="mt-2 flex items-center gap-1.5 px-1">
+            <button
+              type="button"
+              onClick={() => {
+                setShowMyPrompts((prev) => !prev);
+                resetPage();
+              }}
+              aria-pressed={showMyPrompts}
+              className={cn(
+                'flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors',
+                showMyPrompts
+                  ? 'border-brand-purple bg-brand-purple text-white'
+                  : 'border-border-light bg-surface-primary text-text-secondary hover:bg-surface-hover',
+              )}
+            >
+              <User className="size-3" aria-hidden="true" />
+              {localize('com_ui_prompt_catalog_my_prompts')}
+            </button>
+            <select
+              value={sortBy}
+              onChange={(e) => {
+                setSortBy(e.target.value as SortBy);
+                resetPage();
+              }}
+              aria-label={localize('com_ui_prompt_catalog_sort')}
+              className="ml-auto rounded-lg border border-border-light bg-surface-primary py-0.5 pl-2 pr-6 text-xs text-text-secondary focus:outline-none focus:ring-1 focus:ring-border-heavy"
+            >
+              <option value="default">{localize('com_ui_prompt_catalog_sort_default')}</option>
+              <option value="az">{localize('com_ui_prompt_catalog_sort_az')}</option>
+              <option value="za">{localize('com_ui_prompt_catalog_sort_za')}</option>
+              <option value="newest">{localize('com_ui_prompt_catalog_sort_newest')}</option>
+              <option value="oldest">{localize('com_ui_prompt_catalog_sort_oldest')}</option>
+            </select>
+          </div>
+
+          {/* Prompt list */}
           <div className="mt-1 flex flex-col overflow-y-auto">
             {isLoading &&
               Array.from({ length: LOCAL_PAGE_SIZE }).map((_, i) => (
@@ -101,6 +325,7 @@ export default function CatalogList() {
             {!isLoading && prompts.map((prompt) => <CatalogItem key={prompt.id} prompt={prompt} />)}
           </div>
 
+          {/* Pagination */}
           {totalLocalPages > 1 && (
             <div
               className="flex items-center justify-between pt-1"

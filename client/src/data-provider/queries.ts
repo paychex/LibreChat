@@ -506,6 +506,9 @@ export const useGetPromptCatalog = <TData = t.CatalogPromptsResponse>(
       if (params?.category) {
         url.searchParams.set('category', params.category);
       }
+      if (params?.tag) {
+        url.searchParams.set('tag', params.tag);
+      }
       if (params?.page) {
         url.searchParams.set('page', params.page);
       }
@@ -524,6 +527,53 @@ export const useGetPromptCatalog = <TData = t.CatalogPromptsResponse>(
       refetchOnMount: false,
       retry: false,
       ...config,
+    },
+  );
+};
+
+const CATALOG_API_PROMPTS_URL =
+  'https://app-promptcatalog-api-eastus-prod-001.azurewebsites.net/api/prompts';
+
+/** Fetches every page of the Prompt Catalog in parallel and returns a sorted,
+ *  deduplicated list of all category strings. Cached for 30 minutes. */
+export const useGetPromptCatalogCategories = (): QueryObserverResult<string[]> => {
+  return useQuery<string[]>(
+    [QueryKeys.promptCatalog, 'categories'],
+    async () => {
+      const firstRes = await fetch(`${CATALOG_API_PROMPTS_URL}?page=1`);
+      if (!firstRes.ok) {
+        throw new Error(`Prompt Catalog categories fetch failed: ${firstRes.status}`);
+      }
+      const firstData = (await firstRes.json()) as t.CatalogPromptsResponse;
+      const allPrompts = [...(firstData.prompts ?? [])];
+      const totalPages = firstData.pagination?.total_pages ?? 1;
+
+      if (totalPages > 1) {
+        const pageNumbers = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+        const pages = await Promise.all(
+          pageNumbers.map((p) =>
+            fetch(`${CATALOG_API_PROMPTS_URL}?page=${p}`)
+              .then((r) =>
+                r.ok
+                  ? (r.json() as Promise<t.CatalogPromptsResponse>)
+                  : { prompts: [] as t.CatalogPrompt[] },
+              )
+              .catch(() => ({ prompts: [] as t.CatalogPrompt[] })),
+          ),
+        );
+        for (const page of pages) {
+          allPrompts.push(...(page.prompts ?? []));
+        }
+      }
+
+      return Array.from(new Set(allPrompts.map((p) => p.category).filter(Boolean))).sort();
+    },
+    {
+      staleTime: 30 * 60 * 1000,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: false,
     },
   );
 };

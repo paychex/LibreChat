@@ -127,6 +127,7 @@ export type CatalogPromptsResponse = {
 export type CatalogPromptsParams = {
   search?: string;
   category?: string;
+  tag?: string;
   page?: string;
 };
 

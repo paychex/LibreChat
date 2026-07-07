@@ -4,6 +4,7 @@ import {
   Bot,
   Brain,
   Bookmark,
+  Library,
   NotebookPen,
   ScrollText,
   ArrowRightToLine,
@@ -33,6 +34,7 @@ import Parameters from '~/components/SidePanel/Parameters/Panel';
 import { MemoryPanel } from '~/components/SidePanel/Memories';
 import FilesPanel from '~/components/SidePanel/Files/Panel';
 import { PromptsAccordion } from '~/components/Prompts';
+import CatalogPanel from '~/components/Prompts/Catalog/CatalogPanel';
 import { SkillsAccordion } from '~/components/Skills';
 
 export default function useSideNavLinks({
@@ -147,6 +149,13 @@ export default function useSideNavLinks({
         icon: NotebookPen,
         id: 'prompts',
         Component: PromptsAccordion,
+      });
+      links.push({
+        title: 'com_ui_prompt_catalog',
+        label: '',
+        icon: Library,
+        id: 'prompt-catalog',
+        Component: CatalogPanel,
       });
     }
 
