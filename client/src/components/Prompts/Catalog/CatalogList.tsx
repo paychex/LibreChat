@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { FileText, Search, ChevronDown, ChevronUp, Tag, User, RefreshCw } from 'lucide-react';
+import { FileText, Search, ChevronDown, ChevronUp, Tag, User, RefreshCw, Plus } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryKeys } from 'librechat-data-provider';
 import { Button, Skeleton } from '@librechat/client';
@@ -11,6 +11,7 @@ import {
   useGetPromptCatalogTags,
 } from '~/data-provider';
 import CatalogItem from './CatalogItem';
+import CreateCatalogPromptDialog from './CreateCatalogPromptDialog';
 
 const LOCAL_PAGE_SIZE = 5;
 const API_PAGE_SIZE = 50;
@@ -41,6 +42,7 @@ export default function CatalogList() {
   const [showMyPrompts, setShowMyPrompts] = useState(false);
   const [localPage, setLocalPage] = useState(1);
   const [isExpanded, setIsExpanded] = useState(true);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [filteredTagSuggestionsOpen, setFilteredTagSuggestionsOpen] = useState(false);
 
   const { data: categoriesQueryData } = useGetPromptCatalogCategories();
@@ -132,6 +134,18 @@ export default function CatalogList() {
       >
         <span>{localize('com_ui_prompt_catalog')}</span>
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsCreateOpen(true);
+            }}
+            className="rounded p-0.5 text-text-secondary hover:text-text-primary"
+            aria-label={localize('com_ui_prompt_catalog_create')}
+            title={localize('com_ui_prompt_catalog_create')}
+          >
+            <Plus className="size-4" aria-hidden="true" />
+          </button>
           <button
             type="button"
             onClick={(e) => {
@@ -361,6 +375,8 @@ export default function CatalogList() {
           )}
         </>
       )}
+
+      <CreateCatalogPromptDialog isOpen={isCreateOpen} setIsOpen={setIsCreateOpen} />
     </div>
   );
 }

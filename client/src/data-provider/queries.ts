@@ -6,11 +6,12 @@ import {
   defaultOrderQuery,
   defaultAssistantsVersion,
 } from 'librechat-data-provider';
-import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
   UseInfiniteQueryOptions,
   QueryObserverResult,
   UseQueryOptions,
+  UseMutationResult,
   InfiniteData,
 } from '@tanstack/react-query';
 import type t from 'librechat-data-provider';
@@ -571,6 +572,64 @@ export const useGetPromptCatalogTags = (): QueryObserverResult<string[]> => {
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       retry: false,
+    },
+  );
+};
+
+export type CreateCatalogPromptInput = {
+  title: string;
+  content: string;
+  category?: string;
+  ai_tool?: string;
+  impact?: string;
+  department?: string;
+  is_public?: boolean;
+  tags?: string[];
+  /** Forwarded as identity headers */
+  userEmail?: string;
+  userName?: string;
+};
+
+/** Creates a new prompt in the Prompt Catalog via POST /prompts.
+ *  Invalidates all catalog queries on success so the new prompt appears. */
+export const useCreatePromptCatalogPrompt = (options?: {
+  onSuccess?: (data: { id: number }) => void;
+  onError?: (error: unknown) => void;
+}): UseMutationResult<{ id: number }, unknown, CreateCatalogPromptInput> => {
+  const queryClient = useQueryClient();
+  return useMutation<{ id: number }, unknown, CreateCatalogPromptInput>(
+    async ({ userEmail, userName, ...body }) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (userEmail) headers['x-forwarded-user-email'] = userEmail;
+      if (userName) headers['x-forwarded-user-name'] = userName;
+
+      const response = await fetch(`${CATALOG_API_BASE}/prompts`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        let message = `Prompt Catalog create failed: ${response.status}`;
+        try {
+          const errData = (await response.json()) as { error?: string; message?: string };
+          message = errData.error ?? errData.message ?? message;
+        } catch {
+          // ignore json parse errors
+        }
+        throw new Error(message);
+      }
+
+      return response.json() as Promise<{ id: number }>;
+    },
+    {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries([QueryKeys.promptCatalog]);
+        options?.onSuccess?.(data);
+      },
+      onError: (error) => {
+        options?.onError?.(error);
+      },
     },
   );
 };
