@@ -127,8 +127,21 @@ export type CatalogPromptsResponse = {
 export type CatalogPromptsParams = {
   search?: string;
   category?: string;
+  /** One or more tags; prompts must have ALL specified tags */
   tag?: string;
   page?: string;
+  /** Results per page; the API allows up to 200 */
+  pageSize?: string;
+  /** API field to sort by */
+  sortBy?: 'thumbs_up_count' | 'created_at' | 'updated_at' | 'title';
+  /** Sort direction */
+  sortOrder?: 'asc' | 'desc';
+  /** When "true", only show prompts authored by the requesting user */
+  showMyPrompts?: 'true';
+  /** Forwarded as x-forwarded-user-email header for identity resolution */
+  userEmail?: string;
+  /** Forwarded as x-forwarded-user-name header for identity resolution */
+  userName?: string;
 };
 
 export type ConversationTagsResponse = s.TConversationTag[];

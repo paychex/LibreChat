@@ -490,6 +490,8 @@ export const useGetAllPromptGroups = <TData = t.AllPromptGroupsResponse>(
   );
 };
 
+const CATALOG_API_BASE = 'https://app-promptcatalog-api-eastus-prod-001.azurewebsites.net/api';
+
 export const useGetPromptCatalog = <TData = t.CatalogPromptsResponse>(
   params?: t.CatalogPromptsParams,
   config?: UseQueryOptions<t.CatalogPromptsResponse, unknown, TData>,
@@ -497,25 +499,21 @@ export const useGetPromptCatalog = <TData = t.CatalogPromptsResponse>(
   return useQuery<t.CatalogPromptsResponse, unknown, TData>(
     [QueryKeys.promptCatalog, params],
     async () => {
-      const url = new URL(
-        'https://app-promptcatalog-api-eastus-prod-001.azurewebsites.net/api/prompts',
-      );
-      if (params?.search) {
-        url.searchParams.set('search', params.search);
-      }
-      if (params?.category) {
-        url.searchParams.set('category', params.category);
-      }
-      if (params?.tag) {
-        url.searchParams.set('tag', params.tag);
-      }
-      if (params?.page) {
-        url.searchParams.set('page', params.page);
-      }
-      if (params?.limit) {
-        url.searchParams.set('limit', params.limit);
-      }
-      const response = await fetch(url.toString());
+      const url = new URL(`${CATALOG_API_BASE}/prompts`);
+      if (params?.search) url.searchParams.set('search', params.search);
+      if (params?.category) url.searchParams.set('category', params.category);
+      if (params?.tag) url.searchParams.set('tag', params.tag);
+      if (params?.page) url.searchParams.set('page', params.page);
+      if (params?.pageSize) url.searchParams.set('pageSize', params.pageSize);
+      if (params?.sortBy) url.searchParams.set('sortBy', params.sortBy);
+      if (params?.sortOrder) url.searchParams.set('sortOrder', params.sortOrder);
+      if (params?.showMyPrompts) url.searchParams.set('showMyPrompts', params.showMyPrompts);
+
+      const headers: Record<string, string> = {};
+      if (params?.userEmail) headers['x-forwarded-user-email'] = params.userEmail;
+      if (params?.userName) headers['x-forwarded-user-name'] = params.userName;
+
+      const response = await fetch(url.toString(), { headers });
       if (!response.ok) {
         throw new Error(`Prompt Catalog fetch failed: ${response.status}`);
       }
@@ -531,42 +529,41 @@ export const useGetPromptCatalog = <TData = t.CatalogPromptsResponse>(
   );
 };
 
-const CATALOG_API_PROMPTS_URL =
-  'https://app-promptcatalog-api-eastus-prod-001.azurewebsites.net/api/prompts';
-
-/** Fetches every page of the Prompt Catalog in parallel and returns a sorted,
- *  deduplicated list of all category strings. Cached for 30 minutes. */
+/** Returns the canonical category list from /prompts/categories. Cached 30 min. */
 export const useGetPromptCatalogCategories = (): QueryObserverResult<string[]> => {
   return useQuery<string[]>(
     [QueryKeys.promptCatalog, 'categories'],
     async () => {
-      const firstRes = await fetch(`${CATALOG_API_PROMPTS_URL}?page=1`);
-      if (!firstRes.ok) {
-        throw new Error(`Prompt Catalog categories fetch failed: ${firstRes.status}`);
+      const response = await fetch(`${CATALOG_API_BASE}/prompts/categories`);
+      if (!response.ok) {
+        throw new Error(`Prompt Catalog categories fetch failed: ${response.status}`);
       }
-      const firstData = (await firstRes.json()) as t.CatalogPromptsResponse;
-      const allPrompts = [...(firstData.prompts ?? [])];
-      const totalPages = firstData.pagination?.total_pages ?? 1;
+      const data = (await response.json()) as { categories: string[] };
+      return (data.categories ?? []).slice().sort();
+    },
+    {
+      staleTime: 30 * 60 * 1000,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: false,
+    },
+  );
+};
 
-      if (totalPages > 1) {
-        const pageNumbers = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
-        const pages = await Promise.all(
-          pageNumbers.map((p) =>
-            fetch(`${CATALOG_API_PROMPTS_URL}?page=${p}`)
-              .then((r) =>
-                r.ok
-                  ? (r.json() as Promise<t.CatalogPromptsResponse>)
-                  : { prompts: [] as t.CatalogPrompt[] },
-              )
-              .catch(() => ({ prompts: [] as t.CatalogPrompt[] })),
-          ),
-        );
-        for (const page of pages) {
-          allPrompts.push(...(page.prompts ?? []));
-        }
+/** Returns all tags with usage counts from /prompts/tags, sorted by usage desc. Cached 30 min. */
+export const useGetPromptCatalogTags = (): QueryObserverResult<string[]> => {
+  return useQuery<string[]>(
+    [QueryKeys.promptCatalog, 'tags'],
+    async () => {
+      const response = await fetch(`${CATALOG_API_BASE}/prompts/tags`);
+      if (!response.ok) {
+        throw new Error(`Prompt Catalog tags fetch failed: ${response.status}`);
       }
-
-      return Array.from(new Set(allPrompts.map((p) => p.category).filter(Boolean))).sort();
+      const data = (await response.json()) as {
+        tags: Array<{ name: string; usage_count: number }>;
+      };
+      return (data.tags ?? []).sort((a, b) => b.usage_count - a.usage_count).map((t) => t.name);
     },
     {
       staleTime: 30 * 60 * 1000,

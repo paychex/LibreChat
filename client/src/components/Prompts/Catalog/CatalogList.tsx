@@ -1,10 +1,15 @@
 import { useMemo, useState } from 'react';
-import { FileText, Search, ChevronDown, ChevronUp, Tag, User } from 'lucide-react';
+import { FileText, Search, ChevronDown, ChevronUp, Tag, User, RefreshCw } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { QueryKeys } from 'librechat-data-provider';
 import { Button, Skeleton } from '@librechat/client';
-import { useLocalize } from '~/hooks';
-import { useAuthContext } from '~/hooks';
+import { useLocalize, useAuthContext } from '~/hooks';
 import { cn } from '~/utils';
-import { useGetPromptCatalog, useGetPromptCatalogCategories } from '~/data-provider';
+import {
+  useGetPromptCatalog,
+  useGetPromptCatalogCategories,
+  useGetPromptCatalogTags,
+} from '~/data-provider';
 import CatalogItem from './CatalogItem';
 
 const LOCAL_PAGE_SIZE = 5;
@@ -12,28 +17,21 @@ const API_PAGE_SIZE = 50;
 
 type SortBy = 'default' | 'az' | 'za' | 'newest' | 'oldest';
 
-const ALL_TAGS = [
-  'analysis',
-  'code-generation',
-  'debugging',
-  'documentation',
-  'email',
-  'explanation',
-  'hr',
-  'legal',
-  'marketing',
-  'paychex',
-  'productivity',
-  'refactoring',
-  'security',
-  'summarization',
-  'testing',
-  'translation',
-];
+const SORT_API_PARAMS: Record<
+  SortBy,
+  { sortBy?: 'title' | 'created_at' | 'thumbs_up_count'; sortOrder?: 'asc' | 'desc' }
+> = {
+  default: {},
+  az: { sortBy: 'title', sortOrder: 'asc' },
+  za: { sortBy: 'title', sortOrder: 'desc' },
+  newest: { sortBy: 'created_at', sortOrder: 'desc' },
+  oldest: { sortBy: 'created_at', sortOrder: 'asc' },
+};
 
 export default function CatalogList() {
   const localize = useLocalize();
   const { user } = useAuthContext();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -48,49 +46,42 @@ export default function CatalogList() {
   const { data: categoriesQueryData } = useGetPromptCatalogCategories();
   const availableCategories = categoriesQueryData ?? [];
 
+  const { data: tagsQueryData } = useGetPromptCatalogTags();
+
   const apiPage = useMemo(
     () => Math.ceil((localPage * LOCAL_PAGE_SIZE) / API_PAGE_SIZE),
     [localPage],
   );
+
+  const sortParams = SORT_API_PARAMS[sortBy];
 
   const { data, isLoading } = useGetPromptCatalog({
     search: debouncedSearch || undefined,
     category: selectedCategory || undefined,
     tag: selectedTag || undefined,
     page: String(apiPage),
+    showMyPrompts: showMyPrompts ? 'true' : undefined,
+    userEmail: showMyPrompts ? (user?.email ?? undefined) : undefined,
+    userName: showMyPrompts ? (user?.name ?? user?.username ?? undefined) : undefined,
+    sortBy: sortParams.sortBy,
+    sortOrder: sortParams.sortOrder,
   });
 
   const totalCount = data?.pagination?.total_count ?? 0;
-
-  const processedPrompts = useMemo(() => {
-    const source = data?.prompts ?? [];
-    let list = [...source];
-    if (showMyPrompts && user?.name) {
-      list = list.filter((p) => p.creator_name === user.name);
-    }
-    if (sortBy === 'az') {
-      list.sort((a, b) => a.title.localeCompare(b.title));
-    } else if (sortBy === 'za') {
-      list.sort((a, b) => b.title.localeCompare(a.title));
-    } else if (sortBy === 'newest') {
-      list.sort((a, b) => b.id - a.id);
-    } else if (sortBy === 'oldest') {
-      list.sort((a, b) => a.id - b.id);
-    }
-    return list;
-  }, [data?.prompts, showMyPrompts, sortBy, user?.name]);
-
+  const totalLocalPages = Math.ceil(totalCount / LOCAL_PAGE_SIZE);
   const offsetWithinApiPage = ((localPage - 1) * LOCAL_PAGE_SIZE) % API_PAGE_SIZE;
-  const totalLocalPages = showMyPrompts
-    ? Math.ceil(processedPrompts.length / LOCAL_PAGE_SIZE)
-    : Math.ceil(totalCount / LOCAL_PAGE_SIZE);
-  const prompts = showMyPrompts
-    ? processedPrompts.slice((localPage - 1) * LOCAL_PAGE_SIZE, localPage * LOCAL_PAGE_SIZE)
-    : processedPrompts.slice(offsetWithinApiPage, offsetWithinApiPage + LOCAL_PAGE_SIZE);
+  const allPrompts = data?.prompts ?? [];
+  const prompts = allPrompts.slice(offsetWithinApiPage, offsetWithinApiPage + LOCAL_PAGE_SIZE);
 
-  const filteredTagSuggestions = tagInput.trim()
-    ? ALL_TAGS.filter((t) => t.includes(tagInput.toLowerCase()) && t !== selectedTag)
-    : [];
+  const filteredTagSuggestions = useMemo(
+    () =>
+      tagInput.trim()
+        ? (tagsQueryData ?? []).filter(
+            (t) => t.includes(tagInput.toLowerCase()) && t !== selectedTag,
+          )
+        : [],
+    [tagInput, tagsQueryData, selectedTag],
+  );
 
   const resetPage = () => setLocalPage(1);
 
@@ -140,11 +131,24 @@ export default function CatalogList() {
         aria-expanded={isExpanded}
       >
         <span>{localize('com_ui_prompt_catalog')}</span>
-        {isExpanded ? (
-          <ChevronUp className="size-4 text-text-secondary" aria-hidden="true" />
-        ) : (
-          <ChevronDown className="size-4 text-text-secondary" aria-hidden="true" />
-        )}
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              queryClient.invalidateQueries([QueryKeys.promptCatalog]);
+            }}
+            className="rounded p-0.5 text-text-secondary hover:text-text-primary"
+            aria-label="Refresh catalog"
+          >
+            <RefreshCw className="size-3.5" aria-hidden="true" />
+          </button>
+          {isExpanded ? (
+            <ChevronUp className="size-4 text-text-secondary" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="size-4 text-text-secondary" aria-hidden="true" />
+          )}
+        </div>
       </button>
 
       {isExpanded && (
