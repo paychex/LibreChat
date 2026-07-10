@@ -13,7 +13,10 @@ modelSpecs:
     - azureOpenAI
     - "Gemini 2.5 Pro"
     - "Gemini 2.5 Flash"
-    - "Claude Sonnet 4.5"
+    - "Gemini 3.1 Flash Lite Preview"
+    - "Gemini 3.1 Pro Preview"
+    - "Gemini 3.1 Flash Image Preview"
+    - "Claude Sonnet 4.7"
     - "Claude Opus 4.6"
   list:
     - name: azure-gpt-5.4-mini
@@ -62,15 +65,42 @@ modelSpecs:
       preset:
         endpoint: "Gemini 2.5 Flash"
         model: gemini-2.5-flash
-    - name: anthropic-claude-sonnet-45
-      label: Claude Sonnet 4.5 (Limited)
+    - name: google-gemini-31-flash-lite-preview
+      label: Gemini 3.1 Flash Lite Preview
+      iconURL: /assets/google.png
+      showIconInMenu: true
+      showIconInHeader: true
+      description: A fast, lightweight Gemini 3.1 preview model for efficient everyday work.
+      preset:
+        endpoint: "Gemini 3.1 Flash Lite Preview"
+        model: gemini-3.1-flash-lite-preview
+    - name: google-gemini-31-pro-preview
+      label: Gemini 3.1 Pro Preview
+      iconURL: /assets/google.png
+      showIconInMenu: true
+      showIconInHeader: true
+      description: A Gemini 3.1 preview model for advanced reasoning and complex analysis.
+      preset:
+        endpoint: "Gemini 3.1 Pro Preview"
+        model: gemini-3.1-pro-preview
+    - name: google-gemini-31-flash-image-preview
+      label: Gemini 3.1 Flash Image Preview
+      iconURL: /assets/google.png
+      showIconInMenu: true
+      showIconInHeader: true
+      description: A Gemini 3.1 preview model for fast image-capable tasks.
+      preset:
+        endpoint: "Gemini 3.1 Flash Image Preview"
+        model: gemini-3.1-flash-image-preview
+    - name: anthropic-claude-sonnet-47
+      label: Claude Sonnet 4.7 (Limited)
       iconURL: /assets/anthropic.png
       showIconInMenu: true
       showIconInHeader: true
       description: For extended reasoning, coding, and automation. This model is being evaluated. It can be used a limited number of times.
       preset:
-        endpoint: "Claude Sonnet 4.5"
-        model: claude-sonnet-4-5
+        endpoint: "Claude Sonnet 4.7"
+        model: claude-sonnet-4-7
     - name: anthropic-claude-opus-46
       label: Claude Opus 4.6 (Limited)
       iconURL: /assets/anthropic.png
@@ -151,17 +181,68 @@ endpoints:
       dropParams:
         - stream
         - streaming
-    - name: "Claude Sonnet 4.5"
+    - name: "Gemini 3.1 Flash Lite Preview"
       apiKey: "${GCP_VERTEXAI_API_KEY}"
-      baseURL: "${GCP_VERTEXAI_BASEURL}/claude-sonnet-4-5/v1"
+      baseURL: "${GCP_VERTEXAI_BASEURL}/gemini-3.1-flash-lite-preview/v1"
+      iconURL: "/assets/google.png"
+      directEndpoint: true
+      models:
+        default:
+          - gemini-3.1-flash-lite-preview
+      titleModel: "gemini-3.1-flash-lite-preview"
+      titleConvo: true
+      modelDisplayLabel: "Gemini 3.1 Flash Lite Preview"
+      addParams:
+        streaming: false
+        disableStreaming: true
+      dropParams:
+        - stream
+        - streaming
+    - name: "Gemini 3.1 Pro Preview"
+      apiKey: "${GCP_VERTEXAI_API_KEY}"
+      baseURL: "${GCP_VERTEXAI_BASEURL}/gemini-3.1-pro-preview/v1"
+      iconURL: "/assets/google.png"
+      directEndpoint: true
+      models:
+        default:
+          - gemini-3.1-pro-preview
+      titleModel: "gemini-3.1-pro-preview"
+      titleConvo: true
+      modelDisplayLabel: "Gemini 3.1 Pro Preview"
+      addParams:
+        streaming: false
+        disableStreaming: true
+      dropParams:
+        - stream
+        - streaming
+    - name: "Gemini 3.1 Flash Image Preview"
+      apiKey: "${GCP_VERTEXAI_API_KEY}"
+      baseURL: "${GCP_VERTEXAI_BASEURL}/gemini-3.1-flash-image-preview/v1"
+      iconURL: "/assets/google.png"
+      directEndpoint: true
+      models:
+        default:
+          - gemini-3.1-flash-image-preview
+      titleModel: "gemini-3.1-flash-image-preview"
+      titleConvo: true
+      modelDisplayLabel: "Gemini 3.1 Flash Image Preview"
+      addParams:
+        streaming: false
+        disableStreaming: true
+      dropParams:
+        - stream
+        - streaming
+    - name: "Claude Sonnet 4.7"
+      apiKey: "${GCP_VERTEXAI_API_KEY}"
+      baseURL: "${GCP_VERTEXAI_BASEURL}/claude-sonnet-4-7/v1"
       iconURL: "/assets/anthropic.png"
       directEndpoint: true
       models:
         default:
-          - claude-sonnet-4-5
-      titleModel: "claude-sonnet-4-5"
+          - claude-sonnet-4-7
+      titleModel: "claude-sonnet-4-7"
       titleConvo: true
-      modelDisplayLabel: "Claude Sonnet 4.5"
+      modelDisplayLabel: "Claude Sonnet 4.7"
       # Streaming enabled - Kong translates to OpenAI SSE format
       streamRate: 25
     - name: "Claude Opus 4.6"
