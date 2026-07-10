@@ -14,6 +14,7 @@ modelSpecs:
     - "Gemini 2.5 Pro"
     - "Gemini 2.5 Flash"
     - "Claude Sonnet 4.5"
+    - "Claude Opus 4.6"
   list:
     - name: azure-gpt-5.4-mini
       label: GPT-5.4 Mini
@@ -70,6 +71,15 @@ modelSpecs:
       preset:
         endpoint: "Claude Sonnet 4.5"
         model: claude-sonnet-4-5
+    - name: anthropic-claude-opus-46
+      label: Claude Opus 4.6 (Limited)
+      iconURL: /assets/anthropic.png
+      showIconInMenu: true
+      showIconInHeader: true
+      description: For the most complex reasoning, coding, and automation tasks. This model is being evaluated. It can be used a limited number of times.
+      preset:
+        endpoint: "Claude Opus 4.6"
+        model: claude-opus-4-6
 mcpServers:
   Internet Search (Tavily):
     type: streamable-http
@@ -152,6 +162,19 @@ endpoints:
       titleModel: "claude-sonnet-4-5"
       titleConvo: true
       modelDisplayLabel: "Claude Sonnet 4.5"
+      # Streaming enabled - Kong translates to OpenAI SSE format
+      streamRate: 25
+    - name: "Claude Opus 4.6"
+      apiKey: "${GCP_VERTEXAI_API_KEY}"
+      baseURL: "${GCP_VERTEXAI_BASEURL}/claude-opus-4-6/v1"
+      iconURL: "/assets/anthropic.png"
+      directEndpoint: true
+      models:
+        default:
+          - claude-opus-4-6
+      titleModel: "claude-opus-4-6"
+      titleConvo: true
+      modelDisplayLabel: "Claude Opus 4.6"
       # Streaming enabled - Kong translates to OpenAI SSE format
       streamRate: 25
     - name: "LangGraph Agents"
