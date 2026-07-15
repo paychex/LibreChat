@@ -12,6 +12,7 @@ import {
   processValidSettings,
   getDefaultModelSpec,
   getModelSpecPreset,
+  hasStoredConversationSelection,
   isNotFoundError,
   logger,
   clearMessagesCache,
@@ -175,10 +176,8 @@ export default function ChatRoute() {
         storedSetup && typeof storedSetup === 'object' && Object.keys(storedSetup).length > 0
           ? storedSetup
           : null;
-      const hasStoredModelSelection = Boolean(
-        storedConvo?.model ?? (storedConvo as Record<string, unknown>)?.agentOptions,
-      );
-      const activePreset = hasStoredModelSelection ? undefined : specPreset;
+      const hasStoredSelection = hasStoredConversationSelection(storedConvo);
+      const activePreset = hasStoredSelection ? undefined : specPreset;
 
       const queryParams: Record<string, string> = {};
       searchParams.forEach((value, key) => {

@@ -1,6 +1,11 @@
-import { EModelEndpoint, getEndpointField } from 'librechat-data-provider';
+import { Constants, EModelEndpoint, getEndpointField } from 'librechat-data-provider';
 import type { TEndpointsConfig, TConfig } from 'librechat-data-provider';
-import { getAvailableEndpoints, getEndpointsFilter, mapEndpoints } from './endpoints';
+import {
+  getAvailableEndpoints,
+  getEndpointsFilter,
+  hasStoredConversationSelection,
+  mapEndpoints,
+} from './endpoints';
 
 const mockEndpointsConfig: TEndpointsConfig = {
   [EModelEndpoint.openAI]: { type: undefined, iconURL: 'openAI_icon.png', order: 0 },
@@ -81,5 +86,55 @@ describe('mapEndpoints', () => {
   it('returns sorted available endpoints', () => {
     const expectedOrder = [EModelEndpoint.openAI, EModelEndpoint.google, 'Mistral'];
     expect(mapEndpoints(mockEndpointsConfig)).toEqual(expectedOrder);
+  });
+});
+
+describe('hasStoredConversationSelection', () => {
+  it('returns false without a stored conversation', () => {
+    expect(hasStoredConversationSelection(null)).toBe(false);
+    expect(hasStoredConversationSelection({})).toBe(false);
+  });
+
+  it('detects a stored model selection', () => {
+    expect(
+      hasStoredConversationSelection({ endpoint: EModelEndpoint.openAI, model: 'gpt-5.4' }),
+    ).toBe(true);
+  });
+
+  it('detects a stored nested agent model selection', () => {
+    expect(
+      hasStoredConversationSelection({
+        endpoint: EModelEndpoint.openAI,
+        agentOptions: { model: 'gpt-5.4' },
+      }),
+    ).toBe(true);
+  });
+
+  it('detects a stored saved agent selection without a model', () => {
+    expect(
+      hasStoredConversationSelection({
+        endpoint: EModelEndpoint.agents,
+        agent_id: 'agent_123',
+      }),
+    ).toBe(true);
+  });
+
+  it('detects a stored saved agent selection with an empty model', () => {
+    expect(
+      hasStoredConversationSelection({
+        endpoint: EModelEndpoint.agents,
+        model: '',
+        agent_id: 'agent_123',
+      }),
+    ).toBe(true);
+  });
+
+  it('ignores ephemeral agent ids as stored agent selections', () => {
+    expect(
+      hasStoredConversationSelection({
+        endpoint: EModelEndpoint.agents,
+        agent_id: Constants.EPHEMERAL_AGENT_ID.toString(),
+      }),
+    ).toBe(false);
   });
 });

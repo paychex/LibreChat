@@ -91,6 +91,12 @@ export function mapEndpoints(endpointsConfig: t.TEndpointsConfig) {
 
 const firstLocalConvoKey = LocalStorageKeys.LAST_CONVO_SETUP + '_0';
 
+type StoredConversationSelection = Partial<t.TConversation> & {
+  agentOptions?: {
+    model?: string | null;
+  } | null;
+};
+
 /**
  * Ensures the last selected model stays up to date, as conversation may
  * update without updating last convo setup when same endpoint */
@@ -119,6 +125,23 @@ export function updateLastSelectedModel({
   );
   lastSelectedModels[endpoint] = model;
   localStorage.setItem(LocalStorageKeys.LAST_MODEL, JSON.stringify(lastSelectedModels));
+}
+
+export function hasStoredConversationSelection(
+  conversation?: StoredConversationSelection | null,
+): boolean {
+  if (!conversation) {
+    return false;
+  }
+
+  const hasStoredModelSelection = Boolean(conversation.model ?? conversation.agentOptions);
+  const hasStoredAgentSelection = Boolean(
+    isAgentsEndpoint(conversation.endpoint) &&
+      conversation.agent_id &&
+      !isEphemeralAgentId(conversation.agent_id),
+  );
+
+  return hasStoredModelSelection || hasStoredAgentSelection;
 }
 
 interface ConversationInitParams {
