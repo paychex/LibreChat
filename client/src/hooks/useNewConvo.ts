@@ -32,6 +32,7 @@ import {
   getModelSpecPreset,
   hasModelSelection,
   buildDefaultConvo,
+  hasStoredConversationSelection,
   logger,
 } from '~/utils';
 import { useDeleteFilesMutation, useGetEndpointsQuery, useGetStartupConfig } from '~/data-provider';
@@ -95,9 +96,7 @@ const useNewConvo = (index = 0) => {
           storedSetup && typeof storedSetup === 'object' && Object.keys(storedSetup).length > 0
             ? (storedSetup as TConversation)
             : null;
-        const hasStoredModelSelection = Boolean(
-          storedConversation?.model ?? (storedConversation as Record<string, unknown>)?.agentOptions,
-        );
+        const hasStoredSelection = hasStoredConversationSelection(storedConversation);
         const buildDefaultConversation = (endpoint === null || buildDefault) ?? false;
         const hasExplicitChatProjectId = Object.prototype.hasOwnProperty.call(
           conversation,
@@ -113,20 +112,18 @@ const useNewConvo = (index = 0) => {
               (preset.presetId && preset.presetId === defaultPreset.presetId)),
         );
 
-        // Don't use the default preset if user has a stored model selection
+        // Don't use the default preset if user has a stored model or agent selection
         const shouldUseDefaultPreset = Boolean(
           defaultPreset &&
             !preset &&
             (defaultPreset.endpoint === endpoint || !endpoint) &&
             buildDefaultConversation &&
-            !hasStoredModelSelection,
+            !hasStoredSelection,
         );
 
-        // If the preset is the default spec and user has stored model, prefer stored conversation
+        // If the preset is the default spec and user has a stored selection, prefer stored conversation
         const effectivePreset =
-          isDefaultSpecPreset && hasStoredModelSelection && buildDefaultConversation
-            ? null
-            : preset;
+          isDefaultSpecPreset && hasStoredSelection && buildDefaultConversation ? null : preset;
 
         const appliedPreset: Partial<TPreset> | null = shouldUseDefaultPreset
           ? defaultPreset
