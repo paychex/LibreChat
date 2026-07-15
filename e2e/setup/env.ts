@@ -99,6 +99,53 @@ export function getBaseE2EEnv(): Record<string, string> {
   };
 }
 
+/**
+ * Playwright's webServer plugin uses `proxy-from-env` to decide whether to
+ * proxy its readiness HTTP probe. That library also picks up `npm_config_proxy`
+ * (which npm injects when Playwright is invoked via `npm`/`npx`), so a
+ * corporate proxy configured only in ~/.npmrc will route the probe against
+ * localhost through the proxy — the proxy returns 200 (a "403 Forbidden" HTML
+ * page from the proxy) and Playwright reports the port as already in use.
+ *
+ * When the target is loopback we strip these vars from the current process env
+ * so the probe stays local. This is safe: real credentialed traffic still uses
+ * the OS-level proxy configuration (if any).
+ */
+export function neutralizeProxyEnvForLoopback(baseURL = getE2EBaseURL()) {
+  const { host } = getE2EServerAddress(baseURL);
+  const normalized = host.toLowerCase();
+  if (normalized !== 'localhost' && normalized !== '127.0.0.1' && normalized !== '::1') {
+    return;
+  }
+  const keys = [
+    'HTTP_PROXY',
+    'http_proxy',
+    'HTTPS_PROXY',
+    'https_proxy',
+    'ALL_PROXY',
+    'all_proxy',
+    'npm_config_proxy',
+    'npm_config_http_proxy',
+    'npm_config_https_proxy',
+  ];
+  for (const key of keys) {
+    delete process.env[key];
+  }
+  const existingNoProxy = process.env.NO_PROXY ?? process.env.no_proxy ?? '';
+  const parts = new Set(
+    existingNoProxy
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean),
+  );
+  parts.add('localhost');
+  parts.add('127.0.0.1');
+  parts.add('::1');
+  const noProxy = Array.from(parts).join(',');
+  process.env.NO_PROXY = noProxy;
+  process.env.no_proxy = noProxy;
+}
+
 export function getLocalE2EEnv(): Record<string, string> {
   return {
     ...getBaseE2EEnv(),

@@ -95,22 +95,50 @@ export async function sendMessage(page: Page, text: string): Promise<Response> {
 }
 
 export async function getAccessToken(page: Page): Promise<string> {
-  const result = await page.evaluate(async () => {
-    const response = await fetch('/api/auth/refresh', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+  // Retry on "Execution context was destroyed" errors. The refresh call
+  // rotates the token which can prompt the app's own auth interceptor to
+  // re-refresh and re-render (navigate), destroying the page.evaluate
+  // execution context underneath us. Waiting and retrying is enough because
+  // the second call runs after the app has settled.
+  const invokeRefresh = async () =>
+    page.evaluate(async () => {
+      const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const text = await response.text();
+      let json: unknown = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        json = null;
+      }
+      return { ok: response.ok, status: response.status, text, json };
     });
-    const text = await response.text();
-    let json: unknown = null;
+
+  let result: Awaited<ReturnType<typeof invokeRefresh>> | undefined;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      json = null;
+      result = await invokeRefresh();
+      break;
+    } catch (error) {
+      lastError = error;
+      const message = (error as Error).message ?? '';
+      if (!message.includes('Execution context was destroyed')) {
+        throw error;
+      }
+      await page.waitForLoadState('domcontentloaded').catch(() => undefined);
+      await page.waitForTimeout(250);
     }
-    return { ok: response.ok, status: response.status, text, json };
-  });
+  }
+  if (!result) {
+    throw lastError instanceof Error
+      ? lastError
+      : new Error('getAccessToken: exhausted retries');
+  }
 
   if (!result.ok) {
     throw new Error(
@@ -135,37 +163,63 @@ export async function requestJson<T>(
     body?: unknown;
   },
 ): Promise<T> {
-  const result = await page.evaluate(
-    async ({ accessToken, body, method, urlPath }) => {
-      const headers: Record<string, string> = {
-        Authorization: `Bearer ${accessToken}`,
-      };
-      const init: RequestInit = {
-        method,
-        credentials: 'include',
-        headers,
-      };
-      if (body !== undefined) {
-        headers['Content-Type'] = 'application/json';
-        init.body = JSON.stringify(body);
+  // Same rationale as `getAccessToken`: retry on execution-context-destroyed
+  // errors caused by app-driven navigations happening concurrently with the
+  // in-page `fetch()`.
+  const invoke = async () =>
+    page.evaluate(
+      async ({ accessToken, body, method, urlPath }) => {
+        const headers: Record<string, string> = {
+          Authorization: `Bearer ${accessToken}`,
+        };
+        const init: RequestInit = {
+          method,
+          credentials: 'include',
+          headers,
+        };
+        if (body !== undefined) {
+          headers['Content-Type'] = 'application/json';
+          init.body = JSON.stringify(body);
+        }
+        const response = await fetch(urlPath, init);
+        const text = await response.text();
+        let json: unknown = null;
+        try {
+          json = text ? JSON.parse(text) : null;
+        } catch {
+          json = null;
+        }
+        return { ok: response.ok, status: response.status, text, json };
+      },
+      {
+        accessToken: params.token,
+        body: params.body,
+        method: params.method ?? 'GET',
+        urlPath: params.path,
+      },
+    );
+
+  let result: Awaited<ReturnType<typeof invoke>> | undefined;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      result = await invoke();
+      break;
+    } catch (error) {
+      lastError = error;
+      const message = (error as Error).message ?? '';
+      if (!message.includes('Execution context was destroyed')) {
+        throw error;
       }
-      const response = await fetch(urlPath, init);
-      const text = await response.text();
-      let json: unknown = null;
-      try {
-        json = text ? JSON.parse(text) : null;
-      } catch {
-        json = null;
-      }
-      return { ok: response.ok, status: response.status, text, json };
-    },
-    {
-      accessToken: params.token,
-      body: params.body,
-      method: params.method ?? 'GET',
-      urlPath: params.path,
-    },
-  );
+      await page.waitForLoadState('domcontentloaded').catch(() => undefined);
+      await page.waitForTimeout(250);
+    }
+  }
+  if (!result) {
+    throw lastError instanceof Error
+      ? lastError
+      : new Error(`requestJson ${params.method ?? 'GET'} ${params.path}: exhausted retries`);
+  }
 
   if (!result.ok) {
     throw new Error(

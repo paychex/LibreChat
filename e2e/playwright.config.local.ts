@@ -1,11 +1,13 @@
 import { PlaywrightTestConfig } from '@playwright/test';
 import mainConfig from './playwright.config';
-import { getLocalE2EEnv } from './setup/env';
+import { getLocalE2EEnv, neutralizeProxyEnvForLoopback } from './setup/env';
 import path from 'path';
 const rootPath = path.resolve(__dirname, '..');
 const serverPath = path.resolve(rootPath, 'e2e/setup/start-server.js');
 import dotenv from 'dotenv';
 dotenv.config();
+
+neutralizeProxyEnvForLoopback();
 
 const e2eEnv = getLocalE2EEnv();
 Object.assign(process.env, e2eEnv);
