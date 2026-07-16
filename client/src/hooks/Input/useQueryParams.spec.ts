@@ -18,13 +18,16 @@ jest.mock('~/store', () => ({
 }));
 
 import { renderHook, act } from '@testing-library/react';
+import { useToastContext } from '@librechat/client';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRecoilValue } from 'recoil';
+import { QueryKeys } from 'librechat-data-provider';
 import useQueryParams from './useQueryParams';
 import { useChatContext, useChatFormContext } from '~/Providers';
 import useSubmitMessage from '~/hooks/Messages/useSubmitMessage';
 import useDefaultConvo from '~/hooks/Conversations/useDefaultConvo';
+import { startupConfigKey } from '~/data-provider';
 import store from '~/store';
 
 // Other mocks
@@ -35,6 +38,10 @@ jest.mock('react-router-dom', () => ({
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: jest.fn(),
   useQuery: jest.fn(),
+}));
+
+jest.mock('@librechat/client', () => ({
+  useToastContext: jest.fn(),
 }));
 
 jest.mock('~/Providers', () => ({
@@ -128,6 +135,7 @@ describe('useQueryParams', () => {
   // Setup common mocks before each test
   beforeEach(() => {
     jest.useFakeTimers();
+    global.fetch = jest.fn() as unknown as typeof fetch;
 
     // Reset mock for window.history.replaceState
     jest.spyOn(window.history, 'replaceState').mockClear();
@@ -146,10 +154,10 @@ describe('useQueryParams', () => {
 
     const mockQueryClient = {
       getQueryData: jest.fn().mockImplementation((key) => {
-        if (key === 'startupConfig') {
+        if (JSON.stringify(key) === JSON.stringify(startupConfigKey(true))) {
           return { modelSpecs: { list: [] } };
         }
-        if (key === 'endpoints') {
+        if (JSON.stringify(key) === JSON.stringify([QueryKeys.endpoints])) {
           return {};
         }
         return null;
@@ -189,8 +197,10 @@ describe('useQueryParams', () => {
     const { useAuthContext } = jest.requireMock('~/hooks/AuthContext');
     (useAuthContext as jest.Mock).mockReturnValue({
       user: { id: 'test-user-id' },
+      token: 'test-token',
       isAuthenticated: true,
     });
+    (useToastContext as jest.Mock).mockReturnValue({ showToast: jest.fn() });
   });
 
   afterEach(() => {
@@ -307,6 +317,121 @@ describe('useQueryParams', () => {
     );
     expect(mockHandleSubmit).toHaveBeenCalled();
     expect(mockSubmitMessage).toHaveBeenCalled();
+  });
+
+  it('should resolve PromptHub-style Prompt Catalog inserts using the authenticated startup config key', async () => {
+    const mockSetValue = jest.fn();
+    const mockSetSearchParams = jest.fn();
+    const mockGetQueryData = jest.fn().mockImplementation((key) => {
+      if (JSON.stringify(key) === JSON.stringify(startupConfigKey(true))) {
+        return { modelSpecs: { list: [] } };
+      }
+      if (JSON.stringify(key) === JSON.stringify([QueryKeys.endpoints])) {
+        return {};
+      }
+      return null;
+    });
+    const mockTextAreaRef = {
+      current: {
+        focus: jest.fn(),
+        setSelectionRange: jest.fn(),
+      } as unknown as HTMLTextAreaElement,
+    };
+
+    (useChatFormContext as jest.Mock).mockReturnValue({
+      setValue: mockSetValue,
+      getValues: jest.fn().mockReturnValue(''),
+      handleSubmit: jest.fn((callback) => () => callback({ text: 'test message' })),
+    });
+    (useSearchParams as jest.Mock).mockReturnValue([
+      new URLSearchParams({ promptCatalogId: '123' }),
+      mockSetSearchParams,
+    ]);
+    (useQueryClient as jest.Mock).mockReturnValue({
+      getQueryData: mockGetQueryData,
+    });
+    (global.fetch as unknown as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ content: 'Prompt from catalog' }),
+    });
+
+    renderHook(() => useQueryParams({ textAreaRef: mockTextAreaRef }));
+
+    await act(async () => {
+      jest.advanceTimersByTime(100);
+      await Promise.resolve();
+    });
+
+    expect(mockGetQueryData).toHaveBeenCalledWith(startupConfigKey(true));
+    expect(global.fetch).toHaveBeenCalledWith('/api/prompthub/resolve-insert', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test-token',
+      },
+      body: JSON.stringify({ promptCatalogId: '123' }),
+    });
+    expect(mockSetValue).not.toHaveBeenCalled();
+
+    await act(async () => {
+      jest.advanceTimersByTime(100);
+      await Promise.resolve();
+    });
+
+    expect(mockSetValue).toHaveBeenCalledWith(
+      'text',
+      'Prompt from catalog',
+      expect.objectContaining({ shouldValidate: true }),
+    );
+    expect(mockSetSearchParams).toHaveBeenCalledWith(
+      expect.any(URLSearchParams),
+      expect.objectContaining({ replace: true }),
+    );
+  });
+
+  it('should show a toast when resolving a Prompt Catalog insert fails', async () => {
+    const showToast = jest.fn();
+    const mockSetSearchParams = jest.fn();
+    const mockTextAreaRef = {
+      current: {
+        focus: jest.fn(),
+        setSelectionRange: jest.fn(),
+      } as unknown as HTMLTextAreaElement,
+    };
+
+    (useToastContext as jest.Mock).mockReturnValue({ showToast });
+    (useSearchParams as jest.Mock).mockReturnValue([
+      new URLSearchParams({ promptCatalogId: '123' }),
+      mockSetSearchParams,
+    ]);
+    (global.fetch as unknown as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      json: jest.fn().mockResolvedValue({ message: 'Prompt not found' }),
+    });
+
+    renderHook(() => useQueryParams({ textAreaRef: mockTextAreaRef }));
+
+    await act(async () => {
+      jest.advanceTimersByTime(100);
+      await Promise.resolve();
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(100);
+      await Promise.resolve();
+    });
+
+    expect(showToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.any(String),
+        severity: 'error',
+      }),
+    );
+    expect(mockSetSearchParams).toHaveBeenCalledWith(
+      expect.any(URLSearchParams),
+      expect.objectContaining({ replace: true }),
+    );
   });
 
   it('should defer submission when settings need to be applied first', () => {
