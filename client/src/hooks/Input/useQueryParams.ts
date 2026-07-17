@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef } from 'react';
-import { useToastContext } from '@librechat/client';
 import { useRecoilValue } from 'recoil';
 import { useSearchParams } from 'react-router-dom';
+import { useToastContext } from '@librechat/client';
 import { QueryClient, useQueryClient } from '@tanstack/react-query';
 import { QueryKeys, EModelEndpoint, PermissionBits } from 'librechat-data-provider';
 import type {
@@ -26,9 +26,9 @@ import {
   useSubmitMessage,
   useLocalize,
 } from '~/hooks';
+import { startupConfigKey, useGetAgentByIdQuery } from '~/data-provider';
 import { useChatContext, useChatFormContext } from '~/Providers';
 import { NotificationSeverity } from '~/common';
-import { useGetAgentByIdQuery } from '~/data-provider';
 import store from '~/store';
 
 const PROMPT_CATALOG_ID_QUERY_PARAM = 'promptCatalogId';
@@ -57,12 +57,12 @@ async function resolvePromptCatalogInsert(promptCatalogId: string, token: string
     throw new Error(data?.message || 'Failed to resolve Prompt Catalog insert');
   }
 
-  const promptText =
-    typeof data?.content === 'string'
-      ? data.content
-      : typeof data?.prompt === 'string'
-        ? data.prompt
-        : null;
+  let promptText: string | null = null;
+  if (typeof data?.content === 'string') {
+    promptText = data.content;
+  } else if (typeof data?.prompt === 'string') {
+    promptText = data.prompt;
+  }
 
   if (promptText == null) {
     throw new Error('PromptHub resolve response did not include prompt text');
@@ -118,7 +118,7 @@ export default function useQueryParams({
   const modularChat = useRecoilValue(store.modularChat);
   const availableTools = useRecoilValue(store.availableTools);
   const { submitMessage } = useSubmitMessage();
-  const { token, isAuthenticated } = useAuthContext();
+  const { user, token, isAuthenticated } = useAuthContext();
   const { showToast } = useToastContext();
   const localize = useLocalize();
 
@@ -149,7 +149,7 @@ export default function useQueryParams({
       }
       let newPreset: TPreset = removeUnavailableTools(_newPreset, availableTools);
       if (newPreset.spec != null && newPreset.spec !== '') {
-        const startupConfig = queryClient.getQueryData<TStartupConfig>([QueryKeys.startupConfig]);
+        const startupConfig = queryClient.getQueryData<TStartupConfig>(startupConfigKey(!!user));
         const modelSpecs = startupConfig?.modelSpecs?.list ?? [];
         const spec = modelSpecs.find((s) => s.name === newPreset.spec);
         if (!spec) {
@@ -238,6 +238,7 @@ export default function useQueryParams({
     },
     [
       queryClient,
+      user,
       modularChat,
       conversation,
       availableTools,
@@ -352,7 +353,7 @@ export default function useQueryParams({
       if (!textAreaRef.current) {
         return;
       }
-      const startupConfig = queryClient.getQueryData<TStartupConfig>([QueryKeys.startupConfig]);
+      const startupConfig = queryClient.getQueryData<TStartupConfig>(startupConfigKey(!!user));
       if (!startupConfig) {
         return;
       }
@@ -466,6 +467,7 @@ export default function useQueryParams({
     setSearchParams,
     getPreservedSearchParams,
     queryClient,
+    user,
     processSubmission,
     areSettingsApplied,
     isAuthenticated,
