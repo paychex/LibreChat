@@ -1,7 +1,21 @@
 import { defineConfig, devices } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
-import { getLocalE2EEnv, getE2EBaseURL } from './setup/env';
+import { getLocalE2EEnv, getE2EBaseURL, neutralizeProxyEnvForLoopback } from './setup/env';
+
+neutralizeProxyEnvForLoopback();
+
+/**
+ * The mock profile is a self-contained localhost harness. If a developer's
+ * `.env` sets `E2E_BASE_URL` to a real deployment (for the real profile), the
+ * `dotenv.config()` calls inside globalSetup (`authenticate.ts`) leak that URL
+ * into the parent process env. Playwright then spawns test workers that
+ * re-import this config, and `getE2EBaseURL()` picks up the leaked URL — so
+ * every mock test navigates to production and lands on the ADFS login page.
+ * We scrub it here and pin the mock baseURL to the loopback default so the
+ * worker re-imports see a clean state.
+ */
+delete process.env.E2E_BASE_URL;
 
 const rootPath = path.resolve(__dirname, '..');
 const serverPath = path.resolve(rootPath, 'e2e/setup/start-server.js');
@@ -113,6 +127,20 @@ export default defineConfig({
     headless: true,
     storageState: path.resolve(process.cwd(), 'e2e/storageState.json'),
     screenshot: 'only-on-failure',
+    /**
+     * The Paychex fork loads the Pendo analytics SDK for every authenticated
+     * user (see client/src/hooks/Pendo/usePendo.ts). Pendo periodically pops
+     * its Resource Center "onboarding" guides ("Find your past messages", etc.)
+     * over the app, which steals clicks and covers the model selector, sidebar,
+     * and message input — this was the single largest source of e2e flakiness
+     * after the 0.8.7 upgrade. We blackhole the Pendo CDN so the SDK never
+     * loads; the app itself still runs unchanged.
+     */
+    launchOptions: {
+      args: [
+        '--host-resolver-rules=MAP cdn.pendo.io 127.0.0.1:1,MAP app.pendo.io 127.0.0.1:1,MAP data.pendo.io 127.0.0.1:1,MAP pendo-static-*.storage.googleapis.com 127.0.0.1:1',
+      ],
+    },
   },
   expect: {
     timeout: 10000,

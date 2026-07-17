@@ -138,13 +138,19 @@ const ContentRender = memo(function ContentRender({
     () => ({
       endpoint: msg?.endpoint ?? conversation?.endpoint,
       model: msg?.model ?? conversation?.model,
-      iconURL: msg?.iconURL,
+      // Paychex/upstream fix: fall back to `conversation.iconURL` so that
+      // model-spec icons (set via librechat.yaml `modelSpecs[].iconURL`)
+      // render on assistant messages for non-assistants endpoints too.
+      // Upstream MessageParts.tsx already has this fallback; ContentRender
+      // was missed, causing model-spec-icons e2e tests to fail.
+      iconURL: msg?.iconURL ?? conversation?.iconURL,
       modelLabel: messageLabel,
       isCreatedByUser: msg?.isCreatedByUser,
     }),
     [
       messageLabel,
       conversation?.endpoint,
+      conversation?.iconURL,
       conversation?.model,
       msg?.model,
       msg?.iconURL,

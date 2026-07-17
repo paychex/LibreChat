@@ -36,6 +36,10 @@ export default function useMemoizedChatContext(
       chatCtx.conversation?.model,
       chatCtx.conversation?.agent_id,
       chatCtx.conversation?.assistant_id,
+      // Include iconURL so ContentRender / MessageRender re-derive `iconData`
+      // when the conversation's model-spec icon changes (e.g., after switching
+      // model specs or after title generation adds/updates the field).
+      chatCtx.conversation?.iconURL,
     ],
   );
 

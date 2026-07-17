@@ -1,7 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
-import { getLocalE2EEnv, getE2EBaseURL } from './setup/env';
+import { getLocalE2EEnv, getE2EBaseURL, neutralizeProxyEnvForLoopback } from './setup/env';
+
+neutralizeProxyEnvForLoopback();
 
 /**
  * LOCAL-ONLY real-provider config: boots the same self-contained harness as

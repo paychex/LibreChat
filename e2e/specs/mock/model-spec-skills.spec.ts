@@ -154,6 +154,15 @@ test.describe('model spec skills', () => {
     test.setTimeout(120000);
 
     await page.goto(NEW_CHAT_PATH, { timeout: 10000 });
+    // Wait for the message input to be visible before running any
+    // `page.evaluate`-backed API calls. Without this, the page can still be
+    // mid-navigation (React root swap, service-worker warmup) when we call
+    // `requestJson`, and the execution context gets destroyed → the seed
+    // call throws "Execution context was destroyed, most likely because of
+    // a navigation."
+    await expect(page.getByRole('textbox', { name: 'Message input' })).toBeVisible({
+      timeout: 15000,
+    });
     const token = await getAccessToken(page);
     const skill = await seedAccessibleSkill(page, token);
     expect(skill.alwaysApply).toBe(true);

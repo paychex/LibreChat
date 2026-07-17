@@ -134,13 +134,17 @@ const MessageRender = memo(function MessageRender({
     () => ({
       endpoint: msg?.endpoint ?? conversation?.endpoint,
       model: msg?.model ?? conversation?.model,
-      iconURL: msg?.iconURL,
+      // Paychex/upstream fix: fall back to `conversation.iconURL` so that
+      // model-spec icons (set via librechat.yaml `modelSpecs[].iconURL`)
+      // render on assistant messages consistently. See ContentRender.tsx.
+      iconURL: msg?.iconURL ?? conversation?.iconURL,
       modelLabel: messageLabel,
       isCreatedByUser: msg?.isCreatedByUser,
     }),
     [
       messageLabel,
       conversation?.endpoint,
+      conversation?.iconURL,
       conversation?.model,
       msg?.model,
       msg?.iconURL,

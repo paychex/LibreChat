@@ -1,5 +1,6 @@
 import { chromium } from '@playwright/test';
 import type { FullConfig, Page } from '@playwright/test';
+import fs from 'fs';
 import type { User } from '../types';
 import cleanupUser from './cleanupUser';
 import dotenv from 'dotenv';
@@ -93,12 +94,55 @@ async function authenticate(config: FullConfig, user: User) {
     console.log('🤖: ✔️  user successfully authenticated');
 
     await page.context().storageState({ path: storageState });
+    stripPendoStateFromStorageFile(storageState);
     console.log('🤖: ✔️  authentication state successfully saved in', storageState);
     // await browser.close();
     // console.log('🤖: global setup has been finished');
   } finally {
     await browser.close();
     console.log('🤖: global setup has been finished');
+  }
+}
+
+/**
+ * Pendo analytics writes a large `_pendo_*` localStorage bag on every
+ * authenticated load. If we persist it into the shared storageState,
+ * every mock test starts with pre-seeded Pendo state that can trigger
+ * Resource Center guides ("Find your past messages") on load — those
+ * guides steal focus and block interactions like model selection.
+ * The mock configs also blackhole the Pendo CDN, but scrubbing the
+ * saved state removes the second half of the guide-revival vector.
+ */
+function stripPendoStateFromStorageFile(storageStatePath: string) {
+  try {
+    const raw = fs.readFileSync(storageStatePath, 'utf8');
+    const state = JSON.parse(raw) as {
+      cookies?: unknown[];
+      origins?: Array<{
+        origin: string;
+        localStorage?: Array<{ name: string; value: string }>;
+      }>;
+    };
+    if (!Array.isArray(state.origins)) {
+      return;
+    }
+    let stripped = 0;
+    for (const origin of state.origins) {
+      if (!Array.isArray(origin.localStorage)) {
+        continue;
+      }
+      const before = origin.localStorage.length;
+      origin.localStorage = origin.localStorage.filter(
+        (entry) => !entry.name.startsWith('_pendo'),
+      );
+      stripped += before - origin.localStorage.length;
+    }
+    if (stripped > 0) {
+      fs.writeFileSync(storageStatePath, JSON.stringify(state, null, 2));
+      console.log(`🤖: ✔️  stripped ${stripped} pendo localStorage entries`);
+    }
+  } catch (error) {
+    console.warn('🤖: ⚠️  failed to strip pendo state:', (error as Error).message);
   }
 }
 
