@@ -242,8 +242,6 @@ function CatalogItem({ prompt, isMine = false }: { prompt: CatalogPrompt; isMine
               selectHandler: () =>
                 deleteMutation.mutate({
                   id: prompt.id,
-                  userEmail: user?.email,
-                  userName: user?.name ?? user?.username,
                 }),
               selectClasses: 'bg-red-600 hover:bg-red-700 text-white',
               selectText: localize('com_ui_delete'),

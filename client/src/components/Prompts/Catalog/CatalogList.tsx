@@ -3,7 +3,7 @@ import { FileText, Search, Tag, User, RefreshCw, Plus } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryKeys } from 'librechat-data-provider';
 import { Button, Skeleton } from '@librechat/client';
-import { useLocalize, useAuthContext } from '~/hooks';
+import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
 import {
   useGetPromptCatalog,
@@ -31,7 +31,6 @@ const SORT_API_PARAMS: Record<
 
 export default function CatalogList() {
   const localize = useLocalize();
-  const { user } = useAuthContext();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -61,9 +60,8 @@ export default function CatalogList() {
     category: selectedCategory || undefined,
     tag: selectedTag || undefined,
     page: String(apiPage),
+    pageSize: String(API_PAGE_SIZE),
     showMyPrompts: showMyPrompts ? 'true' : undefined,
-    userEmail: showMyPrompts ? (user?.email ?? undefined) : undefined,
-    userName: showMyPrompts ? (user?.name ?? user?.username ?? undefined) : undefined,
     sortBy: sortParams.sortBy,
     sortOrder: sortParams.sortOrder,
   });

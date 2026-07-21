@@ -15,7 +15,7 @@ import {
   useUpdatePromptCatalogPrompt,
   useGetPromptCatalogCategories,
 } from '~/data-provider';
-import { useLocalize, useAuthContext } from '~/hooks';
+import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
 
 interface CreateCatalogPromptDialogProps {
@@ -34,7 +34,6 @@ export default function CreateCatalogPromptDialog({
 }: CreateCatalogPromptDialogProps) {
   const localize = useLocalize();
   const { showToast } = useToastContext();
-  const { user } = useAuthContext();
   const { data: categories = [] } = useGetPromptCatalogCategories();
   const isEditMode = prompt != null;
 
@@ -114,8 +113,6 @@ export default function CreateCatalogPromptDialog({
         ai_tool: aiTool.trim() || undefined,
         tags: parsedTags.length > 0 ? parsedTags : undefined,
         is_public: isPublic,
-        userEmail: user?.email,
-        userName: user?.name ?? user?.username,
       };
       if (isEditMode && prompt) {
         updateMutation.mutate({ id: prompt.id, ...payload });
@@ -130,7 +127,6 @@ export default function CreateCatalogPromptDialog({
       aiTool,
       tags,
       isPublic,
-      user,
       isEditMode,
       prompt,
       createMutation,
@@ -180,6 +176,7 @@ export default function CreateCatalogPromptDialog({
               onChange={(e) => setContent(e.target.value)}
               minRows={4}
               maxRows={12}
+              aria-label={localize('com_ui_prompt_catalog_field_content')}
               className="w-full resize-none rounded-md border border-border-medium bg-surface-primary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>

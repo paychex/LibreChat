@@ -152,10 +152,6 @@ export type CatalogPromptsParams = {
   sortOrder?: 'asc' | 'desc';
   /** When "true", only show prompts authored by the requesting user */
   showMyPrompts?: 'true';
-  /** Forwarded as x-forwarded-user-email header for identity resolution */
-  userEmail?: string;
-  /** Forwarded as x-forwarded-user-name header for identity resolution */
-  userName?: string;
 };
 
 export type ConversationTagsResponse = s.TConversationTag[];

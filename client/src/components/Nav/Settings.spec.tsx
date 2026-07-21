@@ -1,85 +1,52 @@
-import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { render, screen, waitFor } from 'test/layout-test-utils';
 import Settings from './Settings';
+
+/**
+ * `Settings` is a thin wrapper around `SettingsDialog`, which derives its tab
+ * list from the declarative `registry`/`Content` system (see `Settings/types.ts`
+ * and `Settings/Content.tsx`). Visibility of individual tabs (e.g. hiding the
+ * About tab when `buildInfo` is disabled) is already covered by
+ * `Settings/__tests__/Sidebar.spec.tsx`. This file focuses on the one behavior
+ * not covered elsewhere: `Dialog.tsx` falling back to the General tab when the
+ * currently active tab becomes hidden after a config change.
+ */
 
 const mockUseGetStartupConfig = jest.fn();
 
-jest.mock('~/data-provider', () => ({
-  useGetStartupConfig: () => mockUseGetStartupConfig(),
-}));
+jest.mock('~/data-provider', () => {
+  const actual = jest.requireActual('~/data-provider');
+  return {
+    ...actual,
+    useGetStartupConfig: () => mockUseGetStartupConfig(),
+  };
+});
 
-jest.mock('~/hooks', () => ({
-  useLocalize: () => (key: string) => key,
-}));
-
-jest.mock('~/hooks/usePersonalizationAccess', () => ({
-  __esModule: true,
-  default: () => ({
-    hasMemoryOptOut: false,
-    hasAnyPersonalizationFeature: false,
-  }),
-}));
-
-jest.mock('@librechat/client', () => ({
-  GearIcon: () => <span aria-hidden="true" />,
-  DataIcon: () => <span aria-hidden="true" />,
-  UserIcon: () => <span aria-hidden="true" />,
-  SpeechIcon: () => <span aria-hidden="true" />,
-  PersonalizationIcon: () => <span aria-hidden="true" />,
-  useMediaQuery: () => false,
-}));
-
-jest.mock('./SettingsTabs', () => ({
-  General: () => <div data-testid="general-panel" />,
-  Chat: () => <div data-testid="chat-panel" />,
-  Commands: () => <div data-testid="commands-panel" />,
-  Speech: () => <div data-testid="speech-panel" />,
-  Personalization: () => <div data-testid="personalization-panel" />,
-  Data: () => <div data-testid="data-panel" />,
-  Balance: () => <div data-testid="balance-panel" />,
-  Account: () => <div data-testid="account-panel" />,
-  About: () => <div data-testid="about-panel" />,
-}));
+jest.mock('./Settings/Content', () =>
+  jest.fn(({ activeTab }: { activeTab: string }) => <div data-testid="content">{activeTab}</div>),
+);
 
 function renderSettings() {
   return render(<Settings open={true} onOpenChange={jest.fn()} />);
 }
 
 beforeEach(() => {
-  mockUseGetStartupConfig.mockReturnValue({ data: {} });
+  mockUseGetStartupConfig.mockReturnValue({ data: { interface: { buildInfo: true } } });
 });
 
 describe('Settings', () => {
-  it('shows the About tab while startup config is loading', () => {
-    mockUseGetStartupConfig.mockReturnValue({ data: undefined });
-
-    renderSettings();
-
-    expect(screen.getByText('com_nav_setting_about')).toBeInTheDocument();
-  });
-
-  it('hides the About tab only when buildInfo is explicitly disabled', () => {
-    mockUseGetStartupConfig.mockReturnValue({ data: { interface: { buildInfo: false } } });
-
-    renderSettings();
-
-    expect(screen.queryByText('com_nav_setting_about')).not.toBeInTheDocument();
-  });
-
-  it('resets the active tab when loaded config disables About', async () => {
-    const user = userEvent.setup();
+  it('resets the active tab to General when the active tab becomes hidden by config', async () => {
     const { rerender } = renderSettings();
 
-    await user.click(screen.getByText('com_nav_setting_about'));
-    expect(screen.getByTestId('about-panel')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: 'About' }));
+    expect(screen.getByTestId('content')).toHaveTextContent('about');
 
     mockUseGetStartupConfig.mockReturnValue({ data: { interface: { buildInfo: false } } });
     rerender(<Settings open={true} onOpenChange={jest.fn()} />);
 
     await waitFor(() => {
-      expect(screen.queryByTestId('about-panel')).not.toBeInTheDocument();
+      expect(screen.getByTestId('content')).toHaveTextContent('general');
     });
-    expect(screen.getByTestId('general-panel')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'About' })).not.toBeInTheDocument();
   });
 });

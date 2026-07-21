@@ -33,6 +33,7 @@ import type {
 } from 'librechat-data-provider';
 import type { ConversationCursorData } from '~/utils/convos';
 import { findConversationInInfinite, isNotFoundError } from '~/utils';
+import { useAuthContext } from '~/hooks';
 
 export const useGetPresetsQuery = (
   config?: UseQueryOptions<TPreset[]>,
@@ -491,16 +492,21 @@ export const useGetAllPromptGroups = <TData = t.AllPromptGroupsResponse>(
   );
 };
 
-const CATALOG_API_BASE = 'https://app-promptcatalog-api-eastus-prod-001.azurewebsites.net/api';
+const CATALOG_PROXY_BASE = '/api/prompthub/catalog';
+
+function catalogAuthHeaders(token?: string | null): Record<string, string> {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 export const useGetPromptCatalog = <TData = t.CatalogPromptsResponse>(
   params?: t.CatalogPromptsParams,
   config?: UseQueryOptions<t.CatalogPromptsResponse, unknown, TData>,
 ): QueryObserverResult<TData> => {
+  const { token } = useAuthContext();
   return useQuery<t.CatalogPromptsResponse, unknown, TData>(
     [QueryKeys.promptCatalog, params],
     async () => {
-      const url = new URL(`${CATALOG_API_BASE}/prompts`);
+      const url = new URL(CATALOG_PROXY_BASE, window.location.origin);
       if (params?.search) url.searchParams.set('search', params.search);
       if (params?.category) url.searchParams.set('category', params.category);
       if (params?.tag) url.searchParams.set('tag', params.tag);
@@ -510,11 +516,10 @@ export const useGetPromptCatalog = <TData = t.CatalogPromptsResponse>(
       if (params?.sortOrder) url.searchParams.set('sortOrder', params.sortOrder);
       if (params?.showMyPrompts) url.searchParams.set('showMyPrompts', params.showMyPrompts);
 
-      const headers: Record<string, string> = {};
-      if (params?.userEmail) headers['x-forwarded-user-email'] = params.userEmail;
-      if (params?.userName) headers['x-forwarded-user-name'] = params.userName;
-
-      const response = await fetch(url.toString(), { headers });
+      const response = await fetch(url.toString(), {
+        credentials: 'include',
+        headers: catalogAuthHeaders(token),
+      });
       if (!response.ok) {
         throw new Error(`Prompt Catalog fetch failed: ${response.status}`);
       }
@@ -530,12 +535,16 @@ export const useGetPromptCatalog = <TData = t.CatalogPromptsResponse>(
   );
 };
 
-/** Returns the canonical category list from /prompts/categories. Cached 30 min. */
+/** Returns the canonical category list from /catalog/categories. Cached 30 min. */
 export const useGetPromptCatalogCategories = (): QueryObserverResult<string[]> => {
+  const { token } = useAuthContext();
   return useQuery<string[]>(
     [QueryKeys.promptCatalog, 'categories'],
     async () => {
-      const response = await fetch(`${CATALOG_API_BASE}/prompts/categories`);
+      const response = await fetch(`${CATALOG_PROXY_BASE}/categories`, {
+        credentials: 'include',
+        headers: catalogAuthHeaders(token),
+      });
       if (!response.ok) {
         throw new Error(`Prompt Catalog categories fetch failed: ${response.status}`);
       }
@@ -552,12 +561,16 @@ export const useGetPromptCatalogCategories = (): QueryObserverResult<string[]> =
   );
 };
 
-/** Returns all tags with usage counts from /prompts/tags, sorted by usage desc. Cached 30 min. */
+/** Returns all tags with usage counts from /catalog/tags, sorted by usage desc. Cached 30 min. */
 export const useGetPromptCatalogTags = (): QueryObserverResult<string[]> => {
+  const { token } = useAuthContext();
   return useQuery<string[]>(
     [QueryKeys.promptCatalog, 'tags'],
     async () => {
-      const response = await fetch(`${CATALOG_API_BASE}/prompts/tags`);
+      const response = await fetch(`${CATALOG_PROXY_BASE}/tags`, {
+        credentials: 'include',
+        headers: catalogAuthHeaders(token),
+      });
       if (!response.ok) {
         throw new Error(`Prompt Catalog tags fetch failed: ${response.status}`);
       }
@@ -585,27 +598,22 @@ export type CreateCatalogPromptInput = {
   department?: string;
   is_public?: boolean;
   tags?: string[];
-  /** Forwarded as identity headers */
-  userEmail?: string;
-  userName?: string;
 };
 
-/** Creates a new prompt in the Prompt Catalog via POST /prompts.
+/** Creates a new prompt in the Prompt Catalog via POST /catalog (server-side proxy).
  *  Invalidates all catalog queries on success so the new prompt appears. */
 export const useCreatePromptCatalogPrompt = (options?: {
   onSuccess?: (data: { id: number }) => void;
   onError?: (error: unknown) => void;
 }): UseMutationResult<{ id: number }, unknown, CreateCatalogPromptInput> => {
   const queryClient = useQueryClient();
+  const { token } = useAuthContext();
   return useMutation<{ id: number }, unknown, CreateCatalogPromptInput>(
-    async ({ userEmail, userName, ...body }) => {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (userEmail) headers['x-forwarded-user-email'] = userEmail;
-      if (userName) headers['x-forwarded-user-name'] = userName;
-
-      const response = await fetch(`${CATALOG_API_BASE}/prompts`, {
+    async (body) => {
+      const response = await fetch(CATALOG_PROXY_BASE, {
         method: 'POST',
-        headers,
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...catalogAuthHeaders(token) },
         body: JSON.stringify(body),
       });
 
@@ -644,28 +652,23 @@ export type UpdateCatalogPromptInput = {
   department?: string;
   is_public?: boolean;
   tags?: string[];
-  /** Forwarded as identity headers */
-  userEmail?: string;
-  userName?: string;
 };
 
-/** Updates an existing catalog prompt via PUT /prompts/:id.
- *  The API authorizes the edit against the forwarded identity headers so only
+/** Updates an existing catalog prompt via PUT /catalog/:id (server-side proxy).
+ *  The backend authorizes the edit using the JWT-authenticated identity, so only
  *  the prompt's owner can update it. Invalidates catalog queries on success. */
 export const useUpdatePromptCatalogPrompt = (options?: {
   onSuccess?: (data: { id: number }) => void;
   onError?: (error: unknown) => void;
 }): UseMutationResult<{ id: number }, unknown, UpdateCatalogPromptInput> => {
   const queryClient = useQueryClient();
+  const { token } = useAuthContext();
   return useMutation<{ id: number }, unknown, UpdateCatalogPromptInput>(
-    async ({ id, userEmail, userName, ...body }) => {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (userEmail) headers['x-forwarded-user-email'] = userEmail;
-      if (userName) headers['x-forwarded-user-name'] = userName;
-
-      const response = await fetch(`${CATALOG_API_BASE}/prompts/${id}`, {
+    async ({ id, ...body }) => {
+      const response = await fetch(`${CATALOG_PROXY_BASE}/${id}`, {
         method: 'PUT',
-        headers,
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...catalogAuthHeaders(token) },
         body: JSON.stringify(body),
       });
 
@@ -696,28 +699,23 @@ export const useUpdatePromptCatalogPrompt = (options?: {
 
 export type DeleteCatalogPromptInput = {
   id: number;
-  /** Forwarded as identity headers */
-  userEmail?: string;
-  userName?: string;
 };
 
-/** Deletes a catalog prompt via DELETE /prompts/:id.
- *  The API authorizes the deletion against the forwarded identity headers so
+/** Deletes a catalog prompt via DELETE /catalog/:id (server-side proxy).
+ *  The backend authorizes the deletion using the JWT-authenticated identity, so
  *  only the prompt's owner can remove it. Invalidates catalog queries on success. */
 export const useDeletePromptCatalogPrompt = (options?: {
   onSuccess?: () => void;
   onError?: (error: unknown) => void;
 }): UseMutationResult<{ success: boolean }, unknown, DeleteCatalogPromptInput> => {
   const queryClient = useQueryClient();
+  const { token } = useAuthContext();
   return useMutation<{ success: boolean }, unknown, DeleteCatalogPromptInput>(
-    async ({ id, userEmail, userName }) => {
-      const headers: Record<string, string> = {};
-      if (userEmail) headers['x-forwarded-user-email'] = userEmail;
-      if (userName) headers['x-forwarded-user-name'] = userName;
-
-      const response = await fetch(`${CATALOG_API_BASE}/prompts/${id}`, {
+    async ({ id }) => {
+      const response = await fetch(`${CATALOG_PROXY_BASE}/${id}`, {
         method: 'DELETE',
-        headers,
+        credentials: 'include',
+        headers: catalogAuthHeaders(token),
       });
 
       if (!response.ok) {

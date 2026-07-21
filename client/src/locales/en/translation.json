@@ -1494,8 +1494,6 @@
   "com_ui_prompt_catalog_field_category": "Category",
   "com_ui_prompt_catalog_field_content": "Prompt Text",
   "com_ui_prompt_catalog_field_impact": "Impact",
-  "com_ui_prompt_catalog_field_personal": "Personal prompt",
-  "com_ui_prompt_catalog_field_public": "Make public",
   "com_ui_prompt_catalog_field_tags": "Tags (comma-separated)",
   "com_ui_prompt_catalog_field_title": "Title",
   "com_ui_prompt_catalog_field_visibility": "Visibility",

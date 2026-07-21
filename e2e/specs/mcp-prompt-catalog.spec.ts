@@ -43,9 +43,13 @@ async function mockCatalog(
   page: Page,
   options: { totalCount: number; titleForSearch?: string } = { totalCount: 12 },
 ): Promise<void> {
-  // The Prompt Catalog `useGetPromptCatalog` hook calls the external Azure API
-  // directly from the browser (see client/src/data-provider/queries.ts).
-  await page.route('**/app-promptcatalog-api-*.azurewebsites.net/api/prompts**', async (route: Route) => {
+  // The Prompt Catalog `useGetPromptCatalog` hook calls the same-origin,
+  // JWT-authenticated proxy at /api/prompthub/catalog, which forwards to the
+  // external Prompt Catalog API server-side (see
+  // packages/api/src/promptCatalog/handlers.ts). We intercept the proxy route
+  // so the specs do not depend on the live catalog or its content and so we
+  // can drive pagination and search assertions deterministically.
+  await page.route('**/api/prompthub/catalog**', async (route: Route) => {
     const url = new URL(route.request().url());
     const search = url.searchParams.get('search') ?? '';
     const apiPage = Number(url.searchParams.get('page') ?? '1');
@@ -165,8 +169,8 @@ test.describe('Control Panel: Prompt Catalog', () => {
 
   test('shows empty state when the catalog returns no prompts', async ({ page }) => {
     // Override route with an empty payload before triggering a re-fetch.
-    await page.unroute('**/app-promptcatalog-api-*.azurewebsites.net/api/prompts**');
-    await page.route('**/app-promptcatalog-api-*.azurewebsites.net/api/prompts**', async (route) => {
+    await page.unroute('**/api/prompthub/catalog**');
+    await page.route('**/api/prompthub/catalog**', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -189,7 +193,9 @@ test.describe('Control Panel: Prompt Catalog', () => {
     await expect(page.getByText('No catalog prompts available', { exact: true })).toBeVisible();
   });
 
-  test('clicking a catalog item populates the chat input with the prompt content', async ({ page }) => {
+  test('clicking a catalog item populates the chat input with the prompt content', async ({
+    page,
+  }) => {
     // Auto-send is on by default in the upstream v0.8.6 sidebar (the
     // \"Send prompts on select\" toggle). Turn it off so the catalog item
     // populates the chat input instead of submitting immediately.
