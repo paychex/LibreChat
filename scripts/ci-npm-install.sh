@@ -27,4 +27,3 @@ done
 # Run lifecycle scripts (postinstall/prepare) separately to avoid
 # peak memory from running extraction + compilation simultaneously
 npm rebuild 2>/dev/null || true
-done
