@@ -105,5 +105,9 @@ export const loadEndpoints = (
     loadedEndpoints.allowedAddresses = endpoints.allowedAddresses;
   }
 
+  if (endpoints?.allowedAddresses) {
+    loadedEndpoints.allowedAddresses = endpoints.allowedAddresses;
+  }
+
   return loadedEndpoints;
 };

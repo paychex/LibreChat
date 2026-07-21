@@ -1538,6 +1538,10 @@ class BaseClient {
    * Filters out tool-related content from messages created by a different provider.
    * This prevents errors when switching between providers mid-conversation.
    *
+   * Notably, this prevents the Gemini "Proto field is not repeating, cannot start list"
+   * error that occurs when tool_calls from an OpenAI-compatible provider are replayed
+   * to a Gemini custom endpoint.
+   *
    * @param {TMessage[]} messages - Array of messages to filter
    * @returns {TMessage[]} Messages with tool content filtered based on endpoint
    */

@@ -6,11 +6,12 @@ import {
   defaultOrderQuery,
   defaultAssistantsVersion,
 } from 'librechat-data-provider';
-import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
   UseInfiniteQueryOptions,
   QueryObserverResult,
   UseQueryOptions,
+  UseMutationResult,
   InfiniteData,
 } from '@tanstack/react-query';
 import type t from 'librechat-data-provider';
@@ -486,6 +487,260 @@ export const useGetAllPromptGroups = <TData = t.AllPromptGroupsResponse>(
       refetchOnMount: false,
       retry: false,
       ...config,
+    },
+  );
+};
+
+const CATALOG_API_BASE = 'https://app-promptcatalog-api-eastus-prod-001.azurewebsites.net/api';
+
+export const useGetPromptCatalog = <TData = t.CatalogPromptsResponse>(
+  params?: t.CatalogPromptsParams,
+  config?: UseQueryOptions<t.CatalogPromptsResponse, unknown, TData>,
+): QueryObserverResult<TData> => {
+  return useQuery<t.CatalogPromptsResponse, unknown, TData>(
+    [QueryKeys.promptCatalog, params],
+    async () => {
+      const url = new URL(`${CATALOG_API_BASE}/prompts`);
+      if (params?.search) url.searchParams.set('search', params.search);
+      if (params?.category) url.searchParams.set('category', params.category);
+      if (params?.tag) url.searchParams.set('tag', params.tag);
+      if (params?.page) url.searchParams.set('page', params.page);
+      if (params?.pageSize) url.searchParams.set('pageSize', params.pageSize);
+      if (params?.sortBy) url.searchParams.set('sortBy', params.sortBy);
+      if (params?.sortOrder) url.searchParams.set('sortOrder', params.sortOrder);
+      if (params?.showMyPrompts) url.searchParams.set('showMyPrompts', params.showMyPrompts);
+
+      const headers: Record<string, string> = {};
+      if (params?.userEmail) headers['x-forwarded-user-email'] = params.userEmail;
+      if (params?.userName) headers['x-forwarded-user-name'] = params.userName;
+
+      const response = await fetch(url.toString(), { headers });
+      if (!response.ok) {
+        throw new Error(`Prompt Catalog fetch failed: ${response.status}`);
+      }
+      return response.json() as Promise<t.CatalogPromptsResponse>;
+    },
+    {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      retry: false,
+      ...config,
+    },
+  );
+};
+
+/** Returns the canonical category list from /prompts/categories. Cached 30 min. */
+export const useGetPromptCatalogCategories = (): QueryObserverResult<string[]> => {
+  return useQuery<string[]>(
+    [QueryKeys.promptCatalog, 'categories'],
+    async () => {
+      const response = await fetch(`${CATALOG_API_BASE}/prompts/categories`);
+      if (!response.ok) {
+        throw new Error(`Prompt Catalog categories fetch failed: ${response.status}`);
+      }
+      const data = (await response.json()) as { categories: string[] };
+      return (data.categories ?? []).slice().sort();
+    },
+    {
+      staleTime: 30 * 60 * 1000,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: false,
+    },
+  );
+};
+
+/** Returns all tags with usage counts from /prompts/tags, sorted by usage desc. Cached 30 min. */
+export const useGetPromptCatalogTags = (): QueryObserverResult<string[]> => {
+  return useQuery<string[]>(
+    [QueryKeys.promptCatalog, 'tags'],
+    async () => {
+      const response = await fetch(`${CATALOG_API_BASE}/prompts/tags`);
+      if (!response.ok) {
+        throw new Error(`Prompt Catalog tags fetch failed: ${response.status}`);
+      }
+      const data = (await response.json()) as {
+        tags: Array<{ name: string; usage_count: number }>;
+      };
+      return (data.tags ?? []).sort((a, b) => b.usage_count - a.usage_count).map((t) => t.name);
+    },
+    {
+      staleTime: 30 * 60 * 1000,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: false,
+    },
+  );
+};
+
+export type CreateCatalogPromptInput = {
+  title: string;
+  content: string;
+  category?: string;
+  ai_tool?: string;
+  impact?: string;
+  department?: string;
+  is_public?: boolean;
+  tags?: string[];
+  /** Forwarded as identity headers */
+  userEmail?: string;
+  userName?: string;
+};
+
+/** Creates a new prompt in the Prompt Catalog via POST /prompts.
+ *  Invalidates all catalog queries on success so the new prompt appears. */
+export const useCreatePromptCatalogPrompt = (options?: {
+  onSuccess?: (data: { id: number }) => void;
+  onError?: (error: unknown) => void;
+}): UseMutationResult<{ id: number }, unknown, CreateCatalogPromptInput> => {
+  const queryClient = useQueryClient();
+  return useMutation<{ id: number }, unknown, CreateCatalogPromptInput>(
+    async ({ userEmail, userName, ...body }) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (userEmail) headers['x-forwarded-user-email'] = userEmail;
+      if (userName) headers['x-forwarded-user-name'] = userName;
+
+      const response = await fetch(`${CATALOG_API_BASE}/prompts`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        let message = `Prompt Catalog create failed: ${response.status}`;
+        try {
+          const errData = (await response.json()) as { error?: string; message?: string };
+          message = errData.error ?? errData.message ?? message;
+        } catch {
+          // ignore json parse errors
+        }
+        throw new Error(message);
+      }
+
+      return response.json() as Promise<{ id: number }>;
+    },
+    {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries([QueryKeys.promptCatalog]);
+        options?.onSuccess?.(data);
+      },
+      onError: (error) => {
+        options?.onError?.(error);
+      },
+    },
+  );
+};
+
+export type UpdateCatalogPromptInput = {
+  id: number;
+  title?: string;
+  content?: string;
+  category?: string;
+  ai_tool?: string;
+  impact?: string;
+  department?: string;
+  is_public?: boolean;
+  tags?: string[];
+  /** Forwarded as identity headers */
+  userEmail?: string;
+  userName?: string;
+};
+
+/** Updates an existing catalog prompt via PUT /prompts/:id.
+ *  The API authorizes the edit against the forwarded identity headers so only
+ *  the prompt's owner can update it. Invalidates catalog queries on success. */
+export const useUpdatePromptCatalogPrompt = (options?: {
+  onSuccess?: (data: { id: number }) => void;
+  onError?: (error: unknown) => void;
+}): UseMutationResult<{ id: number }, unknown, UpdateCatalogPromptInput> => {
+  const queryClient = useQueryClient();
+  return useMutation<{ id: number }, unknown, UpdateCatalogPromptInput>(
+    async ({ id, userEmail, userName, ...body }) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (userEmail) headers['x-forwarded-user-email'] = userEmail;
+      if (userName) headers['x-forwarded-user-name'] = userName;
+
+      const response = await fetch(`${CATALOG_API_BASE}/prompts/${id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        let message = `Prompt Catalog update failed: ${response.status}`;
+        try {
+          const errData = (await response.json()) as { error?: string; message?: string };
+          message = errData.error ?? errData.message ?? message;
+        } catch {
+          // ignore json parse errors
+        }
+        throw new Error(message);
+      }
+
+      return response.json() as Promise<{ id: number }>;
+    },
+    {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries([QueryKeys.promptCatalog]);
+        options?.onSuccess?.(data);
+      },
+      onError: (error) => {
+        options?.onError?.(error);
+      },
+    },
+  );
+};
+
+export type DeleteCatalogPromptInput = {
+  id: number;
+  /** Forwarded as identity headers */
+  userEmail?: string;
+  userName?: string;
+};
+
+/** Deletes a catalog prompt via DELETE /prompts/:id.
+ *  The API authorizes the deletion against the forwarded identity headers so
+ *  only the prompt's owner can remove it. Invalidates catalog queries on success. */
+export const useDeletePromptCatalogPrompt = (options?: {
+  onSuccess?: () => void;
+  onError?: (error: unknown) => void;
+}): UseMutationResult<{ success: boolean }, unknown, DeleteCatalogPromptInput> => {
+  const queryClient = useQueryClient();
+  return useMutation<{ success: boolean }, unknown, DeleteCatalogPromptInput>(
+    async ({ id, userEmail, userName }) => {
+      const headers: Record<string, string> = {};
+      if (userEmail) headers['x-forwarded-user-email'] = userEmail;
+      if (userName) headers['x-forwarded-user-name'] = userName;
+
+      const response = await fetch(`${CATALOG_API_BASE}/prompts/${id}`, {
+        method: 'DELETE',
+        headers,
+      });
+
+      if (!response.ok) {
+        let message = `Prompt Catalog delete failed: ${response.status}`;
+        try {
+          const errData = (await response.json()) as { error?: string; message?: string };
+          message = errData.error ?? errData.message ?? message;
+        } catch {
+          // ignore json parse errors
+        }
+        throw new Error(message);
+      }
+
+      return { success: true };
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries([QueryKeys.promptCatalog]);
+        options?.onSuccess?.();
+      },
+      onError: (error) => {
+        options?.onError?.(error);
+      },
     },
   );
 };
