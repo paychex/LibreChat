@@ -23,7 +23,7 @@ jobs:
       - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Restore node_modules cache
         id: cache-node-modules
@@ -106,7 +106,7 @@ jobs:
       - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Restore node_modules cache
         id: cache-node-modules
@@ -165,7 +165,7 @@ jobs:
       - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Restore node_modules cache
         id: cache-node-modules
@@ -238,7 +238,7 @@ jobs:
       - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Restore node_modules cache
         id: cache-node-modules
@@ -296,7 +296,7 @@ jobs:
       - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Restore node_modules cache
         id: cache-node-modules
@@ -334,7 +334,7 @@ jobs:
       - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Restore node_modules cache
         id: cache-node-modules
@@ -386,7 +386,7 @@ jobs:
       - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Restore node_modules cache
         id: cache-node-modules
