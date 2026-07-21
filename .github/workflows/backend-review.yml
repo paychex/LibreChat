@@ -39,7 +39,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: bash scripts/ci-npm-install.sh
 
       - name: Restore data-provider build cache
         id: cache-data-provider
@@ -122,7 +122,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: bash scripts/ci-npm-install.sh
 
       - name: Download data-provider build
         uses: actions/download-artifact@v4
@@ -181,7 +181,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: bash scripts/ci-npm-install.sh
 
       - name: Download data-provider build
         uses: actions/download-artifact@v4
@@ -254,7 +254,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: bash scripts/ci-npm-install.sh
 
       - name: Download data-provider build
         uses: actions/download-artifact@v4
@@ -312,7 +312,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: bash scripts/ci-npm-install.sh
 
       - name: Download data-provider build
         uses: actions/download-artifact@v4
@@ -350,7 +350,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: bash scripts/ci-npm-install.sh
 
       - name: Download data-provider build
         uses: actions/download-artifact@v4
@@ -402,7 +402,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: bash scripts/ci-npm-install.sh
 
       - name: Download data-provider build
         uses: actions/download-artifact@v4
