@@ -354,7 +354,14 @@ module.exports = {
       const conversationIds = conversations.map((c) => c.conversationId);
 
       if (!conversationIds.length) {
-        throw new Error('Conversation not found or already deleted.');
+        logger.debug(
+          '[deleteConvos] No matching conversations found for user, nothing to delete',
+        );
+        return {
+          acknowledged: true,
+          deletedCount: 0,
+          messages: { acknowledged: true, deletedCount: 0 },
+        };
       }
 
       const deleteConvoResult = await Conversation.deleteMany(userFilter);

@@ -37,15 +37,8 @@ export default async function cleanupUser(user: TUser) {
     const userId = foundUser._id;
     console.log('🤖:  ✅  Found user in Database');
 
-    // Delete all conversations & associated messages
-    const { deletedCount, messages } = await deleteConvos(userId, {}).catch((error) => {
-      if (error instanceof Error && error.message.includes('Conversation not found')) {
-        console.log('🤖:  ⚠️  No conversations found for user');
-        return { deletedCount: 0, messages: { deletedCount: 0 } };
-      }
-
-      throw error;
-    });
+    // Delete all conversations & associated messages (no-op if the user has none)
+    const { deletedCount, messages } = await deleteConvos(userId, {});
 
     if (messages.deletedCount > 0 || deletedCount > 0) {
       console.log(`🤖:  ✅  Deleted ${deletedCount} convos & ${messages.deletedCount} messages`);
