@@ -109,32 +109,80 @@ wsl -d podman sh -c "cd /mnt/c/git_source_control/LibreChat && DOCKER_HOST=tcp:/
 
 Adjust the WSL path and port to match Step 1's output.
 
-## Step 3 — Avoid MongoDB data corruption from NTFS bind mounts (critical gotcha)
+## Step 3 — Create `docker-compose.override.yml` for Windows (critical, do this before first startup)
 
-`docker-compose.yml` binds Mongo's data directory as `./data-node:/data/db`. On Windows, that
-directory lives on an NTFS-backed drive mounted into WSL via `/mnt/c/...` — WiredTiger (Mongo's
-storage engine) needs POSIX file-locking semantics that NTFS-over-9p/drvfs does not reliably
-provide, and Mongo will fail to start or silently corrupt its data directory.
+`docker-compose.override.yml` is gitignored and expected to be host-specific — create it at the
+repo root (there's no example checked in for Windows specifically, since paths/ports here are
+Windows+Podman-specific). It needs to address three separate problems, not just one:
 
-**Fix:** override the `mongodb` service in `docker-compose.override.yml` (create this file at the
-repo root if it doesn't exist — it's gitignored and expected to be host-specific) to use a named
-Docker volume instead of the NTFS bind mount, so data lives natively inside the podman/WSL ext4
-filesystem:
+1. **MongoDB NTFS bind-mount corruption.** `docker-compose.yml` binds Mongo's data directory as
+   `./data-node:/data/db`. On Windows that directory lives on an NTFS-backed drive mounted into
+   WSL via `/mnt/c/...` — WiredTiger (Mongo's storage engine) needs POSIX file-locking semantics
+   that NTFS-over-9p/drvfs does not reliably provide, and Mongo will fail to start or silently
+   corrupt its data directory. **Fix:** use a named Docker volume instead, so data lives natively
+   inside the podman/WSL ext4 filesystem.
+2. **Podman-rootless + WSL2 relay drops MongoDB protocol data on the default port.** `wslrelay`
+   completes TCP handshakes on port 27017 but drops MongoDB wire-protocol data before it reaches
+   the container (see Troubleshooting checklist below for how this was diagnosed). **Fix:** remap
+   Mongo's host port to something non-standard (`27117` is the value that's been confirmed
+   working) — `MONGO_URI` in `.env` must then point at that same port.
+3. **The API and RAG containers aren't needed** — `npm run backend:dev` / `npm run frontend:dev`
+   run the app natively on Windows, so the containerized `api` and `rag_api` (and `vectordb`,
+   which only exists to back `rag_api`) should be disabled rather than left running unused.
 
 ```yaml
 services:
+  # Disable the containerized API - run it directly via npm run backend:dev
+  api:
+    image: rjocoleman/noop:latest
+    command: "sleep infinity"
+    depends_on: []
+    volumes: []
+    ports: []
+
+  # Disable the containerized RAG API - not needed for basic local dev
+  rag_api:
+    image: rjocoleman/noop:latest
+    command: "sleep infinity"
+    depends_on: []
+    volumes: []
+
+  # Named volume (not the default ./data-node NTFS bind mount) + remapped host port
+  # to avoid the wslrelay protocol-drop bug on the default 27017 port
   mongodb:
+    ports:
+      - "27117:27017"
     volumes:
-      - mongo_data_windows:/data/db
+      - mongo_data:/data/db
+
+  # Disable pgvector - not needed when RAG API is not running
+  vectordb:
+    image: rjocoleman/noop:latest
+    command: "sleep infinity"
+    volumes: []
+
+  # Full-text search, exposed on localhost:7700
+  meilisearch:
+    restart: unless-stopped
+    ports:
+      - "7700:7700"
 
 volumes:
-  mongo_data_windows:
+  mongo_data:
 ```
 
-Do this **before** first bringing Mongo up on Windows. If Mongo was already started once against
-the NTFS bind mount and is failing to connect or crashing, stop the container, delete
-`./data-node` locally, and switch to the named volume before retrying — don't try to recover data
-from the NTFS-mounted directory.
+Then update `.env` to match the remapped Mongo port (the `.env.example` default is `27017`):
+
+```bash
+MONGO_URI=mongodb://127.0.0.1:27117/LibreChat
+```
+
+Do the volume/port changes **before** first bringing Mongo up on Windows. If Mongo was already
+started once against the NTFS bind mount and is failing to connect or crashing, stop the
+container, delete `./data-node` locally, and switch to the named volume before retrying — don't
+try to recover data from the NTFS-mounted directory. If Mongo starts fine but the app can't
+actually read/write data through it (TCP connects, everything hangs afterward), that's gotcha #2
+above — confirm the port remap and `MONGO_URI` are both in place.
 
 ## Step 4 — Fix Node TLS cert errors against Paychex/OpenAI endpoints (critical gotcha)
 
@@ -143,6 +191,7 @@ Once infra is up and you run `npm run backend:dev`, you'll likely see errors lik
 ```
 Failed to fetch models from openAI API ... unable to get local issuer certificate
 ```
+
 
 This is because Node initializes its TLS certificate chain **before** `dotenv` loads `.env`, so
 setting `NODE_EXTRA_CA_CERTS` inside `.env` has no effect for the native (non-containerized) dev
@@ -191,10 +240,12 @@ be re-set after a reboot.
   distro as `Running`; if not, run any `wsl -d podman ...` command to auto-start it, or
   `wsl --shutdown` followed by re-running [scripts/start-podman-infra.ps1](../../scripts/start-podman-infra.ps1).
 - **Mongo container starts but the app can't connect / data looks wiped** → check Step 3; you're
-  likely still bind-mounting `./data-node` on NTFS.
+  likely still bind-mounting `./data-node` on NTFS instead of using the named volume.
 - **`ECONNREFUSED` or protocol-level failures against a port that appears open** → known
   Podman-rootless + WSL2 relay (`wslrelay`) issue where TCP handshakes succeed but application
-  data doesn't route correctly. Try connecting from *inside* WSL first
+  data doesn't route correctly. This is why Step 3 remaps Mongo to port `27117` instead of the
+  default `27017` — confirm `MONGO_URI` in `.env` matches the remapped port. For other services
+  hitting this, try connecting from *inside* WSL first
   (`wsl -d podman sh -c "nc -zv 127.0.0.1 <port>"`) to isolate whether it's a Windows-side or
   container-side networking problem before assuming the container itself is broken.
 - **TLS/certificate errors from any outbound call (OpenAI, Azure, internal Paychex APIs)** → check
