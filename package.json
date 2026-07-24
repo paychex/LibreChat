@@ -108,7 +108,10 @@
     "migrate:shared-link-permissions:batch": "node config/migrate-shared-link-permissions.js --batch-size=50",
     "migrate:orphaned-agent-files:dry-run": "node config/migrate-orphaned-agent-files.js --dry-run",
     "migrate:orphaned-agent-files": "node config/migrate-orphaned-agent-files.js",
-    "migrate:orphaned-agent-files:batch": "node config/migrate-orphaned-agent-files.js --batch-size=50"
+    "migrate:orphaned-agent-files:batch": "node config/migrate-orphaned-agent-files.js --batch-size=50",
+    "migrate:prompts-to-catalog:dry-run": "node config/migrate-prompts-to-catalog.js --dry-run",
+    "migrate:prompts-to-catalog": "node config/migrate-prompts-to-catalog.js",
+    "migrate:prompts-to-catalog:batch": "node config/migrate-prompts-to-catalog.js --batch-size=10"
   },
   "repository": {
     "type": "git",
