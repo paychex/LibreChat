@@ -2,8 +2,11 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import {
   NEW_CHAT_PATH,
+  clearLocalStorage,
   getAccessToken,
+  gotoWithRetry,
   mockReply,
+  reloadWithRetry,
   requestJson,
   selectModelSpec,
   sendMessage,
@@ -21,9 +24,9 @@ const modelTrigger = (page: Page) => page.getByRole('button', { name: 'Select a 
 
 /** Reset selection state so the test starts as a fresh instance (auth stays in cookies). */
 async function startFresh(page: Page) {
-  await page.goto(NEW_CHAT_PATH, { timeout: 10000 });
-  await page.evaluate(() => localStorage.clear());
-  await page.goto(NEW_CHAT_PATH, { timeout: 10000 });
+  await gotoWithRetry(page, NEW_CHAT_PATH);
+  await clearLocalStorage(page);
+  await gotoWithRetry(page, NEW_CHAT_PATH);
 }
 
 type AgentResponse = {
@@ -82,7 +85,7 @@ test.describe('soft default model spec', () => {
 
     // Its own auto-application must not convert it into a sticky "last" selection
     // that would behave differently on the next load.
-    await page.reload({ timeout: 10000 });
+    await reloadWithRetry(page);
     await expect(modelTrigger(page)).toContainText(SOFT_DEFAULT_LABEL, { timeout: 15000 });
   });
 
@@ -93,11 +96,11 @@ test.describe('soft default model spec', () => {
 
     const agentName = uniqueName('E2E Soft Agent');
     await createAgent(page, agentName);
-    await page.goto(NEW_CHAT_PATH, { timeout: 10000 });
+    await gotoWithRetry(page, NEW_CHAT_PATH);
 
     await selectAgent(page, agentName);
 
-    await page.reload({ timeout: 10000 });
+    await reloadWithRetry(page);
     await expect(modelTrigger(page)).toContainText(agentName, { timeout: 15000 });
 
     await page.getByTestId('new-chat-button').click();
@@ -114,7 +117,7 @@ test.describe('soft default model spec', () => {
 
     await selectEphemeralModel(page);
 
-    await page.reload({ timeout: 10000 });
+    await reloadWithRetry(page);
     await expect(modelTrigger(page)).toContainText(EPHEMERAL_ENDPOINT.model, { timeout: 15000 });
     await expect(modelTrigger(page)).not.toContainText(SOFT_DEFAULT_LABEL);
 
@@ -145,12 +148,12 @@ test.describe('soft default model spec', () => {
     await newChat(page);
     await selectEphemeralModel(page);
 
-    await page.goto(softConvoUrl, { timeout: 10000 });
+    await gotoWithRetry(page, softConvoUrl);
     await expect(modelTrigger(page)).toContainText(SOFT_DEFAULT_LABEL, { timeout: 15000 });
 
     // Fresh load (not the in-memory SPA transition, which masks the regression): the
     // cold ChatRoute path resolves the New Chat purely from getDefaultModelSpec.
-    await page.goto(NEW_CHAT_PATH, { timeout: 10000 });
+    await gotoWithRetry(page, NEW_CHAT_PATH);
     await expect(modelTrigger(page)).toContainText(SOFT_DEFAULT_LABEL, { timeout: 15000 });
     await expect(modelTrigger(page)).not.toHaveText('Select a model');
   });
@@ -177,10 +180,10 @@ test.describe('soft default model spec', () => {
     await sendAndAwaitReply(page, 'soft spec used last');
     const specConvoUrl = page.url();
 
-    await page.goto(specConvoUrl, { timeout: 10000 });
+    await gotoWithRetry(page, specConvoUrl);
     await expect(modelTrigger(page)).toContainText(SOFT_DEFAULT_LABEL, { timeout: 15000 });
 
-    await page.goto(NEW_CHAT_PATH, { timeout: 10000 });
+    await gotoWithRetry(page, NEW_CHAT_PATH);
     await expect(modelTrigger(page)).toContainText(SOFT_DEFAULT_LABEL, { timeout: 15000 });
     await expect(modelTrigger(page)).not.toHaveText('Select a model');
   });

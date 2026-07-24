@@ -135,9 +135,7 @@ export async function getAccessToken(page: Page): Promise<string> {
     }
   }
   if (!result) {
-    throw lastError instanceof Error
-      ? lastError
-      : new Error('getAccessToken: exhausted retries');
+    throw lastError instanceof Error ? lastError : new Error('getAccessToken: exhausted retries');
   }
 
   if (!result.ok) {
@@ -231,4 +229,65 @@ export async function requestJson<T>(
 
 export async function fetchJson<T>(page: Page, path: string, token: string): Promise<T> {
   return requestJson<T>(page, { path, token });
+}
+
+/**
+ * Retries an action against SPA-initiated navigations. The ChatRoute bootstrap
+ * resolves `/c/new` by performing its own client-side navigation right after the
+ * initial load, which can destroy the current execution context or abort a
+ * concurrent goto/reload. Retrying once the app has settled is enough, mirroring
+ * the pattern already used by `getAccessToken`.
+ */
+async function retryOnNavigation(
+  page: Page,
+  action: () => Promise<unknown>,
+  isRetryable: (message: string) => boolean,
+  attempts = 3,
+): Promise<void> {
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      await action();
+      return;
+    } catch (error) {
+      lastError = error;
+      const message = (error as Error).message ?? '';
+      if (!isRetryable(message) || attempt === attempts - 1) {
+        throw error;
+      }
+      await page.waitForLoadState('domcontentloaded').catch(() => undefined);
+      await page.waitForTimeout(250);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('retryOnNavigation: exhausted retries');
+}
+
+const isAbortedNavigation = (message: string) =>
+  message.includes('ERR_ABORTED') || message.includes('frame was detached');
+
+/** Navigate to a path, retrying when an app-initiated navigation aborts the load. */
+export async function gotoWithRetry(page: Page, path: string, timeout = 10000): Promise<void> {
+  await retryOnNavigation(
+    page,
+    () => page.goto(path, { timeout, waitUntil: 'domcontentloaded' }),
+    isAbortedNavigation,
+  );
+}
+
+/** Reload the page, retrying when an app-initiated navigation aborts the reload. */
+export async function reloadWithRetry(page: Page, timeout = 10000): Promise<void> {
+  await retryOnNavigation(
+    page,
+    () => page.reload({ timeout, waitUntil: 'domcontentloaded' }),
+    isAbortedNavigation,
+  );
+}
+
+/** Clear localStorage, retrying when the SPA destroys the execution context mid-call. */
+export async function clearLocalStorage(page: Page): Promise<void> {
+  await retryOnNavigation(
+    page,
+    () => page.evaluate(() => localStorage.clear()),
+    (message) => message.includes('Execution context was destroyed'),
+  );
 }

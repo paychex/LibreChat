@@ -112,6 +112,12 @@ jobs:
         run: |
           google-chrome --version
           npx playwright install-deps chrome
+          # The system Chrome channel skips the Playwright browser bundle, which
+          # also ships the ffmpeg binary used for `video: on-first-retry`. Without
+          # it, the first retry crashes on video recording ("Executable doesn't
+          # exist at .../ffmpeg-*/ffmpeg-linux"), so retries can never recover a
+          # flaky test. Install just ffmpeg (overriding the workflow-level skip).
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0 npx playwright install ffmpeg
 
       - name: Run mock-LLM Tier-1 e2e
         run: npx playwright test --config=e2e/playwright.config.mock.ts
