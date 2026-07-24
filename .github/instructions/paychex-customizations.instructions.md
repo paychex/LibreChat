@@ -148,12 +148,12 @@ Complete catalog of Paychex-specific modifications to LibreChat.
 ## Authentication & Authorization
 
 **12. Azure Entra ID OpenID Connect**
-- **Files:** `az_container_app_definitions/*.yml`
+- **Files:** `LibreChatInfra/terraform/environments/*.tfvars`, `LibreChatInfra/terraform/main.tf` (separate repo)
 - **Configuration:** Environment-specific OpenID settings
 - **Purpose:** Single Sign-On using Paychex corporate accounts
-- **Pattern:** `openIdIssuerUrl`, `clientId` in container definitions
+- **Pattern:** `openid_issuer`, `openid_client_id` variables
 - **Criticality:** CRITICAL - Only auth method for Paychex users
-- **Added:** Initial Paychex fork setup
+- **Added:** Initial Paychex fork setup; migrated from static `az_container_app_definitions/*.yml` (removed from this repo) to Terraform in `LibreChatInfra`
 - **Context:** Each environment (n1, n2a, prod) has own client ID
 
 **13. OpenID Header Passthrough**
@@ -174,13 +174,13 @@ Complete catalog of Paychex-specific modifications to LibreChat.
 - **Added:** Paychex multi-environment strategy
 - **Context:** N1 is staging, N2A is preview, Prod is production
 
-**15. Azure Container App Definitions**
-- **Files:** `az_container_app_definitions/*.yml`
+**15. Azure Container App Infrastructure**
+- **Files:** `LibreChatInfra/terraform/**` (separate repo — source of truth for infrastructure)
 - **Purpose:** Infrastructure-as-code for Azure deployments
 - **Contains:** Domain names, auth, secrets, scaling rules
 - **Criticality:** CRITICAL - Defines production infrastructure
-- **Added:** Paychex infrastructure setup
-- **Context:** Used by GitHub Actions for deployments
+- **Added:** Paychex infrastructure setup; previously static YAML in `az_container_app_definitions/` in this repo (removed — fully superseded by LibreChatInfra Terraform)
+- **Context:** GitHub Actions deploy workflows in this repo only bump the container image tag (`az containerapp update --image`); full infrastructure config lives in LibreChatInfra
 
 ## CI/CD Pipeline
 
@@ -408,7 +408,8 @@ grep -r 'label:.*localize' client/src/components/Chat/Input/ToolsDropdown.tsx
 
 # 14-15. Configuration
 ls -la librechat.*.yml
-ls -la az_container_app_definitions/*.yml
+# Container app infrastructure now lives in LibreChatInfra (separate repo):
+ls -la ../LibreChatInfra/terraform/environments/*.tfvars
 
 # 21. MCP server name normalization
 grep -n "normalizeServerName" packages/api/src/mcp/registry/MCPServerInspector.ts

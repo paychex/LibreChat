@@ -34,7 +34,6 @@ git push origin --tags
 
 The following files are specific to the Paychex deployment of LibreChat and exist on the `develop` branch:
 
-- **`az_container_app_definitions/`** - Azure Container App definitions (YAML) for N1, N2a, and Prod environments
 - **`mongodb_atlas_setup/`** - One-time JavaScript commands to create vector-related objects in MongoDB Atlas
 - **`.paychex.dockerignore`** - Files to ignore when building the Paychex Docker image
 - **`librechat.n1.yml`** - N1 environment configuration

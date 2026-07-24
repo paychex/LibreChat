@@ -7,16 +7,16 @@ This is a Paychex fork of the open-source LibreChat project.
 
 ## Environments
 
-| Short Name | Domain | Config File | Container App Definition |
+| Short Name | Domain | Config File | Infra Definition |
 |------------|--------|-------------|--------------------------|
-| n1 | play.ain1.paychex.com | `librechat.n1.yml` | `az_container_app_definitions/n1_container_app_definition.yml` |
-| n2a | play.ain2a.paychex.com | `librechat.n2a.yml` | `az_container_app_definitions/n2a_container_app_definition.yml` |
-| prod | play.ai.paychex.com | `librechat.prod.yml` | `az_container_app_definitions/prod_container_app_definition.yml` |
+| n1 | play.ain1.paychex.com | `librechat.n1.yml` | `LibreChatInfra/terraform/environments/n1.tfvars` |
+| n2a | play.ain2a.paychex.com | `librechat.n2a.yml` | `LibreChatInfra/terraform/environments/n2a.tfvars` |
+| prod | play.ai.paychex.com | `librechat.prod.yml` | `LibreChatInfra/terraform/environments/prod.tfvars` |
 
 ## Repository Layout
 
 - `librechat.{env}.yml` — Per-environment LibreChat configuration (models, MCP servers, interface toggles, endpoints)
-- `az_container_app_definitions/{env}_container_app_definition.yml` — Azure Container App definitions (domain, auth, secrets)
+- Container app infrastructure (domain, auth, secrets, scaling) is defined in the `LibreChatInfra` Terraform repo — see `terraform/environments/{env}.tfvars` and `terraform/main.tf`. This LibreChat repo no longer contains Azure Container App definitions.
 - `.github/workflows/` — GitHub Actions CI/CD pipelines per environment
 - `api/server/middleware/` — Paychex-specific server middleware
 - `client/src/hooks/` — Paychex-specific React hooks (Pendo analytics, RBAC)
