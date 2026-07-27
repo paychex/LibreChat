@@ -7,6 +7,14 @@ import cleanupUser from '../../setup/cleanupUser';
 
 const A_PRIVATE_MARKER = 'A-private-conversation-marker';
 
+/**
+ * Generous cap for the cold post-auth SPA bootstrap + redirect to /c/new.
+ * Mid-suite the server (single worker, in-memory Mongo) is under contention, so
+ * the canonical 10s used elsewhere is too tight here and flakes in CI. The
+ * global-setup login uses a similar 15s+ budget; give this even more headroom.
+ */
+const POST_AUTH_TIMEOUT = 30000;
+
 async function register(page: Page, user: User) {
   await page.getByRole('link', { name: 'Sign up' }).click();
   await page.getByLabel('Full name').fill(user.name);
@@ -29,7 +37,7 @@ async function registerSecondaryUser(page: Page, user: User) {
   await register(page, user);
 
   try {
-    await page.waitForURL(/\/c\/new/, { timeout: 10000 });
+    await page.waitForURL(/\/c\/new/, { timeout: POST_AUTH_TIMEOUT });
   } catch (error) {
     if (!(await registrationErrorIsVisible(page))) {
       throw error;
@@ -39,7 +47,7 @@ async function registerSecondaryUser(page: Page, user: User) {
     await page.goto('/', { timeout: 10000 });
     await page.waitForURL(/\/login/, { timeout: 10000 });
     await register(page, user);
-    await page.waitForURL(/\/c\/new/, { timeout: 10000 });
+    await page.waitForURL(/\/c\/new/, { timeout: POST_AUTH_TIMEOUT });
   }
 }
 
@@ -57,7 +65,7 @@ async function ensureSecondaryUser(browser: Browser, page: Page, user: User, bas
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Password').fill(user.password);
   await page.getByTestId('login-button').click();
-  await page.waitForURL(/\/c\/new/, { timeout: 10000 });
+  await page.waitForURL(/\/c\/new/, { timeout: POST_AUTH_TIMEOUT });
 }
 
 test.describe('user isolation', () => {
