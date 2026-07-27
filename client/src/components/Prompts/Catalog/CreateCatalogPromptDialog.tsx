@@ -7,7 +7,6 @@ import {
   Input,
   Label,
   Button,
-  TextareaAutosize,
   useToastContext,
 } from '@librechat/client';
 import {
@@ -146,125 +145,126 @@ export default function CreateCatalogPromptDialog({
 
   return (
     <OGDialog open={isOpen} onOpenChange={setIsOpen}>
-      <OGDialogContent className="w-11/12 max-w-lg overflow-hidden">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-1 sm:p-2">
-          <h2 className="text-lg font-bold text-text-primary">
+      <OGDialogContent className="flex max-h-[85vh] w-11/12 max-w-lg flex-col overflow-hidden">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col p-1 sm:p-2">
+          <h2 className="mb-4 shrink-0 text-lg font-bold text-text-primary">
             {isEditMode
               ? localize('com_ui_prompt_catalog_edit_title')
               : localize('com_ui_prompt_catalog_create_title')}
           </h2>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="catalog-prompt-title" className="text-sm text-text-secondary">
-              {localize('com_ui_prompt_catalog_field_title')}
-            </Label>
-            <Input
-              id="catalog-prompt-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              maxLength={200}
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="catalog-prompt-content" className="text-sm text-text-secondary">
-              {localize('com_ui_prompt_catalog_field_content')}
-            </Label>
-            <TextareaAutosize
-              id="catalog-prompt-content"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              minRows={4}
-              maxRows={12}
-              aria-label={localize('com_ui_prompt_catalog_field_content')}
-              className="w-full resize-none rounded-md border border-border-medium bg-surface-primary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="catalog-prompt-category" className="text-sm text-text-secondary">
-              {localize('com_ui_prompt_catalog_field_category')}{' '}
-              <span className="text-text-tertiary">{localize('com_ui_optional')}</span>
-            </Label>
-            <select
-              id="catalog-prompt-category"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="rounded-md border border-border-medium bg-surface-primary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">{localize('com_ui_prompt_catalog_all')}</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="catalog-prompt-ai-tool" className="text-sm text-text-secondary">
-              {localize('com_ui_prompt_catalog_field_ai_tool')}
-            </Label>
-            <select
-              id="catalog-prompt-ai-tool"
-              value={aiTool}
-              onChange={(e) => setAiTool(e.target.value)}
-              className="rounded-md border border-border-medium bg-surface-primary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              {AI_TOOL_OPTIONS.map((tool) => (
-                <option key={tool} value={tool}>
-                  {tool}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="catalog-prompt-tags" className="text-sm text-text-secondary">
-              {localize('com_ui_prompt_catalog_field_tags')}{' '}
-              <span className="text-text-tertiary">{localize('com_ui_optional')}</span>
-            </Label>
-            <Input
-              id="catalog-prompt-tags"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-            />
-          </div>
-
-          <fieldset className="flex flex-col gap-2 rounded-md border border-border-medium bg-surface-secondary px-3 py-2.5">
-            <legend className="px-1 text-sm font-medium text-text-primary">
-              {localize('com_ui_prompt_catalog_field_visibility')}
-            </legend>
-            <span className="text-xs text-text-secondary">
-              {localize('com_ui_prompt_catalog_visibility_hint')}
-            </span>
-            <div className="mt-1 flex items-center gap-4">
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-text-primary">
-                <input
-                  type="radio"
-                  name="catalog-prompt-visibility"
-                  value="private"
-                  checked={!isPublic}
-                  onChange={() => setIsPublic(false)}
-                  className="size-4 accent-green-600"
-                />
-                {localize('com_ui_prompt_catalog_private')}
-              </label>
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-text-primary">
-                <input
-                  type="radio"
-                  name="catalog-prompt-visibility"
-                  value="public"
-                  checked={isPublic}
-                  onChange={() => setIsPublic(true)}
-                  className="size-4 accent-green-600"
-                />
-                {localize('com_ui_prompt_catalog_public')}
-              </label>
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pb-1">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="catalog-prompt-title" className="text-sm text-text-secondary">
+                {localize('com_ui_prompt_catalog_field_title')}
+              </Label>
+              <Input
+                id="catalog-prompt-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={200}
+              />
             </div>
-          </fieldset>
 
-          <div className="mt-2 flex justify-end gap-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="catalog-prompt-content" className="text-sm text-text-secondary">
+                {localize('com_ui_prompt_catalog_field_content')}
+              </Label>
+              <textarea
+                id="catalog-prompt-content"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                rows={6}
+                aria-label={localize('com_ui_prompt_catalog_field_content')}
+                className="max-h-60 min-h-[8rem] w-full resize-y overflow-y-auto rounded-md border border-border-medium bg-surface-primary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="catalog-prompt-category" className="text-sm text-text-secondary">
+                {localize('com_ui_prompt_catalog_field_category')}{' '}
+                <span className="text-text-tertiary">{localize('com_ui_optional')}</span>
+              </Label>
+              <select
+                id="catalog-prompt-category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="rounded-md border border-border-medium bg-surface-primary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">{localize('com_ui_prompt_catalog_all')}</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="catalog-prompt-ai-tool" className="text-sm text-text-secondary">
+                {localize('com_ui_prompt_catalog_field_ai_tool')}
+              </Label>
+              <select
+                id="catalog-prompt-ai-tool"
+                value={aiTool}
+                onChange={(e) => setAiTool(e.target.value)}
+                className="rounded-md border border-border-medium bg-surface-primary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {AI_TOOL_OPTIONS.map((tool) => (
+                  <option key={tool} value={tool}>
+                    {tool}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="catalog-prompt-tags" className="text-sm text-text-secondary">
+                {localize('com_ui_prompt_catalog_field_tags')}{' '}
+                <span className="text-text-tertiary">{localize('com_ui_optional')}</span>
+              </Label>
+              <Input
+                id="catalog-prompt-tags"
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+              />
+            </div>
+
+            <fieldset className="flex flex-col gap-2 rounded-md border border-border-medium bg-surface-secondary px-3 py-2.5">
+              <legend className="px-1 text-sm font-medium text-text-primary">
+                {localize('com_ui_prompt_catalog_field_visibility')}
+              </legend>
+              <span className="text-xs text-text-secondary">
+                {localize('com_ui_prompt_catalog_visibility_hint')}
+              </span>
+              <div className="mt-1 flex items-center gap-4">
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-text-primary">
+                  <input
+                    type="radio"
+                    name="catalog-prompt-visibility"
+                    value="private"
+                    checked={!isPublic}
+                    onChange={() => setIsPublic(false)}
+                    className="size-4 accent-green-600"
+                  />
+                  {localize('com_ui_prompt_catalog_private')}
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-text-primary">
+                  <input
+                    type="radio"
+                    name="catalog-prompt-visibility"
+                    value="public"
+                    checked={isPublic}
+                    onChange={() => setIsPublic(true)}
+                    className="size-4 accent-green-600"
+                  />
+                  {localize('com_ui_prompt_catalog_public')}
+                </label>
+              </div>
+            </fieldset>
+          </div>
+
+          <div className="mt-4 flex shrink-0 justify-end gap-2 border-t border-border-light pt-4">
             <Button
               type="button"
               variant="outline"

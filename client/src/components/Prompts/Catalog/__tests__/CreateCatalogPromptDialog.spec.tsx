@@ -16,9 +16,6 @@ jest.mock('@librechat/client', () => ({
   Input: (props: any) => <input {...props} />,
   Label: ({ children, ...props }: any) => <label {...props}>{children}</label>,
   Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
-  TextareaAutosize: ({ minRows: _minRows, maxRows: _maxRows, ...props }: any) => (
-    <textarea {...props} />
-  ),
   useToastContext: () => ({ showToast: mockShowToast }),
 }));
 
