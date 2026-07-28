@@ -1483,7 +1483,6 @@
   "com_ui_prompt_catalog_field_title": "Title",
   "com_ui_prompt_catalog_field_visibility": "Visibility",
   "com_ui_prompt_catalog_insert_error": "Unable to load this Prompt Catalog prompt in LibreChat. Please try again.",
-  "com_ui_prompt_catalog_my_prompts": "My Prompts",
   "com_ui_prompt_catalog_private": "Private",
   "com_ui_prompt_catalog_public": "Public",
   "com_ui_prompt_catalog_results": "Prompt results",
