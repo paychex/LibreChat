@@ -1,11 +1,5 @@
-import { Navigate, useParams } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import DashboardRoute from './Layouts/Dashboard';
-
-function PromptsRedirect() {
-  const { '*': splat } = useParams();
-  const target = splat ? `/prompts/${splat}` : '/prompts/new';
-  return <Navigate to={target} replace={true} />;
-}
 
 const dashboardRoutes = {
   path: 'd/*',
@@ -13,7 +7,7 @@ const dashboardRoutes = {
   children: [
     {
       path: 'prompts/*',
-      element: <PromptsRedirect />,
+      element: <Navigate to="/c/new" replace={true} />,
     },
     {
       path: '*',

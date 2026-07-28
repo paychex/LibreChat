@@ -151,25 +151,44 @@ describe('CatalogList', () => {
     expect(lastCallParams.sortOrder).toBe('desc');
   });
 
-  it('toggles "My Prompts" and forwards isMine to CatalogItem', async () => {
+  it('selects the Private visibility filter and forwards isMine to CatalogItem', async () => {
     const user = userEvent.setup();
     renderCatalogList();
 
-    await user.click(screen.getByText('com_ui_prompt_catalog_my_prompts'));
+    await user.click(screen.getByRole('radio', { name: 'com_ui_prompt_catalog_public' }));
+    await user.click(screen.getByRole('radio', { name: 'com_ui_prompt_catalog_private' }));
 
     expect(mockUseGetPromptCatalog.mock.calls.at(-1)?.[0].showMyPrompts).toBe('true');
     expect(screen.getByTestId('catalog-item-1')).toHaveTextContent('(mine)');
   });
 
-  it('does not send userEmail/userName even when "My Prompts" is enabled', async () => {
+  it('does not send userEmail/userName even when the Private filter is enabled', async () => {
     const user = userEvent.setup();
     renderCatalogList();
 
-    await user.click(screen.getByText('com_ui_prompt_catalog_my_prompts'));
+    await user.click(screen.getByRole('radio', { name: 'com_ui_prompt_catalog_private' }));
 
     const lastCallParams = mockUseGetPromptCatalog.mock.calls.at(-1)?.[0];
     expect(lastCallParams).not.toHaveProperty('userEmail');
     expect(lastCallParams).not.toHaveProperty('userName');
+  });
+
+  it('defaults to the Private filter when the user has personal prompts', () => {
+    renderCatalogList();
+
+    expect(screen.getByRole('radio', { name: 'com_ui_prompt_catalog_private' })).toBeChecked();
+    expect(mockUseGetPromptCatalog.mock.calls.at(-1)?.[0].showMyPrompts).toBe('true');
+  });
+
+  it('defaults to the Public filter when the user has no personal prompts', () => {
+    mockUseGetPromptCatalog.mockReturnValue({
+      data: makeCatalogResponse([]),
+      isLoading: false,
+    });
+    renderCatalogList();
+
+    expect(screen.getByRole('radio', { name: 'com_ui_prompt_catalog_public' })).toBeChecked();
+    expect(mockUseGetPromptCatalog.mock.calls.at(-1)?.[0].showMyPrompts).toBeUndefined();
   });
 
   it('renders pagination controls only when there is more than one local page', async () => {

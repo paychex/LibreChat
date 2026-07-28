@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { FileText, Search, Tag, User, RefreshCw, Plus } from 'lucide-react';
+import { useMemo, useState, useEffect } from 'react';
+import { FileText, Search, Tag, RefreshCw, Plus } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryKeys } from 'librechat-data-provider';
 import { Button, Skeleton } from '@librechat/client';
@@ -17,6 +17,8 @@ const LOCAL_PAGE_SIZE = 5;
 const API_PAGE_SIZE = 50;
 
 type SortBy = 'default' | 'az' | 'za' | 'newest' | 'oldest';
+
+type PromptVisibility = 'private' | 'public';
 
 const SORT_API_PARAMS: Record<
   SortBy,
@@ -38,7 +40,8 @@ export default function CatalogList() {
   const [tagInput, setTagInput] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
   const [sortBy, setSortBy] = useState<SortBy>('default');
-  const [showMyPrompts, setShowMyPrompts] = useState(false);
+  const [visibility, setVisibility] = useState<PromptVisibility>('private');
+  const [visibilityUserSelected, setVisibilityUserSelected] = useState(false);
   const [localPage, setLocalPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [filteredTagSuggestionsOpen, setFilteredTagSuggestionsOpen] = useState(false);
@@ -54,6 +57,24 @@ export default function CatalogList() {
   );
 
   const sortParams = SORT_API_PARAMS[sortBy];
+
+  // Probe (unfiltered) to learn whether the user has any personal prompts, so the
+  // visibility filter can default to Private when they do and Public when they don't.
+  const { data: myPromptsProbe } = useGetPromptCatalog({
+    showMyPrompts: 'true',
+    page: '1',
+    pageSize: '1',
+  });
+  const hasPersonalPrompts = (myPromptsProbe?.pagination?.total_count ?? 0) > 0;
+
+  useEffect(() => {
+    if (visibilityUserSelected || myPromptsProbe === undefined) {
+      return;
+    }
+    setVisibility(hasPersonalPrompts ? 'private' : 'public');
+  }, [myPromptsProbe, hasPersonalPrompts, visibilityUserSelected]);
+
+  const showMyPrompts = visibility === 'private';
 
   const { data, isLoading } = useGetPromptCatalog({
     search: debouncedSearch || undefined,
@@ -83,6 +104,12 @@ export default function CatalogList() {
   );
 
   const resetPage = () => setLocalPage(1);
+
+  const handleVisibilityChange = (next: PromptVisibility) => {
+    setVisibility(next);
+    setVisibilityUserSelected(true);
+    resetPage();
+  };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
@@ -265,25 +292,36 @@ export default function CatalogList() {
           </div>
         )}
 
-        {/* My Prompts toggle + Sort row */}
-        <div className="mt-2 flex items-center gap-1.5 px-1">
-          <button
-            type="button"
-            onClick={() => {
-              setShowMyPrompts((prev) => !prev);
-              resetPage();
-            }}
-            aria-pressed={showMyPrompts}
-            className={cn(
-              'flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors',
-              showMyPrompts
-                ? 'border-brand-purple bg-brand-purple text-white'
-                : 'border-border-light bg-surface-primary text-text-secondary hover:bg-surface-hover',
-            )}
+        {/* Visibility filter + Sort row */}
+        <div className="mt-2 flex items-center gap-3 px-1">
+          <div
+            className="flex items-center gap-3"
+            role="radiogroup"
+            aria-label={localize('com_ui_prompt_catalog_field_visibility')}
           >
-            <User className="size-3" aria-hidden="true" />
-            {localize('com_ui_prompt_catalog_my_prompts')}
-          </button>
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-text-primary">
+              <input
+                type="radio"
+                name="catalog-visibility-filter"
+                value="private"
+                checked={visibility === 'private'}
+                onChange={() => handleVisibilityChange('private')}
+                className="size-3.5 accent-green-600"
+              />
+              {localize('com_ui_prompt_catalog_private')}
+            </label>
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-text-primary">
+              <input
+                type="radio"
+                name="catalog-visibility-filter"
+                value="public"
+                checked={visibility === 'public'}
+                onChange={() => handleVisibilityChange('public')}
+                className="size-3.5 accent-green-600"
+              />
+              {localize('com_ui_prompt_catalog_public')}
+            </label>
+          </div>
           <select
             value={sortBy}
             onChange={(e) => {
