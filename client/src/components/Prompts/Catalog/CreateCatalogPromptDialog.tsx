@@ -145,7 +145,10 @@ export default function CreateCatalogPromptDialog({
 
   return (
     <OGDialog open={isOpen} onOpenChange={setIsOpen}>
-      <OGDialogContent className="flex max-h-[85vh] w-11/12 max-w-lg flex-col overflow-hidden">
+      <OGDialogContent
+        showCloseButton={false}
+        className="flex max-h-[85vh] w-11/12 max-w-lg flex-col overflow-hidden"
+      >
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col p-1 sm:p-2">
           <h2 className="mb-4 shrink-0 text-lg font-bold text-text-primary">
             {isEditMode

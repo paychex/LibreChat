@@ -145,7 +145,6 @@ function CatalogItem({ prompt, isMine = false }: { prompt: CatalogPrompt; isMine
         <OGDialogTemplate
           title={prompt.title}
           className="max-w-lg"
-          showCancelButton={false}
           main={
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
