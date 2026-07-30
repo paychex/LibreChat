@@ -12,7 +12,7 @@ modelSpecs:
     - azureOpenAI
     - "Gemini 2.5 Pro"
     - "Gemini 2.5 Flash"
-    - "Claude Sonnet 4.5"
+    - "Claude Sonnet 5"
   list:
     - name: azure-gpt-5.4-mini
       label: GPT-5.4 Mini
@@ -60,15 +60,15 @@ modelSpecs:
       preset:
         endpoint: "Gemini 2.5 Flash"
         model: gemini-2.5-flash
-    - name: anthropic-claude-sonnet-45
-      label: Claude Sonnet 4.5 (Limited)
+    - name: anthropic-claude-sonnet-5
+      label: Claude Sonnet 5 (Limited)
       iconURL: /assets/anthropic.png
       showIconInMenu: true
       showIconInHeader: true
       description: For extended reasoning, coding, and automation. This model is being evaluated. It can be used a limited number of times.
       preset:
-        endpoint: "Claude Sonnet 4.5"
-        model: claude-sonnet-4-5
+        endpoint: "Claude Sonnet 5"
+        model: claude-sonnet-5
 mcpServers:
   Internet Search (Tavily):
     type: streamable-http
@@ -140,17 +140,19 @@ endpoints:
       dropParams:
         - stream
         - streaming
-    - name: "Claude Sonnet 4.5"
+    - name: "Claude Sonnet 5"
       apiKey: "${GCP_VERTEXAI_API_KEY}"
-      baseURL: "${GCP_VERTEXAI_BASEURL}/claude-sonnet-4-5/v1"
+      baseURL: "${GCP_VERTEXAI_BASEURL}/claude-sonnet-5/v1"
       iconURL: "/assets/anthropic.png"
       directEndpoint: true
       models:
         default:
-          - claude-sonnet-4-5
-      titleModel: "claude-sonnet-4-5"
+          - claude-sonnet-5
+      titleModel: "claude-sonnet-5"
       titleConvo: true
-      modelDisplayLabel: "Claude Sonnet 4.5"
+      modelDisplayLabel: "Claude Sonnet 5"
+      addParams:
+        max_tokens: 64000
       # Streaming enabled - Kong translates to OpenAI SSE format
       streamRate: 25
     - name: "LangGraph Agents"
