@@ -9,7 +9,6 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
   Button,
-  TextareaAutosize,
   useToastContext,
 } from '@librechat/client';
 import type { CatalogPrompt } from 'librechat-data-provider';
@@ -151,13 +150,12 @@ function CatalogItem({ prompt, isMine = false }: { prompt: CatalogPrompt; isMine
                 <span className="text-xs font-medium text-text-secondary">
                   {localize('com_ui_prompt_catalog_field_content')}
                 </span>
-                <TextareaAutosize
+                <textarea
                   value={viewContent}
                   onChange={(e) => setViewContent(e.target.value)}
-                  minRows={4}
-                  maxRows={16}
+                  rows={6}
                   aria-label={localize('com_ui_prompt_catalog_field_content')}
-                  className="w-full resize-none rounded-md border border-border-medium bg-surface-secondary p-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="max-h-60 min-h-[8rem] w-full resize-y overflow-y-auto rounded-md border border-border-medium bg-surface-secondary p-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
               {(prompt.category || prompt.ai_tool || prompt.tags?.length > 0) && (
