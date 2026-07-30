@@ -121,7 +121,18 @@ export default defineConfig({
     : [['html', { outputFolder: reportPath }], ['list']],
   use: {
     baseURL,
-    video: 'on-first-retry',
+    /**
+     * Video recording requires Playwright's bundled ffmpeg binary, which CI does
+     * not install: the workflow sets `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` and runs
+     * `playwright install-deps chrome` (OS libraries for the system Chrome channel
+     * only). With `on-first-retry`, every retry #1 aborted with "Executable doesn't
+     * exist ... ffmpeg-linux" before running a single assertion, silently reducing
+     * the retry budget from 2 to 1 and turning flaky specs into hard failures.
+     * `trace: 'retain-on-failure'` below already captures DOM snapshots, network
+     * activity, and per-action screenshots, which is strictly more useful for
+     * debugging than a video.
+     */
+    video: 'off',
     trace: 'retain-on-failure',
     ignoreHTTPSErrors: true,
     headless: true,
