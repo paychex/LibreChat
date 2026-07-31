@@ -579,6 +579,7 @@ class AgentClient extends BaseClient {
           agentRunContextParts.push(scopedContext);
         }
 
+        const isPrimaryAgent = agentId === this.options.agent.id;
         return applyContextToAgent({
           agent,
           agentId,
@@ -586,7 +587,8 @@ class AgentClient extends BaseClient {
           mcpManager,
           configServers,
           sharedRunContext: agentRunContextParts.filter(Boolean).join('\n\n'),
-          ephemeralAgent: agentId === this.options.agent.id ? ephemeralAgent : undefined,
+          ephemeralAgent: isPrimaryAgent ? ephemeralAgent : undefined,
+          skipMCPInstructions: !isPrimaryAgent,
         });
       }),
     );
