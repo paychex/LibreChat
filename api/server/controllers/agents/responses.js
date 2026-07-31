@@ -586,6 +586,7 @@ const createResponse = async (req, res) => {
           mcpManager,
           configServers,
           sharedRunContext: agentScopedContext.get(runAgent.id) ?? '',
+          skipMCPInstructions: runAgent.id !== primaryConfig.id,
         }),
       ),
     );

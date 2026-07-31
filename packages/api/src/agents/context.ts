@@ -134,6 +134,9 @@ export function buildAgentAdditionalInstructions({
  * @param {Object} [params.ephemeralAgent] - Ephemeral agent config (for MCP override)
  * @param {string} [params.agentId] - Agent ID for logging
  * @param {Logger} [params.logger] - Optional logger instance
+ * @param {boolean} [params.skipMCPInstructions] - When true, skip MCP server instruction injection.
+ *   Sub-agents and handoff agents should set this to true: they may inherit MCP tools from the
+ *   primary agent but should not receive the associated serverInstructions in their system prompt.
  * @returns {Promise<void>}
  */
 export async function applyContextToAgent({
@@ -144,6 +147,7 @@ export async function applyContextToAgent({
   agentId,
   logger,
   configServers,
+  skipMCPInstructions = false,
 }: {
   agent: AgentWithTools;
   sharedRunContext: string;
@@ -152,12 +156,18 @@ export async function applyContextToAgent({
   agentId?: string;
   logger?: Logger;
   configServers?: Record<string, ParsedServerConfig>;
+  /** When true, skip MCP server instruction injection for this agent. */
+  skipMCPInstructions?: boolean;
 }): Promise<void> {
   const baseInstructions = agent.instructions || '';
   const additionalInstructions = agent.additional_instructions || '';
 
   try {
-    const mcpServers = ephemeralAgent?.mcp?.length ? ephemeralAgent.mcp : extractMCPServers(agent);
+    const mcpServers = (() => {
+      if (skipMCPInstructions) return [];
+      if (ephemeralAgent?.mcp?.length) return ephemeralAgent.mcp;
+      return extractMCPServers(agent);
+    })();
     const mcpInstructions = await getMCPInstructionsForServers(
       mcpServers,
       mcpManager,

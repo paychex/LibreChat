@@ -572,5 +572,65 @@ describe('Agent Context Utilities', () => {
       expect(agent.instructions).toBe('Base');
       expect(agent.additional_instructions).toBe('Existing dynamic\n\nContext');
     });
+
+    it('should skip MCP instructions when skipMCPInstructions is true', async () => {
+      const agent: AgentWithTools = {
+        id: 'sub-agent',
+        instructions: 'Sub-agent base',
+        tools: [
+          new DynamicStructuredTool({
+            name: `tool${Constants.mcp_delimiter}tavily-server`,
+            description: 'Tavily tool',
+            schema: testSchema,
+            func: async () => 'result',
+          }),
+        ],
+      };
+
+      mockMCPManager.formatInstructionsForContext.mockResolvedValue('Tavily instructions');
+
+      await applyContextToAgent({
+        agent,
+        sharedRunContext: 'Context',
+        mcpManager: mockMCPManager,
+        skipMCPInstructions: true,
+      });
+
+      // MCP instructions must NOT be fetched or injected for sub-agents
+      expect(mockMCPManager.formatInstructionsForContext).not.toHaveBeenCalled();
+      expect(agent.instructions).toBe('Sub-agent base');
+      expect(agent.additional_instructions).toBe('Context');
+    });
+
+    it('should include MCP instructions when skipMCPInstructions is false', async () => {
+      const agent: AgentWithTools = {
+        id: 'primary-agent',
+        instructions: 'Primary base',
+        tools: [
+          new DynamicStructuredTool({
+            name: `tool${Constants.mcp_delimiter}tavily-server`,
+            description: 'Tavily tool',
+            schema: testSchema,
+            func: async () => 'result',
+          }),
+        ],
+      };
+
+      mockMCPManager.formatInstructionsForContext.mockResolvedValue('Tavily instructions');
+
+      await applyContextToAgent({
+        agent,
+        sharedRunContext: 'Context',
+        mcpManager: mockMCPManager,
+        skipMCPInstructions: false,
+      });
+
+      expect(mockMCPManager.formatInstructionsForContext).toHaveBeenCalledWith(
+        ['tavily-server'],
+        undefined,
+      );
+      expect(agent.instructions).toBe('Primary base\n\nTavily instructions');
+      expect(agent.additional_instructions).toBe('Context');
+    });
   });
 });

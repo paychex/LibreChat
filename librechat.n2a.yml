@@ -16,7 +16,7 @@ modelSpecs:
     - "Gemini 3.1 Flash Lite Preview"
     - "Gemini 3.1 Pro Preview"
     - "Gemini 3.1 Flash Image Preview"
-    - "Claude Sonnet 4.5"
+    - "Claude Sonnet 5"
     - "Claude Opus 4.6"
   list:
     - name: azure-gpt-5.4-mini
@@ -92,15 +92,15 @@ modelSpecs:
       preset:
         endpoint: "Gemini 3.1 Flash Image Preview"
         model: gemini-3.1-flash-image-preview
-    - name: anthropic-claude-sonnet-45
-      label: Claude Sonnet 4.5 (Limited)
+    - name: anthropic-claude-sonnet-5
+      label: Claude Sonnet 5 (Limited)
       iconURL: /assets/anthropic.png
       showIconInMenu: true
       showIconInHeader: true
       description: For extended reasoning, coding, and automation. This model is being evaluated. It can be used a limited number of times.
       preset:
-        endpoint: "Claude Sonnet 4.5"
-        model: claude-sonnet-4-5
+        endpoint: "Claude Sonnet 5"
+        model: claude-sonnet-5
     - name: anthropic-claude-opus-46
       label: Claude Opus 4.6 (Limited)
       iconURL: /assets/anthropic.png
@@ -232,17 +232,19 @@ endpoints:
       dropParams:
         - stream
         - streaming
-    - name: "Claude Sonnet 4.5"
+    - name: "Claude Sonnet 5"
       apiKey: "${GCP_VERTEXAI_API_KEY}"
-      baseURL: "${GCP_VERTEXAI_BASEURL}/claude-sonnet-4-5/v1"
+      baseURL: "${GCP_VERTEXAI_BASEURL}/claude-sonnet-5/v1"
       iconURL: "/assets/anthropic.png"
       directEndpoint: true
       models:
         default:
-          - claude-sonnet-4-5
-      titleModel: "claude-sonnet-4-5"
+          - claude-sonnet-5
+      titleModel: "claude-sonnet-5"
       titleConvo: true
-      modelDisplayLabel: "Claude Sonnet 4.5"
+      modelDisplayLabel: "Claude Sonnet 5"
+      addParams:
+        max_tokens: 64000
       # Streaming enabled - Kong translates to OpenAI SSE format
       streamRate: 25
     - name: "Claude Opus 4.6"
