@@ -121,6 +121,10 @@ For each conflicted file, determine its risk level:
 - Build configuration (unless Dockerfile)
 - Upstream-only features
 
+**Never re-accept (intentionally deleted, `chore(ci): remove unused upstream-only workflows`):**
+- `.github/workflows/build.yml`, `client.yml`, `data-provider.yml`, `data-schemas.yml`, `deploy.yml`, `deploy-dev.yml`, `dev-images.yml`, `dev-branch-images.yml`, `dev-staging-images.yml`, `main-image-workflow.yml`, `tag-images.yml`, `retry-docker-builds.yml`, `helmcharts.yml`, `sync-helm-chart-tags.yml`, `generate_embeddings.yml`, `locize-i18n-sync.yml`
+- If upstream reintroduces any of these (add or modify), delete them again instead of merging — they serve no purpose in the Paychex fork. Also don't restore `.github/scripts/sync-helm-chart-tags.sh` (orphaned when `sync-helm-chart-tags.yml` was removed).
+
 #### ⚠️ Translation File Trap (`translation.json`)
 
 `client/src/locales/en/translation.json` is the **most dangerous merge file**. It is ~1750 lines, alphabetically sorted, and upstream modifies it heavily every release. There are **two distinct failure modes**:
@@ -504,6 +508,7 @@ Also suggest:
 ❌ **Don't** skip client-side `tsc --noEmit` (Step 10, check 1g) — backend tsc (1c) only covers `packages/api/`; client-side errors from stale imports, changed component APIs, and missing providers are invisible until `npm run build` fails minutes later  
 ❌ **Don't** assume non-conflicting Paychex files have correct imports after upstream restructures — upstream may move components into subdirectories without producing merge conflicts in Paychex-only files that reference them (e.g., v0.8.7 Prompts restructure broke 9 Paychex files with zero conflicts)  
 ❌ **Don't** only compare Paychex-specific i18n keys after `translation.json` merge — also verify upstream's new keys weren't dropped; compare key counts (merged should be ≥ upstream)  
+❌ **Don't** re-accept intentionally deleted upstream-only workflow files (`build.yml`, `client.yml`, `data-provider.yml`, `data-schemas.yml`, `deploy.yml`, `deploy-dev.yml`, `dev-images.yml`, `dev-branch-images.yml`, `dev-staging-images.yml`, `main-image-workflow.yml`, `tag-images.yml`, `retry-docker-builds.yml`, `helmcharts.yml`, `sync-helm-chart-tags.yml`, `generate_embeddings.yml`, `locize-i18n-sync.yml`) or their orphaned supporting scripts — delete them again if upstream reintroduces them  
 
 ✅ **Do** check git history before resolving conflicts  
 ✅ **Do** verify customizations are present after each major step  

@@ -103,6 +103,18 @@ Apply this matrix when resolving each conflict:
 
 **Action:** Accept upstream unless user has specific reason
 
+### ⚫ Intentionally Removed Upstream Workflows (never resurrect)
+
+The following upstream-only workflow files were deliberately deleted (`chore(ci): remove unused upstream-only workflows`) because they serve no purpose in the Paychex fork — NPM publishing to the LibreChat org, upstream GHCR image builds, Locize translation sync, Supabase docs embeddings, upstream-only infra/demo, and Helm chart publishing (Paychex deploys to Azure Container Apps instead):
+
+- `build.yml`, `client.yml`, `data-provider.yml`, `data-schemas.yml`
+- `deploy.yml`, `deploy-dev.yml`
+- `dev-images.yml`, `dev-branch-images.yml`, `dev-staging-images.yml`, `main-image-workflow.yml`, `tag-images.yml`, `retry-docker-builds.yml`
+- `helmcharts.yml`, `sync-helm-chart-tags.yml` (also removed the now-orphaned `.github/scripts/sync-helm-chart-tags.sh`)
+- `generate_embeddings.yml`, `locize-i18n-sync.yml`
+
+**Action:** If a future upstream merge reintroduces any of these files (as an add or a modify), do **not** accept them — delete them again. Do not run or wire up their supporting scripts either.
+
 ## Common Merge Scenarios
 
 ### Scenario 1: File Deleted by Upstream, Modified by Paychex
