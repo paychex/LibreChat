@@ -263,6 +263,7 @@ endpoints:
     - name: "LangGraph Agents"
       apiKey: "${LANGGRAPH_PROXY_API_KEY}"
       baseURL: "${LANGGRAPH_PROXY_BASE_URL}"
+      iconURL: "/assets/phebe.webp"
       headers:
         x-librechat-conversation-id: "{{LIBRECHAT_BODY_CONVERSATIONID}}"
       models:
@@ -282,6 +283,7 @@ endpoints:
     - name: "LangGraph Agents Identification"
       apiKey: "${LANGGRAPH_PROXY_API_KEY}"
       baseURL: "${LANGGRAPH_PROXY_BASE_URL}"
+      iconURL: "/assets/phebe.webp"
       headers:
         x-librechat-conversation-id: "{{LIBRECHAT_BODY_CONVERSATIONID}}"
         x-user-access-token: "{{LIBRECHAT_OPENID_ACCESS_TOKEN}}"
