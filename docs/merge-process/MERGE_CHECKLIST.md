@@ -168,6 +168,9 @@
 - [ ] _____________________________________________
 - [ ] _____________________________________________
 
+### Intentionally Removed Workflows — Do NOT Re-Accept
+If upstream reintroduces any of these files, delete them again instead of accepting: `build.yml`, `client.yml`, `data-provider.yml`, `data-schemas.yml`, `deploy.yml`, `deploy-dev.yml`, `dev-images.yml`, `dev-branch-images.yml`, `dev-staging-images.yml`, `main-image-workflow.yml`, `tag-images.yml`, `retry-docker-builds.yml`, `helmcharts.yml`, `sync-helm-chart-tags.yml`, `generate_embeddings.yml`, `locize-i18n-sync.yml`. See `.github/instructions/merge-process.instructions.md` for rationale.
+
 ### Medium-Risk Conflicts (Check History)
 - [ ] File: _________________ → Decision: □ Ours □ Theirs □ Manual
 - [ ] File: _________________ → Decision: □ Ours □ Theirs □ Manual
