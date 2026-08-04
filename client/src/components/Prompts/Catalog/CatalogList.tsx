@@ -97,7 +97,7 @@ export default function CatalogList() {
     () =>
       tagInput.trim()
         ? (tagsQueryData ?? []).filter(
-            (t) => t.includes(tagInput.toLowerCase()) && t !== selectedTag,
+            (t) => t.toLowerCase().includes(tagInput.toLowerCase()) && t !== selectedTag,
           )
         : [],
     [tagInput, tagsQueryData, selectedTag],
