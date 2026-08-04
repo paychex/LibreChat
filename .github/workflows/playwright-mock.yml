@@ -122,8 +122,22 @@ jobs:
         # it, the first retry crashes on video recording ("Executable doesn't
         # exist at .../ffmpeg-*/ffmpeg-linux"), so retries can never recover a
         # flaky test. Install just ffmpeg (overriding the workflow-level skip).
+        # The download itself finishes in seconds, but the CLI process is known
+        # to hang afterward instead of exiting (lingering keep-alive handle), so
+        # force-kill it and verify the binary landed instead of trusting its exit code.
         timeout-minutes: 5
-        run: npx playwright install ffmpeg
+        run: |
+          set +e
+          timeout 90s npx playwright install ffmpeg
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
+            exit "$status"
+          fi
+          if ! find "$HOME/.cache/ms-playwright" -iname 'ffmpeg-linux*' -type f 2>/dev/null | grep -q .; then
+            echo "::error::ffmpeg binary not found after install"
+            exit 1
+          fi
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '0'
 
