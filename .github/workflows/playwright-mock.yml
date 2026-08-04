@@ -107,17 +107,25 @@ jobs:
         if: steps.cache-client-app.outputs.cache-hit != 'true'
         run: npm run build:client
 
-      - name: Install Playwright runtime dependencies
-        timeout-minutes: 5
+      - name: Install Playwright OS dependencies
+        # apt-get install-deps pulls in several CJK/unicode font packages whose
+        # postinst fontconfig cache rebuild can be slow on shared runners, so
+        # this needs more headroom than the previous combined 5-minute budget.
+        timeout-minutes: 10
         run: |
           google-chrome --version
           npx playwright install-deps chrome
-          # The system Chrome channel skips the Playwright browser bundle, which
-          # also ships the ffmpeg binary used for `video: on-first-retry`. Without
-          # it, the first retry crashes on video recording ("Executable doesn't
-          # exist at .../ffmpeg-*/ffmpeg-linux"), so retries can never recover a
-          # flaky test. Install just ffmpeg (overriding the workflow-level skip).
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0 npx playwright install ffmpeg
+
+      - name: Install Playwright ffmpeg
+        # The system Chrome channel skips the Playwright browser bundle, which
+        # also ships the ffmpeg binary used for `video: on-first-retry`. Without
+        # it, the first retry crashes on video recording ("Executable doesn't
+        # exist at .../ffmpeg-*/ffmpeg-linux"), so retries can never recover a
+        # flaky test. Install just ffmpeg (overriding the workflow-level skip).
+        timeout-minutes: 5
+        run: npx playwright install ffmpeg
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '0'
 
       - name: Run mock-LLM Tier-1 e2e
         run: npx playwright test --config=e2e/playwright.config.mock.ts
