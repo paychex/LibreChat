@@ -48,7 +48,9 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
-    video: 'on-first-retry',
+    /** See e2e/playwright.config.mock.ts — CI has no ffmpeg, so video recording
+     * crashes the first retry instead of recording it. Traces cover debugging. */
+    video: 'off',
     storageState: path.resolve(__dirname, 'storageState.ci.json'),
   },
   expect: {
