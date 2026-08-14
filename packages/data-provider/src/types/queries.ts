@@ -113,6 +113,47 @@ export type AllPromptGroupsFilterRequest = {
 
 export type AllPromptGroupsResponse = t.TPromptGroup[];
 
+export type CatalogPrompt = {
+  id: number;
+  title: string;
+  content: string;
+  category: string;
+  ai_tool: string;
+  tags: string[];
+  creator_name: string;
+  thumbs_up_count: number;
+};
+
+export type CatalogPagination = {
+  page: number;
+  page_size: number;
+  total_count: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+};
+
+export type CatalogPromptsResponse = {
+  prompts: CatalogPrompt[];
+  pagination: CatalogPagination;
+};
+
+export type CatalogPromptsParams = {
+  search?: string;
+  category?: string;
+  /** One or more tags; prompts must have ALL specified tags */
+  tag?: string;
+  page?: string;
+  /** Results per page; the API allows up to 200 */
+  pageSize?: string;
+  /** API field to sort by */
+  sortBy?: 'thumbs_up_count' | 'created_at' | 'updated_at' | 'title';
+  /** Sort direction */
+  sortOrder?: 'asc' | 'desc';
+  /** When "true", only show prompts authored by the requesting user */
+  showMyPrompts?: 'true';
+};
+
 export type ConversationTagsResponse = s.TConversationTag[];
 
 /* MCP Types */

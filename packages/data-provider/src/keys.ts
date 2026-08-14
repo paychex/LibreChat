@@ -45,6 +45,7 @@ export enum QueryKeys {
   promptGroups = 'promptGroups',
   allPromptGroups = 'allPromptGroups',
   promptGroup = 'promptGroup',
+  promptCatalog = 'promptCatalog',
   projects = 'projects',
   project = 'project',
   projectConversations = 'projectConversations',

@@ -50,7 +50,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: bash scripts/ci-npm-install.sh
 
       - name: Restore data-provider build cache
         id: cache-data-provider
@@ -107,11 +107,39 @@ jobs:
         if: steps.cache-client-app.outputs.cache-hit != 'true'
         run: npm run build:client
 
-      - name: Install Playwright runtime dependencies
-        timeout-minutes: 5
+      - name: Install Playwright OS dependencies
+        # apt-get install-deps pulls in several CJK/unicode font packages whose
+        # postinst fontconfig cache rebuild can be slow on shared runners, so
+        # this needs more headroom than the previous combined 5-minute budget.
+        timeout-minutes: 10
         run: |
           google-chrome --version
           npx playwright install-deps chrome
+
+      - name: Install Playwright ffmpeg
+        # The system Chrome channel skips the Playwright browser bundle, which
+        # also ships the ffmpeg binary used for `video: on-first-retry`. Without
+        # it, the first retry crashes on video recording ("Executable doesn't
+        # exist at .../ffmpeg-*/ffmpeg-linux"), so retries can never recover a
+        # flaky test. Install just ffmpeg (overriding the workflow-level skip).
+        # The download itself finishes in seconds, but the CLI process is known
+        # to hang afterward instead of exiting (lingering keep-alive handle), so
+        # force-kill it and verify the binary landed instead of trusting its exit code.
+        timeout-minutes: 5
+        run: |
+          set +e
+          timeout 90s npx playwright install ffmpeg
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
+            exit "$status"
+          fi
+          if ! find "$HOME/.cache/ms-playwright" -iname 'ffmpeg-linux*' -type f 2>/dev/null | grep -q .; then
+            echo "::error::ffmpeg binary not found after install"
+            exit 1
+          fi
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '0'
 
       - name: Run mock-LLM Tier-1 e2e
         run: npx playwright test --config=e2e/playwright.config.mock.ts

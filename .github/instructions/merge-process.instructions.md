@@ -90,7 +90,7 @@ Apply this matrix when resolving each conflict:
 - `client/src/locales/en/translation.json` — Paychex-specific keys interleaved alphabetically; accepting large upstream hunks can drop them
 - `packages/api/src/mcp/connection.ts` — check for shouldStopReconnecting flag and transient error log levels
 - `librechat.*.yml`
-- `az_container_app_definitions/*.yml`
+- `LibreChatInfra/terraform/environments/*.tfvars` (separate repo; not part of this merge)
 
 **Action:** Check for Paychex customizations, manual merge if found
 

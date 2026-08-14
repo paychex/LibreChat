@@ -34,7 +34,6 @@ git push origin --tags
 
 The following files are specific to the Paychex deployment of LibreChat and exist on the `develop` branch:
 
-- **`az_container_app_definitions/`** - Azure Container App definitions (YAML) for N1, N2a, and Prod environments
 - **`mongodb_atlas_setup/`** - One-time JavaScript commands to create vector-related objects in MongoDB Atlas
 - **`.paychex.dockerignore`** - Files to ignore when building the Paychex Docker image
 - **`librechat.n1.yml`** - N1 environment configuration
@@ -85,6 +84,30 @@ All Paychex customizations are maintained on the `develop` branch and follow the
    - Navigate to `localhost:3080` in your browser
    - If using VSCode remote SSH, ensure port 3080 is forwarded
    - Register a test user and log in
+
+## Running LibreChat Locally on Windows (Podman + WSL2)
+
+Developers running Windows natively (not Linux/remote-SSH) use **Podman via WSL2** instead of
+Docker Desktop, per Confluence: `wiki.paychex.com/display/DEVSVCS/Linux+Containers+on+Windows`
+(short link `wiki.paychex.com/x/_lrOPw`). This setup has several non-obvious gotchas (DOCKER_HOST
+not forwarding into WSL, MongoDB data corruption on NTFS bind mounts, Node TLS cert errors), so
+the full known-working process has been scripted and documented rather than left to tribal
+knowledge:
+
+- **[.github/prompts/windows-podman-setup.prompt.md](.github/prompts/windows-podman-setup.prompt.md)**
+  — run `/windows-podman-setup` in Copilot Chat (or paste into any AI agent) to have it walk
+  through the whole setup step by step, including the gotchas and their fixes.
+- **[scripts/install-podman-windows.ps1](scripts/install-podman-windows.ps1)** — one-time
+  install/configuration of Podman + WSL2 (downloads the latest Paychex podman distro and wrapper
+  scripts from Artifactory, sets up `DOCKER_HOST`/`ADDITIONAL_WSLENV`). Idempotent; supports
+  `-DryRun` and `-Upgrade`.
+- **[scripts/start-podman-infra.ps1](scripts/start-podman-infra.ps1)** — brings up the infra
+  containers (MongoDB, Meilisearch, etc.) through Podman-in-WSL with `DOCKER_HOST` forwarded
+  correctly. Run this after every reboot or `wsl --shutdown` before `npm run backend:dev`.
+
+New Windows developers should run the prompt (or the two scripts directly) instead of following
+the Linux steps above. Keep these files up to date as the Windows setup evolves so the next
+developer doesn't have to rediscover the same gotchas.
 
 ## Development Workflow
 

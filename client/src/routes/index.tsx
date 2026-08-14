@@ -34,11 +34,6 @@ const AuthLayout = () => (
   </AuthContextProvider>
 );
 
-const loadInlinePromptsView = () =>
-  import('~/components/Prompts/layouts/InlinePromptsView').then((m) => ({
-    Component: m.default,
-  }));
-
 const loadSkillsView = () =>
   import('~/components/Skills/layouts/SkillsView').then((m) => ({
     Component: m.default,
@@ -145,15 +140,15 @@ export const router = createBrowserRouter(
             },
             {
               path: 'prompts',
-              element: <Navigate to="/prompts/new" replace={true} />,
+              element: <Navigate to="/c/new" replace={true} />,
             },
             {
               path: 'prompts/new',
-              lazy: loadInlinePromptsView,
+              element: <Navigate to="/c/new" replace={true} />,
             },
             {
               path: 'prompts/:promptId',
-              lazy: loadInlinePromptsView,
+              element: <Navigate to="/c/new" replace={true} />,
             },
             {
               path: 'skills',

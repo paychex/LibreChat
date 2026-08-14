@@ -979,10 +979,11 @@ describe('Conversation Operations', () => {
       expect(deletedConvo).toBeNull();
     });
 
-    it('should throw error if no conversations found', async () => {
-      await expect(deleteConvos('user123', { conversationId: 'non-existent' })).rejects.toThrow(
-        'Conversation not found or already deleted.',
-      );
+    it('should skip gracefully if no conversations found', async () => {
+      const result = await deleteConvos('user123', { conversationId: 'non-existent' });
+      expect(result?.deletedCount).toBe(0);
+      expect(result?.messages.deletedCount).toBe(0);
+      expect(deleteMessages).not.toHaveBeenCalled();
     });
 
     it('should decrement tag counts for a deleted bookmarked conversation', async () => {

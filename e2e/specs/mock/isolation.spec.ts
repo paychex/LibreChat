@@ -7,6 +7,55 @@ import cleanupUser from '../../setup/cleanupUser';
 
 const A_PRIVATE_MARKER = 'A-private-conversation-marker';
 
+/**
+ * Generous cap for the cold post-auth SPA bootstrap + redirect to /c/new.
+ * Mid-suite the server (single worker, in-memory Mongo) is under contention, so
+ * the canonical 10s used elsewhere is too tight here and flakes in CI. The
+ * global-setup login uses a similar 15s+ budget; give this even more headroom.
+ */
+const POST_AUTH_TIMEOUT = 30000;
+
+/**
+ * Navigate to `url`, tolerating the `net::ERR_ABORTED` that occurs when an
+ * in-flight client-side navigation (e.g. the post-auth SPA bootstrap redirect)
+ * interrupts the commit of `page.goto`. The abort is benign — the app performs
+ * its own navigation — so we let it settle and retry a couple of times.
+ */
+async function gotoResilient(page: Page, url: string, timeout = 10000) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.goto(url, { timeout });
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (attempt >= 2 || !message.includes('net::ERR_ABORTED')) {
+        throw error;
+      }
+      await page.waitForLoadState('domcontentloaded').catch(() => undefined);
+    }
+  }
+}
+
+/**
+ * Wait for the post-auth bootstrap to land on the new-chat view. Under mid-suite
+ * CI contention the automatic redirect to /c/new can stall or be aborted by a
+ * competing navigation. As long as we have left /login (auth established), we
+ * explicitly navigate to the new-chat route and confirm the composer is ready.
+ */
+async function waitForAuthenticatedNewChat(page: Page) {
+  try {
+    await page.waitForURL(/\/c\/new/, { timeout: POST_AUTH_TIMEOUT });
+  } catch (error) {
+    if (/\/login/.test(new URL(page.url()).pathname)) {
+      throw error;
+    }
+    await gotoResilient(page, NEW_CHAT_PATH);
+  }
+  await expect(page.getByRole('textbox', { name: 'Message input' })).toBeVisible({
+    timeout: POST_AUTH_TIMEOUT,
+  });
+}
+
 async function register(page: Page, user: User) {
   await page.getByRole('link', { name: 'Sign up' }).click();
   await page.getByLabel('Full name').fill(user.name);
@@ -29,7 +78,7 @@ async function registerSecondaryUser(page: Page, user: User) {
   await register(page, user);
 
   try {
-    await page.waitForURL(/\/c\/new/, { timeout: 10000 });
+    await page.waitForURL(/\/c\/new/, { timeout: POST_AUTH_TIMEOUT });
   } catch (error) {
     if (!(await registrationErrorIsVisible(page))) {
       throw error;
@@ -39,7 +88,7 @@ async function registerSecondaryUser(page: Page, user: User) {
     await page.goto('/', { timeout: 10000 });
     await page.waitForURL(/\/login/, { timeout: 10000 });
     await register(page, user);
-    await page.waitForURL(/\/c\/new/, { timeout: 10000 });
+    await page.waitForURL(/\/c\/new/, { timeout: POST_AUTH_TIMEOUT });
   }
 }
 
@@ -57,7 +106,7 @@ async function ensureSecondaryUser(browser: Browser, page: Page, user: User, bas
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Password').fill(user.password);
   await page.getByTestId('login-button').click();
-  await page.waitForURL(/\/c\/new/, { timeout: 10000 });
+  await waitForAuthenticatedNewChat(page);
 }
 
 test.describe('user isolation', () => {
@@ -82,12 +131,12 @@ test.describe('user isolation', () => {
       await ensureSecondaryUser(browser, pageB, getSecondaryE2EUser(), baseURL);
 
       // (a) Sidebar list does not expose A's conversation.
-      await pageB.goto(NEW_CHAT_PATH, { timeout: 10000 });
+      await gotoResilient(pageB, NEW_CHAT_PATH);
       await expect(pageB.getByRole('textbox', { name: 'Message input' })).toBeVisible();
       await expect(pageB.getByText(A_PRIVATE_MARKER)).toHaveCount(0);
 
       // (b) Direct navigation to A's conversation does not reveal its content.
-      await pageB.goto(conversationAUrl, { timeout: 10000 });
+      await gotoResilient(pageB, conversationAUrl);
       await expect(pageB.getByRole('textbox', { name: 'Message input' })).toBeVisible();
       await expect(pageB.getByText(A_PRIVATE_MARKER)).toHaveCount(0);
     } finally {
