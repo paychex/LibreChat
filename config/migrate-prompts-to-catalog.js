@@ -13,6 +13,16 @@ const TRACKING_COLLECTION_NAME = 'promptCatalogMigrations';
 const CATALOG_CATEGORY = 'Other';
 const CATALOG_AI_TOOL = 'LibreChat';
 const HTTP_TIMEOUT_MS = 15_000;
+// Prompt Catalog's `prompt_catalog.title` column is NVARCHAR(500); longer titles are rejected outright.
+const CATALOG_TITLE_MAX_LENGTH = 500;
+
+/** Fits a promptGroup name into the catalog's title column without mutating the source record. */
+function truncateTitle(name) {
+  if (name.length <= CATALOG_TITLE_MAX_LENGTH) {
+    return name;
+  }
+  return `${name.slice(0, CATALOG_TITLE_MAX_LENGTH - 3)}...`;
+}
 
 /**
  * Builds the same `x-forwarded-user-*` headers LibreChat's own
@@ -206,7 +216,7 @@ async function migratePromptsToCatalog({ dryRun = true, batchSize = 25 } = {}) {
           continue;
         }
 
-        const title = group.name;
+        const title = truncateTitle(group.name);
         const content = prodPrompt.prompt;
         const created = await createCatalogPrompt({
           promptCatalogApiUrl,
