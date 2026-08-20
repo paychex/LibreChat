@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Menu as MenuIcon, TextSearch, Edit as EditIcon, Trash2 } from 'lucide-react';
 import {
   OGDialog,
@@ -11,11 +11,12 @@ import {
   Button,
   useToastContext,
 } from '@librechat/client';
-import type { CatalogPrompt } from 'librechat-data-provider';
+import type { CatalogPrompt, TPromptGroup } from 'librechat-data-provider';
 import useSubmitMessage from '~/hooks/Messages/useSubmitMessage';
 import { useLocalize, useAuthContext } from '~/hooks';
 import { useDeletePromptCatalogPrompt } from '~/data-provider';
-import { ListCard } from '~/components/Prompts';
+import { ListCard, VariableDialog } from '~/components/Prompts';
+import { detectVariables } from '~/utils';
 import CreateCatalogPromptDialog from './CreateCatalogPromptDialog';
 
 function CatalogItem({ prompt, isMine = false }: { prompt: CatalogPrompt; isMine?: boolean }) {
@@ -28,6 +29,8 @@ function CatalogItem({ prompt, isMine = false }: { prompt: CatalogPrompt; isMine
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [viewContent, setViewContent] = useState('');
+  const [isVariableDialogOpen, setIsVariableDialogOpen] = useState(false);
+  const [variableGroup, setVariableGroup] = useState<TPromptGroup | null>(null);
 
   const isOwner = useMemo(() => {
     // In "My Prompts" mode the API already filters to the current user's prompts
@@ -58,11 +61,28 @@ function CatalogItem({ prompt, isMine = false }: { prompt: CatalogPrompt; isMine
     },
   });
 
+  const runPrompt = useCallback(
+    (text: string) => {
+      if (!text.trim()) {
+        return;
+      }
+      if (detectVariables(text)) {
+        setVariableGroup({
+          name: prompt.title,
+          author: prompt.creator_name ?? '',
+          authorName: prompt.creator_name ?? '',
+          productionPrompt: { prompt: text },
+        });
+        setIsVariableDialogOpen(true);
+        return;
+      }
+      submitPrompt(text);
+    },
+    [prompt.title, prompt.creator_name, submitPrompt],
+  );
+
   const onClick = () => {
-    if (!prompt.content.trim()) {
-      return;
-    }
-    submitPrompt(prompt.content);
+    runPrompt(prompt.content);
   };
 
   return (
@@ -208,8 +228,8 @@ function CatalogItem({ prompt, isMine = false }: { prompt: CatalogPrompt; isMine
                 if (!viewContent.trim()) {
                   return;
                 }
-                submitPrompt(viewContent);
                 setIsViewOpen(false);
+                runPrompt(viewContent);
               }}
             >
               {localize('com_ui_prompt_catalog_use')}
@@ -247,6 +267,16 @@ function CatalogItem({ prompt, isMine = false }: { prompt: CatalogPrompt; isMine
           />
         </OGDialog>
       )}
+
+      {/* Variable input dialog (uniform with the classic Prompts flow) */}
+      <VariableDialog
+        open={isVariableDialogOpen}
+        onClose={() => {
+          setIsVariableDialogOpen(false);
+          setVariableGroup(null);
+        }}
+        group={variableGroup}
+      />
     </>
   );
 }

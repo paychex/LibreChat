@@ -60,6 +60,23 @@ jest.mock('../CreateCatalogPromptDialog', () => ({
   default: ({ prompt }: any) => <div data-testid="edit-dialog">{prompt?.id}</div>,
 }));
 
+jest.mock('~/components/Prompts', () => ({
+  __esModule: true,
+  ListCard: ({ onClick, children }: any) => (
+    <div>
+      <button type="button" aria-label="com_ui_prompt_group_button" onClick={onClick} />
+      {children}
+    </div>
+  ),
+  VariableDialog: ({ open, group, onClose }: any) =>
+    open ? (
+      <div data-testid="variable-dialog">
+        <span data-testid="variable-prompt">{group?.productionPrompt?.prompt}</span>
+        <button onClick={onClose}>close-variable-dialog</button>
+      </div>
+    ) : null,
+}));
+
 function makePrompt(overrides: Partial<CatalogPrompt> = {}): CatalogPrompt {
   return {
     id: 1,
@@ -114,6 +131,23 @@ describe('CatalogItem', () => {
   it('does not submit when the prompt content is blank', () => {
     render(<CatalogItem prompt={makePrompt({ content: '   ' })} />);
     fireEvent.click(screen.getByRole('button', { name: 'com_ui_prompt_group_button' }));
+    expect(mockSubmitPrompt).not.toHaveBeenCalled();
+  });
+
+  it('opens the variable dialog instead of submitting when the prompt has variables', () => {
+    const content = 'Create INC {{inc_number}} for user {{user_id}}';
+    render(<CatalogItem prompt={makePrompt({ content })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'com_ui_prompt_group_button' }));
+    expect(screen.getByTestId('variable-dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('variable-prompt')).toHaveTextContent(content);
+    expect(mockSubmitPrompt).not.toHaveBeenCalled();
+  });
+
+  it('opens the variable dialog from the View dialog Use button when the prompt has variables', () => {
+    render(<CatalogItem prompt={makePrompt({ content: 'Hello {{name}}' })} />);
+    fireEvent.click(screen.getByText('com_ui_prompt_catalog_view'));
+    fireEvent.click(screen.getByRole('button', { name: 'com_ui_prompt_catalog_use' }));
+    expect(screen.getByTestId('variable-dialog')).toBeInTheDocument();
     expect(mockSubmitPrompt).not.toHaveBeenCalled();
   });
 
