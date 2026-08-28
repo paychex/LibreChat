@@ -109,13 +109,20 @@ jobs:
             api/node_modules
           key: node-modules-e2e-ci-${{ runner.os }}-24.16.0-${{ hashFiles('package-lock.json') }}
 
-      # Installs the Chrome channel from Google's apt repo. The ARC pods have no
-      # system Chrome, and Playwright's bundled Chromium (cdn.playwright.dev) takes
-      # >25 min to download here.
+      # Chrome installs in ~90s, then the Playwright CLI downloads a 2.3 MiB ffmpeg
+      # in one second and hangs ~10 min instead of exiting - the same defect handled
+      # in playwright-mock.yml. Bound it and verify the browser, not the exit code.
+      # ffmpeg is irrelevant here because the CI config sets video: 'off'.
       - name: Install Google Chrome
-        timeout-minutes: 12
+        timeout-minutes: 10
         run: |
-          npx playwright install --with-deps chrome
+          set +e
+          timeout 300s npx playwright install --with-deps chrome
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
+            exit "$status"
+          fi
           google-chrome --version
 
       - name: Run E2E Tests
