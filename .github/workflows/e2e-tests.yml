@@ -46,7 +46,8 @@ jobs:
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'success'
-    timeout-minutes: 20
+    # Cold-cache runs pay a ~175 MB browser download; warm runs finish in ~2 min.
+    timeout-minutes: 35
 
     strategy:
       fail-fast: false
@@ -76,7 +77,7 @@ jobs:
 
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: |
             node_modules
@@ -92,30 +93,43 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: bash scripts/ci-npm-install.sh
 
+      - name: Save node_modules cache
+        if: always() && steps.cache-node-modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            node_modules
+            client/node_modules
+            packages/client/node_modules
+            packages/data-provider/node_modules
+            packages/data-schemas/node_modules
+            packages/api/node_modules
+            api/node_modules
+          key: node-modules-e2e-ci-${{ runner.os }}-24.16.0-${{ hashFiles('package-lock.json') }}
+
       - name: Restore Playwright browser cache
         id: cache-playwright
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      # Combined --with-deps form; the bare `install chromium` variant hangs at 100%
-      # after downloading (lingering keep-alive handle - see playwright-mock.yml).
-      # Bounded and verified by hand because the CLI's exit code cannot be trusted.
+      # `playwright install chromium` fetches TWO artifacts: chromium-<rev> and
+      # chromium_headless_shell-<rev>. headless: true launches the latter, so a
+      # partial install looks fine on disk but fails at launch.
       - name: Install Playwright browser and OS dependencies
-        timeout-minutes: 12
-        run: |
-          set +e
-          timeout 600s npx playwright install --with-deps chromium
-          status=$?
-          set -e
-          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
-            exit "$status"
-          fi
-          if ! find "$HOME/.cache/ms-playwright" -maxdepth 1 -iname 'chromium*' -type d 2>/dev/null | grep -q .; then
-            echo "::error::Chromium binary not found after install"
-            exit 1
-          fi
+        timeout-minutes: 25
+        run: npx playwright install --with-deps chromium
+
+      # Saved separately with always() so a failing test run still warms the cache;
+      # actions/cache skips its implicit save when the job fails, which meant this
+      # 174 MB download repeated on every single run.
+      - name: Save Playwright browser cache
+        if: always() && steps.cache-playwright.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Run E2E Tests
         run: npx playwright test --config=e2e/playwright.config.ci.ts
