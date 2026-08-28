@@ -99,13 +99,23 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - name: Install Playwright browser binary
-        if: steps.cache-playwright.outputs.cache-hit != 'true'
-        run: npx playwright install chromium
-
-      # OS packages live outside the cached directory, so they reinstall on every ephemeral runner.
-      - name: Install Playwright OS dependencies
-        run: npx playwright install-deps chromium
+      # Combined --with-deps form; the bare `install chromium` variant hangs at 100%
+      # after downloading (lingering keep-alive handle - see playwright-mock.yml).
+      # Bounded and verified by hand because the CLI's exit code cannot be trusted.
+      - name: Install Playwright browser and OS dependencies
+        timeout-minutes: 12
+        run: |
+          set +e
+          timeout 600s npx playwright install --with-deps chromium
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
+            exit "$status"
+          fi
+          if ! find "$HOME/.cache/ms-playwright" -maxdepth 1 -iname 'chromium*' -type d 2>/dev/null | grep -q .; then
+            echo "::error::Chromium binary not found after install"
+            exit 1
+          fi
 
       - name: Run E2E Tests
         run: npx playwright test --config=e2e/playwright.config.ci.ts
