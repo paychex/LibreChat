@@ -46,8 +46,8 @@ jobs:
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'success'
-    # Cold-cache runs pay a ~175 MB browser download; warm runs finish in ~2 min.
-    timeout-minutes: 35
+    # No browser download; the gate itself runs in seconds.
+    timeout-minutes: 20
 
     strategy:
       fail-fast: false
@@ -63,6 +63,8 @@ jobs:
       E2E_BASE_URL: ${{ matrix.environment == 'prod' && 'https://play.ai.paychex.com' || matrix.environment == 'n1' && 'https://play.ain1.paychex.com' || 'https://play.ain2a.paychex.com' }}
       E2E_USERNAME: ${{ matrix.environment == 'prod' && 'libre_playwright_pr@paychex.com' || 'libre_playwright_np@paychex.com' }}
       E2E_PASSWORD: ${{ matrix.environment == 'prod' && secrets.LIBRE_PLAYWRIGHT_PR_PASSWORD || secrets.LIBRE_PLAYWRIGHT_NP_PASSWORD }}
+      E2E_CHROMIUM_CHANNEL: chrome
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
 
     steps:
       - name: Checkout
@@ -107,29 +109,14 @@ jobs:
             api/node_modules
           key: node-modules-e2e-ci-${{ runner.os }}-24.16.0-${{ hashFiles('package-lock.json') }}
 
-      - name: Restore Playwright browser cache
-        id: cache-playwright
-        uses: actions/cache/restore@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-
-      # `playwright install chromium` fetches TWO artifacts: chromium-<rev> and
-      # chromium_headless_shell-<rev>. headless: true launches the latter, so a
-      # partial install looks fine on disk but fails at launch.
-      - name: Install Playwright browser and OS dependencies
-        timeout-minutes: 25
-        run: npx playwright install --with-deps chromium
-
-      # Saved separately with always() so a failing test run still warms the cache;
-      # actions/cache skips its implicit save when the job fails, which meant this
-      # 174 MB download repeated on every single run.
-      - name: Save Playwright browser cache
-        if: always() && steps.cache-playwright.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      # The ARC runners ship Google Chrome, and downloading Playwright's bundled
+      # Chromium from cdn.playwright.dev takes >25 min here. Use the system browser
+      # instead - same approach as playwright-mock.yml.
+      - name: Install Playwright OS dependencies
+        timeout-minutes: 10
+        run: |
+          google-chrome --version
+          npx playwright install-deps chrome
 
       - name: Run E2E Tests
         run: npx playwright test --config=e2e/playwright.config.ci.ts

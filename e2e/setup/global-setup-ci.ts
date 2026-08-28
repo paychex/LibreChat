@@ -199,6 +199,8 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
   // the username/password form that headless automation requires.
   const browser = await chromium.launch({
     headless: true,
+    // Must match the project channel; CI has no bundled Chromium to fall back on.
+    ...(process.env.E2E_CHROMIUM_CHANNEL ? { channel: process.env.E2E_CHROMIUM_CHANNEL } : {}),
     args: ['--auth-server-allowlist="_"'],
   });
   const context = await browser.newContext({ ignoreHTTPSErrors: true });

@@ -4,6 +4,9 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:3080';
+// Set to 'chrome' in CI to use the runner's system Chrome instead of downloading
+// Playwright's bundled Chromium; see playwright.config.mock.ts for the same pattern.
+const chromiumChannel = process.env.E2E_CHROMIUM_CHANNEL || undefined;
 const isLocal = (() => {
   try {
     const { hostname } = new URL(BASE_URL);
@@ -80,8 +83,11 @@ export default defineConfig({
     : {}),
   projects: [
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: chromiumChannel ?? 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        ...(chromiumChannel ? { channel: chromiumChannel } : {}),
+      },
     },
   ],
 });
