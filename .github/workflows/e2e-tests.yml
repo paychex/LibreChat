@@ -41,7 +41,8 @@ jobs:
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'success'
-    timeout-minutes: 45
+    # The CI config runs ~34 spec files serially with 2 retries; tune down once a full run is timed.
+    timeout-minutes: 90
 
     strategy:
       fail-fast: false
