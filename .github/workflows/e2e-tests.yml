@@ -109,14 +109,14 @@ jobs:
             api/node_modules
           key: node-modules-e2e-ci-${{ runner.os }}-24.16.0-${{ hashFiles('package-lock.json') }}
 
-      # The ARC runners ship Google Chrome, and downloading Playwright's bundled
-      # Chromium from cdn.playwright.dev takes >25 min here. Use the system browser
-      # instead - same approach as playwright-mock.yml.
-      - name: Install Playwright OS dependencies
-        timeout-minutes: 10
+      # Installs the Chrome channel from Google's apt repo. The ARC pods have no
+      # system Chrome, and Playwright's bundled Chromium (cdn.playwright.dev) takes
+      # >25 min to download here.
+      - name: Install Google Chrome
+        timeout-minutes: 12
         run: |
+          npx playwright install --with-deps chrome
           google-chrome --version
-          npx playwright install-deps chrome
 
       - name: Run E2E Tests
         run: npx playwright test --config=e2e/playwright.config.ci.ts
