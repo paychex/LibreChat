@@ -169,7 +169,14 @@
 - [ ] _____________________________________________
 
 ### Intentionally Removed Workflows — Do NOT Re-Accept
-If upstream reintroduces any of these files, delete them again instead of accepting: `build.yml`, `client.yml`, `data-provider.yml`, `data-schemas.yml`, `deploy.yml`, `deploy-dev.yml`, `dev-images.yml`, `dev-branch-images.yml`, `dev-staging-images.yml`, `main-image-workflow.yml`, `tag-images.yml`, `retry-docker-builds.yml`, `helmcharts.yml`, `sync-helm-chart-tags.yml`, `generate_embeddings.yml`, `locize-i18n-sync.yml`. See `.github/instructions/merge-process.instructions.md` for rationale.
+If upstream reintroduces any of these files, delete them again instead of accepting: `build.yml`, `client.yml`, `data-provider.yml`, `data-schemas.yml`, `deploy.yml`, `deploy-dev.yml`, `dev-images.yml`, `dev-branch-images.yml`, `dev-staging-images.yml`, `main-image-workflow.yml`, `tag-images.yml`, `retry-docker-builds.yml`, `helmcharts.yml`, `sync-helm-chart-tags.yml`, `generate_embeddings.yml`, `locize-i18n-sync.yml`, `gitnexus-index.yml`, `gitnexus-deploy.yml`, `gitnexus-pr-command.yml`, `gitnexus-cleanup-pr.yml`, `a11y.yml`. Also delete the `.do/` directory if it reappears. See `.github/instructions/merge-process.instructions.md` for rationale.
+
+Run `scripts/check-forbidden-upstream-workflows.sh` after resolving conflicts — it fails if any of the above reappear.
+
+**Why the GitNexus set and `a11y.yml` were removed:** GitNexus (upstream `01a1bc168`, "experimental", 2026-04-08) deploys a code-search index to a DigitalOcean droplet that Paychex does not own; all four workflows plus `.do/gitnexus/` are upstream-only infrastructure. `a11y.yml` gates on `github.event.pull_request.head.repo.full_name == 'danny-avila/LibreChat'`, so it can never execute in a fork — it was skipped 87 consecutive times. The Playwright a11y suite (`npm run e2e:a11y`) is unaffected and still available locally.
+
+### Upstream Branch Filters — Rewrite to Paychex Branches
+Upstream workflows gate on `main`, `dev`, `dev-staging`. Paychex uses `develop` and `release/*`. A workflow that keeps the upstream branch list will register, report green, and silently never run. After a merge, check every `pull_request.branches:` list and rewrite it.
 
 ### Medium-Risk Conflicts (Check History)
 - [ ] File: _________________ → Decision: □ Ours □ Theirs □ Manual

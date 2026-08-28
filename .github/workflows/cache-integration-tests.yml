@@ -3,9 +3,7 @@ name: Cache Integration Tests
 on:
   pull_request:
     branches:
-      - main
-      - dev
-      - dev-staging
+      - develop
       - release/*
     paths:
       - 'packages/api/src/cache/**'

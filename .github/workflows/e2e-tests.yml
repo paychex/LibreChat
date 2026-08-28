@@ -41,7 +41,7 @@ jobs:
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'success'
-    timeout-minutes: 15
+    timeout-minutes: 45
 
     strategy:
       fail-fast: false
@@ -68,11 +68,38 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            client/node_modules
+            packages/client/node_modules
+            packages/data-provider/node_modules
+            packages/data-schemas/node_modules
+            packages/api/node_modules
+            api/node_modules
+          key: node-modules-e2e-ci-${{ runner.os }}-20-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: bash scripts/ci-npm-install.sh
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+      - name: Restore Playwright browser cache
+        id: cache-playwright
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright browser binary
+        if: steps.cache-playwright.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      # OS packages live outside the cached directory, so they reinstall on every ephemeral runner.
+      - name: Install Playwright OS dependencies
+        run: npx playwright install-deps chromium
 
       - name: Run E2E Tests
         run: npx playwright test --config=e2e/playwright.config.ci.ts

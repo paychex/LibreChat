@@ -3,9 +3,7 @@ name: ESLint Code Quality Checks
 on:
   pull_request:
     branches:
-      - main
-      - dev
-      - dev-staging
+      - develop
       - release/*
     paths:
       - 'api/**'

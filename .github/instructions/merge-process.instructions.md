@@ -112,8 +112,20 @@ The following upstream-only workflow files were deliberately deleted (`chore(ci)
 - `dev-images.yml`, `dev-branch-images.yml`, `dev-staging-images.yml`, `main-image-workflow.yml`, `tag-images.yml`, `retry-docker-builds.yml`
 - `helmcharts.yml`, `sync-helm-chart-tags.yml` (also removed the now-orphaned `.github/scripts/sync-helm-chart-tags.sh`)
 - `generate_embeddings.yml`, `locize-i18n-sync.yml`
+- `gitnexus-index.yml`, `gitnexus-deploy.yml`, `gitnexus-pr-command.yml`, `gitnexus-cleanup-pr.yml` (also removed the supporting `.do/gitnexus/` directory)
+- `a11y.yml`
 
-**Action:** If a future upstream merge reintroduces any of these files (as an add or a modify), do **not** accept them — delete them again. Do not run or wire up their supporting scripts either.
+**Action:** If a future upstream merge reintroduces any of these files (as an add or a modify), do **not** accept them — delete them again. Do not run or wire up their supporting scripts either. Run `scripts/check-forbidden-upstream-workflows.sh` to catch them automatically.
+
+**GitNexus rationale:** Introduced upstream in `01a1bc168` (2026-04-08) as an experiment. It builds a code-search index and deploys it to a DigitalOcean droplet via SSH + rsync, using `GITNEXUS_DO_HOST` / `GITNEXUS_DO_SSH_KEY` secrets that point at infrastructure Paychex does not own. Never ran a single time in this fork.
+
+**`a11y.yml` rationale:** Its job gates on `github.event.pull_request.head.repo.full_name == 'danny-avila/LibreChat'`, so it is structurally incapable of running in a fork — it was skipped on 87 consecutive PRs while appearing to be an active check. It also depends on `AXE_LINTER_API_KEY`, a Deque licence held by upstream. The Playwright accessibility suite (`npm run e2e:a11y`, `e2e/playwright.config.a11y.ts`) is unrelated and was kept.
+
+### ⚫ Upstream Branch Filters Must Be Rewritten
+
+Upstream workflows trigger on `main`, `dev`, and `dev-staging`. Paychex uses `develop` and `release/*`. A workflow that keeps the upstream branch list still registers in the Actions tab and never reports a failure — it simply never runs. `eslint-ci.yml` and `cache-integration-tests.yml` were both silently inert for months this way.
+
+**Action:** After every merge, review each `pull_request:` → `branches:` list and rewrite upstream branch names to `develop` / `release/*`. Then confirm the workflow actually fires on the next PR rather than trusting a green checkmark.
 
 ## Common Merge Scenarios
 
