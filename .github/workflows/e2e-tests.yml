@@ -1,18 +1,18 @@
+# Post-deploy verification. This workflow runs AFTER a deploy has already gone live and
+# MUST NOT be made a required status check or a `needs:` of any deploy job - a red run
+# here must never block or roll back a deployment.
 name: E2E Tests
 
 on:
-  # Run after N2A deploy completes
+  # Runs after a deploy completes. A workflow may declare only one `workflow_run` key,
+  # so both deploy workflows are listed here; the matrix below picks the environment.
   workflow_run:
-    workflows: ["N2A - Build and Push"]
+    workflows: ["N2A - Build and Push", "N1 - Build and Push"]
     types: [completed]
-    branches: [develop]
+    branches: [develop, 'release/*']
 
-  # Run after N1 deploy completes
-  # workflow_run:
-  #   workflows: ["N1 - Build and Push"]
-  #   types: [completed]
-
-  # Nightly schedule (UTC) — 6 AM UTC = ~1-2 AM ET
+  # Nightly schedule (UTC) — 6 AM UTC = ~1-2 AM ET. Catches environment drift
+  # (expired test-account passwords, cert rotation, MCP outages) between deploys.
   schedule:
     - cron: '0 6 * * *'
 
@@ -33,6 +33,11 @@ on:
         default: 'develop'
         type: string
 
+# Serialize runs so overlapping deploys don't collide on the shared test account.
+concurrency:
+  group: e2e-tests-${{ github.event.workflow_run.head_branch || github.ref }}
+  cancel-in-progress: false
+
 jobs:
   e2e:
     name: E2E Smoke Tests (${{ matrix.environment }})
@@ -41,14 +46,14 @@ jobs:
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'success'
-    # The CI config runs ~34 spec files serially with 2 retries; tune down once a full run is timed.
-    timeout-minutes: 90
+    timeout-minutes: 20
 
     strategy:
       fail-fast: false
       matrix:
         environment: ${{ fromJSON(
           github.event_name == 'workflow_dispatch' && format('["{0}"]', github.event.inputs.environment) ||
+          github.event.workflow_run.name == 'N1 - Build and Push' && '["n1"]' ||
           github.event_name == 'workflow_run' && '["n2a"]' ||
           '["n2a", "n1"]'
           ) }}
@@ -60,18 +65,18 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.test_branch || 'develop' }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.test_branch || github.event.workflow_run.head_branch || 'develop' }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '24.16.0'
 
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             node_modules
@@ -81,7 +86,7 @@ jobs:
             packages/data-schemas/node_modules
             packages/api/node_modules
             api/node_modules
-          key: node-modules-e2e-ci-${{ runner.os }}-20-${{ hashFiles('package-lock.json') }}
+          key: node-modules-e2e-ci-${{ runner.os }}-24.16.0-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -89,7 +94,7 @@ jobs:
 
       - name: Restore Playwright browser cache
         id: cache-playwright
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
@@ -105,20 +110,25 @@ jobs:
       - name: Run E2E Tests
         run: npx playwright test --config=e2e/playwright.config.ci.ts
 
+      # always() rather than failure(): a job cancelled by timeout is not a failure,
+      # and that is exactly when the report is most needed.
       - name: Upload Playwright Report
-        if: failure()
-        uses: actions/upload-artifact@v4
+        if: always()
+        uses: actions/upload-artifact@v5
         with:
           name: playwright-report-${{ matrix.environment }}
           path: |
             e2e/playwright-report-ci/
+            e2e/results-ci/
             e2e/auth-failure.png
           retention-days: 14
+          if-no-files-found: warn
 
       - name: Upload Test Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-results-${{ matrix.environment }}
-          path: e2e/specs/.test-results-ci/
+          path: e2e/test-results-ci/
           retention-days: 7
+          if-no-files-found: ignore
