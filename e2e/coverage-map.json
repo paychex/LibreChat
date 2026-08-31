@@ -12,7 +12,7 @@
   ],
   "environment": "n2a (play.ain2a.paychex.com)",
   "librechatVersion": "v0.8.7",
-  "lastVerifiedRun": 33431690943,
+  "lastVerifiedRun": 33434777727,
   "lastVerified": "2026-08-31",
 
   "customizations": [
@@ -70,7 +70,7 @@
         "createPrompt": "getByRole('button', { name: 'Create Prompt' })",
         "refresh": "getByRole('button', { name: 'Refresh catalog' })"
       },
-      "verified": "local",
+      "verified": "probe",
       "note": "#prompt-catalog does NOT exist. The panel is NOT its own navigation landmark — assert the searchbox instead.",
       "tag": "@paychex",
       "spec": "TODO:phase3/prompt-catalog.spec.ts"
@@ -81,7 +81,7 @@
       "critical": false,
       "what": "?promptCatalogId= resolves server-side; an unresolvable id surfaces an error toast",
       "selector": "goto('/c/new?promptCatalogId=<bogus>') -> getByRole('status') containing 'Unable to load this Prompt Catalog prompt'",
-      "verified": "local",
+      "verified": "probe",
       "note": "Deterministic without a real catalog entry: a bogus id always takes the failure path. Toast copy = com_ui_prompt_catalog_insert_error.",
       "tag": "@paychex",
       "spec": "TODO:phase3/prompt-catalog.spec.ts"
@@ -92,7 +92,7 @@
       "critical": false,
       "what": "Declarative label+description on ToolsDropdown items",
       "selector": "#tools-dropdown-button -> getByRole('menuitem', { name: /File Search/ }) contains 'Analyze, compare, and contrast large documents.'",
-      "verified": "local",
+      "verified": "probe",
       "note": "Trigger is named 'Tools Options', NOT 'Tools'. Only File Search / Web Search / Code Interpreter use the declarative path; Skills and Artifacts render custom submenus and have no description BY DESIGN — do not assert one for them. data-testid='tools-menu-skills' exists on the Skills item.",
       "tag": "@paychex",
       "spec": "TODO:phase3/menu-descriptions.spec.ts"
@@ -103,7 +103,7 @@
       "critical": false,
       "what": "Attach-file menu items render helper descriptions",
       "selector": "#attach-file-menu-button -> getByRole('menuitem', { name: /Upload Image/ }) contains 'Add an image for analysis.'",
-      "verified": "local",
+      "verified": "probe",
       "note": "Do NOT locate the trigger by /attach file/i — it also matches the 'Attach Files' nav panel and trips strict mode. Visible items depend on enabled capabilities; locally only Upload Image + Upload as Text appear.",
       "tag": "@paychex",
       "spec": "TODO:phase3/menu-descriptions.spec.ts"
@@ -114,7 +114,7 @@
       "critical": false,
       "what": "Star + DEFAULT badge on the model spec flagged default:true (azure-gpt-5.4-mini)",
       "selector": "getByTestId('model-selector-button') -> getByRole('option', { name: /Azure OpenAI/ }) -> getByLabel('Default model')",
-      "verified": "local",
+      "verified": "probe",
       "note": "Badge lives in the ENDPOINT SUBMENU, not the top-level list — the top level shows endpoints only, which is why the n2a probe missed it. Badge renders the star and DEFAULT inside ONE span, so getByText('DEFAULT', {exact:true}) can never match; use the 'Default model' accessible name.",
       "tag": "@paychex",
       "spec": "TODO:phase3/model-selector.spec.ts"
@@ -163,8 +163,7 @@
   ],
 
   "openQuestions": [
-    "RAG file upload round-trip — not configured locally (no File Search upload option appeared); needs n2a verification.",
-    "Re-confirm the local-verified selectors against n2a before Phase 3 relies on them."
+    "RAG file upload round-trip — not configured locally (no File Search upload option appeared); needs n2a verification."
   ],
 
   "localVsDeployedDifferences": [
