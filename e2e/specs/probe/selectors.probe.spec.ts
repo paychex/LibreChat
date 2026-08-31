@@ -230,4 +230,71 @@ test.describe('Selector probe', () => {
     // The probe reports; it does not gate. Only a total wipeout means the run itself broke.
     expect(results.some((r) => r.ok)).toBe(true);
   });
+
+  test('enumerate real accessible names and ids', async ({ page }) => {
+    test.setTimeout(180000);
+
+    await page.goto('/c/new', { waitUntil: 'domcontentloaded' });
+    await page
+      .getByTestId('text-input')
+      .waitFor({ state: 'attached', timeout: 20000 })
+      .catch(() => undefined);
+    await page.waitForTimeout(2000);
+
+    const dump = (label: string) =>
+      page.evaluate((sectionLabel) => {
+        const describe = (el: Element) => {
+          const html = el as HTMLElement;
+          const rect = html.getBoundingClientRect();
+          const name = (
+            html.getAttribute('aria-label') ||
+            html.getAttribute('title') ||
+            (html.innerText || '').trim().split('\n')[0] ||
+            ''
+          ).slice(0, 60);
+          const flags = [
+            html.getAttribute('data-testid') ? `testid=${html.getAttribute('data-testid')}` : '',
+            html.id ? `id=${html.id}` : '',
+            rect.width > 0 && rect.height > 0 ? 'visible' : 'HIDDEN',
+            html.hasAttribute('disabled') ? 'disabled' : '',
+          ].filter(Boolean);
+          return `  [${sectionLabel}] "${name}" {${flags.join(' ')}}`;
+        };
+        const nodes = Array.from(
+          document.querySelectorAll(
+            'button, [role="button"], [role="menuitem"], [role="option"], a[href]',
+          ),
+        );
+        return nodes.map(describe);
+      }, label);
+
+    const out: string[] = ['', '===== ACCESSIBLE NAME DUMP ====='];
+    out.push('--- landing ---', ...(await dump('landing')));
+
+    // The model menu is where the Paychex DEFAULT badge should render.
+    const openedModel = await page
+      .getByTestId('model-selector-button')
+      .click()
+      .then(() => true)
+      .catch(() => false);
+    if (openedModel) {
+      await page.waitForTimeout(1200);
+      out.push('--- model selector open ---', ...(await dump('model')));
+      const badgeText = await page
+        .locator('[role="option"], [role="menuitem"]')
+        .first()
+        .innerText()
+        .catch(() => '<none>');
+      out.push(`  [model] first option raw text: ${JSON.stringify(badgeText)}`);
+      await page.keyboard.press('Escape').catch(() => undefined);
+      await page.waitForTimeout(500);
+    } else {
+      out.push('--- model selector FAILED to open ---');
+    }
+
+    out.push(`===== ${out.length} lines =====`, '');
+    console.log(out.join('\n'));
+
+    expect(out.length).toBeGreaterThan(3);
+  });
 });
