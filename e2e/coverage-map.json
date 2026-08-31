@@ -1,0 +1,162 @@
+{
+  "$comment": [
+    "Maps each user-visible Paychex customization (and the upstream surfaces it depends on)",
+    "to a selector VERIFIED against a live environment, not inferred from source.",
+    "",
+    "verified: 'probe' = resolved by e2e/specs/probe/selectors.probe.spec.ts against n2a.",
+    "          'dump'  = observed in the accessible-name enumeration against n2a.",
+    "          'no'    = still a guess; must be confirmed before a journey test relies on it.",
+    "",
+    "Regenerate ground truth: gh workflow run e2e-tests.yml -f environment=n2a -f suite=probe"
+  ],
+  "environment": "n2a (play.ain2a.paychex.com)",
+  "librechatVersion": "v0.8.7",
+  "lastVerifiedRun": 33431690943,
+  "lastVerified": "2026-08-31",
+
+  "customizations": [
+    {
+      "id": "pendo.initializer",
+      "owner": "paychex",
+      "critical": true,
+      "what": "PendoInitializer wraps AuthLayout; SDK loaded for authenticated session",
+      "selector": "page.evaluate(() => typeof window.pendo === 'object')",
+      "verified": "probe",
+      "tag": "@paychex",
+      "spec": "TODO:phase3/pendo.spec.ts"
+    },
+    {
+      "id": "pendo.agentUsers",
+      "owner": "paychex",
+      "critical": false,
+      "what": "Business-metrics tracking span in ModelSelector",
+      "selector": "#agentUsers",
+      "verified": "probe",
+      "tag": "@paychex",
+      "spec": "TODO:phase3/pendo.spec.ts"
+    },
+    {
+      "id": "changelog.accountMenu",
+      "owner": "paychex",
+      "critical": false,
+      "what": "Paychex Changelog entry inside the account menu",
+      "selector": "getByTestId('nav-user').click() -> getByRole('menuitem', { name: 'Paychex Changelog' })",
+      "verified": "probe",
+      "tag": "@paychex",
+      "spec": "TODO:phase3/changelog.spec.ts"
+    },
+    {
+      "id": "changelog.footer",
+      "owner": "paychex",
+      "critical": false,
+      "what": "Paychex Changelog link in the footer, beside the LibreChat version link",
+      "selector": "getByRole('contentinfo').getByRole('link', { name: /changelog/i })",
+      "verified": "probe",
+      "note": "Footer also exposes a 'LibreChat v0.8.7' link — useful as a version assertion after upgrades.",
+      "tag": "@paychex",
+      "spec": "TODO:phase3/changelog.spec.ts"
+    },
+    {
+      "id": "promptCatalog.sideNav",
+      "owner": "paychex",
+      "critical": false,
+      "what": "Prompt Catalog panel entry in the side nav",
+      "selector": "getByTestId('nav-panel-prompt-catalog')",
+      "verified": "dump",
+      "note": "#prompt-catalog does NOT exist. An earlier source-derived guess was wrong.",
+      "tag": "@paychex",
+      "spec": "TODO:phase3/prompt-catalog.spec.ts"
+    },
+    {
+      "id": "promptCatalog.deepLink",
+      "owner": "paychex",
+      "critical": false,
+      "what": "?promptCatalogId= resolves server-side and inserts the prompt; failure shows a toast",
+      "selector": "UNVERIFIED — requires a valid catalog id on n2a",
+      "verified": "no",
+      "tag": "@paychex",
+      "spec": "TODO:phase3/prompt-catalog.spec.ts"
+    },
+    {
+      "id": "toolsDropdown.descriptions",
+      "owner": "paychex",
+      "critical": false,
+      "what": "ToolsDropdown items render a description line under each label",
+      "selector": "#tools-dropdown-button (aria-label 'Tools Options') -> menu items",
+      "verified": "dump",
+      "note": "Trigger is named 'Tools Options', NOT 'Tools'. Per-item description markup still unverified.",
+      "tag": "@paychex",
+      "spec": "TODO:phase3/menu-descriptions.spec.ts"
+    },
+    {
+      "id": "attachFileMenu.descriptions",
+      "owner": "paychex",
+      "critical": false,
+      "what": "Attach-file menu items render helper descriptions (e.g. 'Add an image for analysis.')",
+      "selector": "#attach-file-menu-button (aria-label 'Attach File Options') -> menu items",
+      "verified": "dump",
+      "note": "Do NOT locate by /attach file/i — it also matches the 'Attach Files' nav panel and trips strict mode.",
+      "tag": "@paychex",
+      "spec": "TODO:phase3/menu-descriptions.spec.ts"
+    },
+    {
+      "id": "modelSelector.defaultBadge",
+      "owner": "paychex",
+      "critical": false,
+      "what": "Star + DEFAULT badge on the model spec flagged default:true (azure-gpt-5.4-mini on n2a)",
+      "selector": "[aria-label=\"Default model\"]",
+      "verified": "no",
+      "note": "Badge renders '★ DEFAULT' in ONE span, so getByText('DEFAULT', {exact:true}) can never match; use the aria-label. Opening the model menu showed only endpoint entries (endpoint-*-menu) — the modelSpec list was not reached, so the badge is still unconfirmed.",
+      "tag": "@paychex",
+      "spec": "TODO:phase3/model-selector.spec.ts"
+    }
+  ],
+
+  "upstreamSurfaces": [
+    {
+      "id": "sidebar.landmark",
+      "selector": "getByRole('navigation')",
+      "verified": "probe",
+      "note": "data-testid='nav' does NOT exist in v0.8.7."
+    },
+    { "id": "sidebar.newChat", "selector": "getByTestId('new-chat-button')", "verified": "probe" },
+    { "id": "sidebar.closeSidebar", "selector": "getByTestId('close-sidebar-button')", "verified": "dump" },
+    {
+      "id": "controlPanel.landmark",
+      "selector": "getByRole('complementary', { name: 'Control Panel' })",
+      "verified": "probe",
+      "note": "v0.8.7 renamed this; the old navigation landmark 'Controls' is gone."
+    },
+    { "id": "composer.input", "selector": "getByTestId('text-input')", "verified": "probe" },
+    {
+      "id": "composer.send",
+      "selector": "getByTestId('send-button')",
+      "verified": "probe",
+      "note": "Disabled while the composer is empty — assert enabled only after typing."
+    },
+    { "id": "composer.mcpServers", "selector": "getByRole('button', { name: 'MCP Servers' })", "verified": "probe" },
+    { "id": "modelSelector.button", "selector": "getByTestId('model-selector-button')", "verified": "probe" },
+    { "id": "presets", "selector": "getByTestId('presets-button')", "verified": "dump" },
+    { "id": "nav.conversations", "selector": "getByTestId('nav-panel-conversations')", "verified": "dump" },
+    { "id": "nav.agents", "selector": "getByTestId('nav-panel-agents')", "verified": "dump" },
+    {
+      "id": "nav.skills",
+      "selector": "getByTestId('nav-panel-skills')",
+      "verified": "dump",
+      "note": "New in v0.8.7 and live on n2a. #skills does not exist."
+    },
+    { "id": "nav.memories", "selector": "getByTestId('nav-panel-memories')", "verified": "dump" },
+    { "id": "nav.bookmarks", "selector": "getByTestId('nav-panel-bookmarks')", "verified": "dump" },
+    { "id": "nav.files", "selector": "getByTestId('nav-panel-files')", "verified": "probe" },
+    { "id": "nav.parameters", "selector": "getByTestId('nav-panel-parameters')", "verified": "dump" },
+    { "id": "nav.mcpSettings", "selector": "getByTestId('nav-panel-mcp-builder')", "verified": "probe" },
+    { "id": "nav.user", "selector": "getByTestId('nav-user')", "verified": "probe" }
+  ],
+
+  "openQuestions": [
+    "modelSelector.defaultBadge — reach the modelSpec list (endpoint submenu?) and confirm the badge renders.",
+    "toolsDropdown/attachFileMenu descriptions — confirm the description element markup.",
+    "promptCatalog.deepLink — needs a valid promptCatalogId for n2a.",
+    "RAG file upload round-trip — no coverage and no verified selectors yet."
+  ]
+}
