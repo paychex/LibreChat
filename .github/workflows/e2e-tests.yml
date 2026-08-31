@@ -46,8 +46,8 @@ jobs:
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'success'
-    # No browser download; the gate itself runs in seconds.
-    timeout-minutes: 20
+    # Cold-cache runs pay the full browser download; warm runs finish in ~2 min.
+    timeout-minutes: 35
 
     strategy:
       fail-fast: false
@@ -116,40 +116,24 @@ jobs:
 
       # `playwright install chromium` installs ONLY the headed browser; the shell that
       # `headless: true` launches is a separate target (dir name uses underscores).
-      # The CLI also intermittently hangs after downloading instead of exiting, so
-      # bound the attempt and verify both directories rather than the exit code.
+      # Do NOT wrap this in `timeout` - the download is genuinely slow (~175 MB plus
+      # the shell), and a timeout silently truncates it after chromium completes.
       - name: Install Playwright browsers
-        timeout-minutes: 12
+        id: install-browsers
+        timeout-minutes: 20
         run: |
-          verify() {
-            ls -d "$HOME"/.cache/ms-playwright/chromium-* >/dev/null 2>&1 &&
-            ls -d "$HOME"/.cache/ms-playwright/chromium_headless_shell-* >/dev/null 2>&1
-          }
-          attempt() {
-            set +e
-            timeout 300s npx playwright install chromium chromium-headless-shell
-            status=$?
-            set -e
-            if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then return "$status"; fi
-          }
-          attempt || true
-          if ! verify; then
-            echo "::warning::Incomplete browser install, retrying once"
-            attempt || true
-          fi
-          verify || { echo "::error::chromium_headless_shell missing after install"; exit 1; }
+          npx playwright install chromium chromium-headless-shell
+          ls -d "$HOME"/.cache/ms-playwright/chromium-* >/dev/null
+          ls -d "$HOME"/.cache/ms-playwright/chromium_headless_shell-* >/dev/null
 
       - name: Install Playwright OS dependencies
         timeout-minutes: 10
-        run: |
-          set +e
-          timeout 300s npx playwright install-deps chromium
-          status=$?
-          set -e
-          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then exit "$status"; fi
+        run: npx playwright install-deps chromium
 
+      # Gated on the install step, not always(): a truncated install must never be
+      # cached, or every later run restores the broken state.
       - name: Save Playwright browser cache
-        if: always() && steps.cache-playwright.outputs.cache-hit != 'true'
+        if: steps.install-browsers.outcome == 'success' && steps.cache-playwright.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
           path: ~/.cache/ms-playwright
