@@ -32,6 +32,14 @@ on:
         required: false
         default: 'develop'
         type: string
+      suite:
+        description: 'Which suite to run'
+        required: false
+        default: 'ci'
+        type: choice
+        options:
+          - ci
+          - probe
 
 # Serialize runs so overlapping deploys don't collide on the shared test account.
 concurrency:
@@ -140,7 +148,7 @@ jobs:
           key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Run E2E Tests
-        run: npx playwright test --config=e2e/playwright.config.ci.ts
+        run: npx playwright test --config=e2e/playwright.config.${{ github.event.inputs.suite || 'ci' }}.ts
 
       # always() rather than failure(): a job cancelled by timeout is not a failure,
       # and that is exactly when the report is most needed.
@@ -152,6 +160,7 @@ jobs:
           path: |
             e2e/playwright-report-ci/
             e2e/results-ci/
+            e2e/results-probe/
             e2e/auth-failure.png
           retention-days: 14
           if-no-files-found: warn
