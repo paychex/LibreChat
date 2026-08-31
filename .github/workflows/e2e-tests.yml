@@ -63,8 +63,6 @@ jobs:
       E2E_BASE_URL: ${{ matrix.environment == 'prod' && 'https://play.ai.paychex.com' || matrix.environment == 'n1' && 'https://play.ain1.paychex.com' || 'https://play.ain2a.paychex.com' }}
       E2E_USERNAME: ${{ matrix.environment == 'prod' && 'libre_playwright_pr@paychex.com' || 'libre_playwright_np@paychex.com' }}
       E2E_PASSWORD: ${{ matrix.environment == 'prod' && secrets.LIBRE_PLAYWRIGHT_PR_PASSWORD || secrets.LIBRE_PLAYWRIGHT_NP_PASSWORD }}
-      E2E_CHROMIUM_CHANNEL: chrome
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
 
     steps:
       - name: Checkout
@@ -109,21 +107,53 @@ jobs:
             api/node_modules
           key: node-modules-e2e-ci-${{ runner.os }}-24.16.0-${{ hashFiles('package-lock.json') }}
 
-      # Chrome installs in ~90s, then the Playwright CLI downloads a 2.3 MiB ffmpeg
-      # in one second and hangs ~10 min instead of exiting - the same defect handled
-      # in playwright-mock.yml. Bound it and verify the browser, not the exit code.
-      # ffmpeg is irrelevant here because the CI config sets video: 'off'.
-      - name: Install Google Chrome
+      - name: Restore Playwright browser cache
+        id: cache-playwright
+        uses: actions/cache/restore@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      # The install CLI finishes in ~10s when healthy but intermittently hangs after
+      # downloading instead of exiting. Bound each attempt, then verify the headless
+      # shell that `headless: true` actually launches - checking for any "chromium*"
+      # directory is not enough, because chromium-<rev> lands before the shell does.
+      - name: Install Playwright browsers
+        timeout-minutes: 12
+        run: |
+          verify() {
+            ls -d "$HOME"/.cache/ms-playwright/chromium-* >/dev/null 2>&1 &&
+            ls -d "$HOME"/.cache/ms-playwright/chromium_headless_shell-* >/dev/null 2>&1
+          }
+          attempt() {
+            set +e
+            timeout 180s npx playwright install chromium
+            status=$?
+            set -e
+            if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then return "$status"; fi
+          }
+          attempt || true
+          if ! verify; then
+            echo "::warning::Incomplete browser install, retrying once"
+            attempt || true
+          fi
+          verify || { echo "::error::chromium_headless_shell missing after install"; exit 1; }
+
+      - name: Install Playwright OS dependencies
         timeout-minutes: 10
         run: |
           set +e
-          timeout 300s npx playwright install --with-deps chrome
+          timeout 300s npx playwright install-deps chromium
           status=$?
           set -e
-          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
-            exit "$status"
-          fi
-          google-chrome --version
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then exit "$status"; fi
+
+      - name: Save Playwright browser cache
+        if: always() && steps.cache-playwright.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Run E2E Tests
         run: npx playwright test --config=e2e/playwright.config.ci.ts
