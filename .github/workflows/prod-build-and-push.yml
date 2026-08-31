@@ -24,7 +24,7 @@ jobs:
     build_and_push:
         runs-on: paychex-ai-platform-arc-prod
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v5
               with:
                 fetch-depth: 0 # fetch all branches and tags
                 ref: ${{ inputs.branch }}

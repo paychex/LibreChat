@@ -16,7 +16,7 @@ jobs:
       group: paychex-ai-platform-arc-nonprod
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Checkmarx One CLI Action
         uses: checkmarx/ast-github-action@2.3.36 #Github Action version

@@ -28,12 +28,12 @@ jobs:
     name: "Migrate Prompts to Catalog: ${{ inputs.environment }}"
     runs-on: ${{ inputs.environment == 'prod' && 'paychex-ai-platform-arc-prod' || 'paychex-ai-platform-arc-nonprod' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Use Node.js 24.16.0
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24.16.0'
 
