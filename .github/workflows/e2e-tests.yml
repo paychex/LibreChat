@@ -73,7 +73,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: '24.16.0'
+          # Pinned to 20: Playwright 1.56's installer hangs during extraction under
+          # Node 24.16.0 on these runners. The same command installs in 10s on Node 20.
+          node-version: '20'
 
       - name: Restore node_modules cache
         id: cache-node-modules
@@ -87,7 +89,7 @@ jobs:
             packages/data-schemas/node_modules
             packages/api/node_modules
             api/node_modules
-          key: node-modules-e2e-ci-${{ runner.os }}-24.16.0-${{ hashFiles('package-lock.json') }}
+          key: node-modules-e2e-ci-${{ runner.os }}-20-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -105,7 +107,7 @@ jobs:
             packages/data-schemas/node_modules
             packages/api/node_modules
             api/node_modules
-          key: node-modules-e2e-ci-${{ runner.os }}-24.16.0-${{ hashFiles('package-lock.json') }}
+          key: node-modules-e2e-ci-${{ runner.os }}-20-${{ hashFiles('package-lock.json') }}
 
       - name: Restore Playwright browser cache
         id: cache-playwright
@@ -114,22 +116,15 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      # Install ONLY the headless shell - that is what `headless: true` launches, and
-      # the headed chromium is never used. This also sidesteps a reliable hang: after
-      # downloading chromium (1s for 173.9 MiB) the CLI stalls indefinitely and never
-      # reaches the shell, so installing chromium first can never succeed here.
-      # The CLI may still fail to exit once the shell lands, hence timeout + an
-      # explicit check of the directory rather than trusting the exit code.
-      - name: Install Playwright headless shell
+      # Plain install: on Node 20 this lands both chromium and the headless shell.
+      # Verify the executable itself, not the directory - a truncated install leaves
+      # the directory behind, so only the missing binary reveals it.
+      - name: Install Playwright browsers
         id: install-browsers
         timeout-minutes: 10
         run: |
-          set +e
-          timeout 300s npx playwright install --only-shell chromium
-          status=$?
-          set -e
-          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then exit "$status"; fi
-          ls -d "$HOME"/.cache/ms-playwright/chromium_headless_shell-* >/dev/null
+          npx playwright install chromium
+          test -x "$HOME"/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell
 
       - name: Install Playwright OS dependencies
         timeout-minutes: 10
