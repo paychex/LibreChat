@@ -114,16 +114,21 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      # `playwright install chromium` installs ONLY the headed browser; the shell that
-      # `headless: true` launches is a separate target (dir name uses underscores).
-      # Do NOT wrap this in `timeout` - the download is genuinely slow (~175 MB plus
-      # the shell), and a timeout silently truncates it after chromium completes.
-      - name: Install Playwright browsers
+      # Install ONLY the headless shell - that is what `headless: true` launches, and
+      # the headed chromium is never used. This also sidesteps a reliable hang: after
+      # downloading chromium (1s for 173.9 MiB) the CLI stalls indefinitely and never
+      # reaches the shell, so installing chromium first can never succeed here.
+      # The CLI may still fail to exit once the shell lands, hence timeout + an
+      # explicit check of the directory rather than trusting the exit code.
+      - name: Install Playwright headless shell
         id: install-browsers
-        timeout-minutes: 20
+        timeout-minutes: 10
         run: |
-          npx playwright install chromium chromium-headless-shell
-          ls -d "$HOME"/.cache/ms-playwright/chromium-* >/dev/null
+          set +e
+          timeout 300s npx playwright install --only-shell chromium
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then exit "$status"; fi
           ls -d "$HOME"/.cache/ms-playwright/chromium_headless_shell-* >/dev/null
 
       - name: Install Playwright OS dependencies
