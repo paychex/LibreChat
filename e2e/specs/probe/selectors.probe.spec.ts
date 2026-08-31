@@ -13,10 +13,20 @@ type Probe = {
   run: (page: Page) => Promise<boolean>;
 };
 
+/** Kept short: every miss costs this much wall time. */
+const PROBE_TIMEOUT = 2500;
+
+type Group = {
+  name: string;
+  /** Reveals the surface under test (opens a menu, etc.). */
+  open?: (page: Page) => Promise<void>;
+  probes: Probe[];
+};
+
 const seen = (locator: ReturnType<Page['locator']>) =>
   locator
     .first()
-    .waitFor({ state: 'attached', timeout: 4000 })
+    .waitFor({ state: 'attached', timeout: PROBE_TIMEOUT })
     .then(() => true)
     .catch(() => false);
 
@@ -65,7 +75,6 @@ const PROBES: Probe[] = [
   // --- Composer surfaces (upstream testids) ---
   { id: 'composer.textInput', what: 'data-testid=text-input', run: (p) => seen(p.getByTestId('text-input')) },
   { id: 'composer.sendButton', what: 'data-testid=send-button', run: (p) => seen(p.getByTestId('send-button')) },
-  { id: 'composer.toolsMenu', what: 'data-testid=tools-menu-skills', run: (p) => seen(p.getByTestId('tools-menu-skills')) },
   {
     id: 'composer.attachFileButton',
     what: 'Attach File Options button',
@@ -83,40 +92,142 @@ const PROBES: Probe[] = [
     what: 'data-testid=model-selector-button',
     run: (p) => seen(p.getByTestId('model-selector-button')),
   },
-  { id: 'modelSelector.defaultBadge', what: 'DEFAULT badge text', run: (p) => seen(p.getByText('DEFAULT', { exact: true })) },
 
   // --- Side-nav entries ---
   { id: 'sidebar.nav', what: 'data-testid=nav', run: (p) => seen(p.getByTestId('nav')) },
+  { id: 'sidebar.navRole', what: 'navigation landmark (any name)', run: (p) => seen(p.getByRole('navigation')) },
   { id: 'sidebar.newChat', what: 'data-testid=new-chat-button', run: (p) => seen(p.getByTestId('new-chat-button')) },
   { id: 'sideNav.mcpBuilder', what: 'data-testid=nav-panel-mcp-builder', run: (p) => seen(p.getByTestId('nav-panel-mcp-builder')) },
-  { id: 'sideNav.skills', what: 'Skills entry (new in v0.8.7)', run: (p) => seen(p.locator('#skills')) },
   { id: 'sideNav.files', what: 'data-testid=nav-panel-files', run: (p) => seen(p.getByTestId('nav-panel-files')) },
+  { id: 'sideNav.skillsById', what: '#skills side-nav entry', run: (p) => seen(p.locator('#skills')) },
+  {
+    id: 'sideNav.skillsByName',
+    what: 'control named "Skills" (new in v0.8.7)',
+    run: (p) => seen(p.getByRole('button', { name: /^skills$/i })),
+  },
+];
+
+/** Surfaces that must be opened first — probing them closed reports false MISSING. */
+const MENU_GROUPS: Group[] = [
+  {
+    name: 'Account menu opened',
+    open: (p) => p.getByTestId('nav-user').click(),
+    probes: [
+      {
+        id: 'accountMenu.changelogLoose',
+        what: 'menu item matching /changelog/i',
+        run: (p) => seen(p.getByRole('menuitem', { name: /changelog/i })),
+      },
+      {
+        id: 'accountMenu.changelogExact',
+        what: 'menu item "Paychex Changelog"',
+        run: (p) => seen(p.getByRole('menuitem', { name: 'Paychex Changelog' })),
+      },
+    ],
+  },
+  {
+    name: 'Model selector opened',
+    open: (p) => p.getByTestId('model-selector-button').click(),
+    probes: [
+      {
+        id: 'modelSelector.anyOption',
+        what: 'any option/menuitem in the list',
+        run: (p) => seen(p.getByRole('option').or(p.getByRole('menuitem'))),
+      },
+      {
+        id: 'modelSelector.defaultBadge',
+        what: 'DEFAULT badge (Paychex)',
+        run: (p) => seen(p.getByText('DEFAULT', { exact: true })),
+      },
+    ],
+  },
+  {
+    name: 'Tools menu opened',
+    open: (p) => p.getByRole('button', { name: /^tools$/i }).click(),
+    probes: [
+      {
+        id: 'toolsMenu.skillsTestId',
+        what: 'data-testid=tools-menu-skills',
+        run: (p) => seen(p.getByTestId('tools-menu-skills')),
+      },
+      {
+        id: 'toolsMenu.anyItem',
+        what: 'any menu item',
+        run: (p) => seen(p.getByRole('menuitem')),
+      },
+    ],
+  },
+  {
+    name: 'Attach file menu opened',
+    open: (p) => p.getByRole('button', { name: /attach file/i }).click(),
+    probes: [
+      { id: 'attachMenu.anyItem', what: 'any menu item', run: (p) => seen(p.getByRole('menuitem')) },
+      {
+        id: 'attachMenu.imageDescription',
+        what: 'image upload description copy (Paychex UX)',
+        run: (p) => seen(p.getByText(/add an image/i)),
+      },
+    ],
+  },
 ];
 
 test.describe('Selector probe', () => {
   test('report which candidate selectors resolve', async ({ page }) => {
-    await page.goto('/c/new', { waitUntil: 'domcontentloaded' });
-    await page.getByTestId('text-input').waitFor({ state: 'attached', timeout: 20000 }).catch(() => undefined);
+    // Every miss burns PROBE_TIMEOUT, so the default 30s is far too tight.
+    test.setTimeout(180000);
 
-    const results: { id: string; ok: boolean; what: string }[] = [];
-    for (const probe of PROBES) {
-      let ok = false;
-      try {
-        ok = await probe.run(page);
-      } catch {
-        ok = false;
+    await page.goto('/c/new', { waitUntil: 'domcontentloaded' });
+    await page
+      .getByTestId('text-input')
+      .waitFor({ state: 'attached', timeout: 20000 })
+      .catch(() => undefined);
+
+    const results: { group: string; id: string; ok: boolean; what: string }[] = [];
+
+    const record = async (group: string, probes: Probe[], reachable: boolean) => {
+      for (const probe of probes) {
+        const ok = reachable ? await probe.run(page).catch(() => false) : false;
+        results.push({ group, id: probe.id, ok, what: probe.what });
       }
-      results.push({ id: probe.id, ok, what: probe.what });
+    };
+
+    await record('Landing (no interaction)', PROBES, true);
+
+    for (const group of MENU_GROUPS) {
+      const opened = await group
+        .open!(page)
+        .then(() => true)
+        .catch(() => false);
+      await page.waitForTimeout(500);
+
+      if (!opened) {
+        results.push({
+          group: group.name,
+          id: 'OPEN_FAILED',
+          ok: false,
+          what: 'could not open this surface — its probes are inconclusive',
+        });
+      }
+      await record(group.name, group.probes, opened);
+
+      await page.keyboard.press('Escape').catch(() => undefined);
+      await page.waitForTimeout(300);
     }
 
     const pad = Math.max(...results.map((r) => r.id.length));
-    console.log('\n===== SELECTOR PROBE =====');
+    const lines = ['', '===== SELECTOR PROBE ====='];
+    let currentGroup = '';
     for (const r of results) {
-      console.log(`${r.ok ? 'FOUND  ' : 'MISSING'} ${r.id.padEnd(pad)}  ${r.what}`);
+      if (r.group !== currentGroup) {
+        currentGroup = r.group;
+        lines.push(`-- ${currentGroup} --`);
+      }
+      lines.push(`${r.ok ? 'FOUND__' : 'MISSING'}|${r.id.padEnd(pad)}|${r.what}`);
     }
-    console.log(`===== ${results.filter((r) => r.ok).length}/${results.length} resolved =====\n`);
+    lines.push(`===== ${results.filter((r) => r.ok).length}/${results.length} resolved =====`, '');
+    console.log(lines.join('\n'));
 
-    // The probe reports; it does not gate. Only a total wipeout indicates a broken run.
+    // The probe reports; it does not gate. Only a total wipeout means the run itself broke.
     expect(results.some((r) => r.ok)).toBe(true);
   });
 });
