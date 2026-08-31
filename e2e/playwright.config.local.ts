@@ -15,7 +15,6 @@ Object.assign(process.env, e2eEnv);
 const config: PlaywrightTestConfig = {
   ...mainConfig,
   retries: 0,
-  testIgnore: /mcp-.*\.spec\.ts/,
   globalSetup: require.resolve('./setup/global-setup.local'),
   globalTeardown: require.resolve('./setup/global-teardown.local'),
   webServer: {
