@@ -5,6 +5,7 @@
     "",
     "verified: 'probe' = resolved by e2e/specs/probe/selectors.probe.spec.ts against n2a.",
     "          'dump'  = observed in the accessible-name enumeration against n2a.",
+    "          'local' = confirmed interactively on a local instance; re-confirm on n2a before relying on it.",
     "          'no'    = still a guess; must be confirmed before a journey test relies on it.",
     "",
     "Regenerate ground truth: gh workflow run e2e-tests.yml -f environment=n2a -f suite=probe"
@@ -60,10 +61,17 @@
       "id": "promptCatalog.sideNav",
       "owner": "paychex",
       "critical": false,
-      "what": "Prompt Catalog panel entry in the side nav",
+      "what": "Prompt Catalog panel entry in the side nav, and the panel it opens",
       "selector": "getByTestId('nav-panel-prompt-catalog')",
-      "verified": "dump",
-      "note": "#prompt-catalog does NOT exist. An earlier source-derived guess was wrong.",
+      "panelSelectors": {
+        "search": "getByRole('searchbox', { name: 'Search catalog prompts...' })",
+        "categories": "getByRole('group', { name: 'Filter by category' })",
+        "visibility": "getByRole('radiogroup', { name: 'Visibility' })",
+        "createPrompt": "getByRole('button', { name: 'Create Prompt' })",
+        "refresh": "getByRole('button', { name: 'Refresh catalog' })"
+      },
+      "verified": "local",
+      "note": "#prompt-catalog does NOT exist. The panel is NOT its own navigation landmark — assert the searchbox instead.",
       "tag": "@paychex",
       "spec": "TODO:phase3/prompt-catalog.spec.ts"
     },
@@ -71,9 +79,10 @@
       "id": "promptCatalog.deepLink",
       "owner": "paychex",
       "critical": false,
-      "what": "?promptCatalogId= resolves server-side and inserts the prompt; failure shows a toast",
-      "selector": "UNVERIFIED — requires a valid catalog id on n2a",
-      "verified": "no",
+      "what": "?promptCatalogId= resolves server-side; an unresolvable id surfaces an error toast",
+      "selector": "goto('/c/new?promptCatalogId=<bogus>') -> getByRole('status') containing 'Unable to load this Prompt Catalog prompt'",
+      "verified": "local",
+      "note": "Deterministic without a real catalog entry: a bogus id always takes the failure path. Toast copy = com_ui_prompt_catalog_insert_error.",
       "tag": "@paychex",
       "spec": "TODO:phase3/prompt-catalog.spec.ts"
     },
@@ -81,10 +90,10 @@
       "id": "toolsDropdown.descriptions",
       "owner": "paychex",
       "critical": false,
-      "what": "ToolsDropdown items render a description line under each label",
-      "selector": "#tools-dropdown-button (aria-label 'Tools Options') -> menu items",
-      "verified": "dump",
-      "note": "Trigger is named 'Tools Options', NOT 'Tools'. Per-item description markup still unverified.",
+      "what": "Declarative label+description on ToolsDropdown items",
+      "selector": "#tools-dropdown-button -> getByRole('menuitem', { name: /File Search/ }) contains 'Analyze, compare, and contrast large documents.'",
+      "verified": "local",
+      "note": "Trigger is named 'Tools Options', NOT 'Tools'. Only File Search / Web Search / Code Interpreter use the declarative path; Skills and Artifacts render custom submenus and have no description BY DESIGN — do not assert one for them. data-testid='tools-menu-skills' exists on the Skills item.",
       "tag": "@paychex",
       "spec": "TODO:phase3/menu-descriptions.spec.ts"
     },
@@ -92,10 +101,10 @@
       "id": "attachFileMenu.descriptions",
       "owner": "paychex",
       "critical": false,
-      "what": "Attach-file menu items render helper descriptions (e.g. 'Add an image for analysis.')",
-      "selector": "#attach-file-menu-button (aria-label 'Attach File Options') -> menu items",
-      "verified": "dump",
-      "note": "Do NOT locate by /attach file/i — it also matches the 'Attach Files' nav panel and trips strict mode.",
+      "what": "Attach-file menu items render helper descriptions",
+      "selector": "#attach-file-menu-button -> getByRole('menuitem', { name: /Upload Image/ }) contains 'Add an image for analysis.'",
+      "verified": "local",
+      "note": "Do NOT locate the trigger by /attach file/i — it also matches the 'Attach Files' nav panel and trips strict mode. Visible items depend on enabled capabilities; locally only Upload Image + Upload as Text appear.",
       "tag": "@paychex",
       "spec": "TODO:phase3/menu-descriptions.spec.ts"
     },
@@ -103,10 +112,10 @@
       "id": "modelSelector.defaultBadge",
       "owner": "paychex",
       "critical": false,
-      "what": "Star + DEFAULT badge on the model spec flagged default:true (azure-gpt-5.4-mini on n2a)",
-      "selector": "[aria-label=\"Default model\"]",
-      "verified": "no",
-      "note": "Badge renders '★ DEFAULT' in ONE span, so getByText('DEFAULT', {exact:true}) can never match; use the aria-label. Opening the model menu showed only endpoint entries (endpoint-*-menu) — the modelSpec list was not reached, so the badge is still unconfirmed.",
+      "what": "Star + DEFAULT badge on the model spec flagged default:true (azure-gpt-5.4-mini)",
+      "selector": "getByTestId('model-selector-button') -> getByRole('option', { name: /Azure OpenAI/ }) -> getByLabel('Default model')",
+      "verified": "local",
+      "note": "Badge lives in the ENDPOINT SUBMENU, not the top-level list — the top level shows endpoints only, which is why the n2a probe missed it. Badge renders the star and DEFAULT inside ONE span, so getByText('DEFAULT', {exact:true}) can never match; use the 'Default model' accessible name.",
       "tag": "@paychex",
       "spec": "TODO:phase3/model-selector.spec.ts"
     }
@@ -154,9 +163,13 @@
   ],
 
   "openQuestions": [
-    "modelSelector.defaultBadge — reach the modelSpec list (endpoint submenu?) and confirm the badge renders.",
-    "toolsDropdown/attachFileMenu descriptions — confirm the description element markup.",
-    "promptCatalog.deepLink — needs a valid promptCatalogId for n2a.",
-    "RAG file upload round-trip — no coverage and no verified selectors yet."
+    "RAG file upload round-trip — not configured locally (no File Search upload option appeared); needs n2a verification.",
+    "Re-confirm the local-verified selectors against n2a before Phase 3 relies on them."
+  ],
+
+  "localVsDeployedDifferences": [
+    "Local exposes no 'MCP Servers' composer button (no MCP servers configured in librechat.yaml); n2a does.",
+    "Local attach-file menu shows only Upload Image + Upload as Text; n2a may show more depending on enabled capabilities.",
+    "A first-login onboarding dialog ('Meet the Prompt Catalog') can overlay the UI and suppresses accessible names until dismissed."
   ]
 }

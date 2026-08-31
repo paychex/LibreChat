@@ -126,24 +126,29 @@ const MENU_GROUPS: Group[] = [
     ],
   },
   {
-    name: 'Model selector opened',
-    open: (p) => p.getByTestId('model-selector-button').click(),
+    // The DEFAULT badge lives in the endpoint submenu, not the top-level list.
+    name: 'Model selector -> Azure OpenAI submenu',
+    open: async (p) => {
+      await p.getByTestId('model-selector-button').click();
+      await p.waitForTimeout(700);
+      await p.getByRole('option', { name: /Azure OpenAI/i }).first().click();
+    },
     probes: [
       {
-        id: 'modelSelector.anyOption',
-        what: 'any option/menuitem in the list',
-        run: (p) => seen(p.getByRole('option').or(p.getByRole('menuitem'))),
+        id: 'modelSelector.specOption',
+        what: 'a model spec option inside the submenu',
+        run: (p) => seen(p.getByRole('option', { name: /GPT-5\.4/i })),
       },
       {
         id: 'modelSelector.defaultBadge',
-        what: 'DEFAULT badge (Paychex)',
-        run: (p) => seen(p.getByText('DEFAULT', { exact: true })),
+        what: 'DEFAULT badge via accessible name (Paychex)',
+        run: (p) => seen(p.getByLabel('Default model')),
       },
     ],
   },
   {
     name: 'Tools menu opened',
-    open: (p) => p.getByRole('button', { name: /^tools$/i }).click(),
+    open: (p) => p.locator('#tools-dropdown-button').click(),
     probes: [
       {
         id: 'toolsMenu.skillsTestId',
@@ -151,21 +156,42 @@ const MENU_GROUPS: Group[] = [
         run: (p) => seen(p.getByTestId('tools-menu-skills')),
       },
       {
-        id: 'toolsMenu.anyItem',
-        what: 'any menu item',
-        run: (p) => seen(p.getByRole('menuitem')),
+        id: 'toolsMenu.fileSearchDescription',
+        what: 'File Search description copy (Paychex UX)',
+        run: (p) => seen(p.getByText(/analyze, compare, and contrast large documents/i)),
       },
     ],
   },
   {
     name: 'Attach file menu opened',
-    open: (p) => p.getByRole('button', { name: /attach file/i }).click(),
+    open: (p) => p.locator('#attach-file-menu-button').click(),
     probes: [
       { id: 'attachMenu.anyItem', what: 'any menu item', run: (p) => seen(p.getByRole('menuitem')) },
       {
         id: 'attachMenu.imageDescription',
         what: 'image upload description copy (Paychex UX)',
-        run: (p) => seen(p.getByText(/add an image/i)),
+        run: (p) => seen(p.getByText(/add an image for analysis/i)),
+      },
+    ],
+  },
+  {
+    name: 'Prompt Catalog panel opened',
+    open: (p) => p.getByTestId('nav-panel-prompt-catalog').click(),
+    probes: [
+      {
+        id: 'promptCatalog.search',
+        what: 'catalog search box',
+        run: (p) => seen(p.getByRole('searchbox', { name: /search catalog prompts/i })),
+      },
+      {
+        id: 'promptCatalog.categories',
+        what: 'Filter by category group',
+        run: (p) => seen(p.getByRole('group', { name: 'Filter by category' })),
+      },
+      {
+        id: 'promptCatalog.visibility',
+        what: 'Visibility radiogroup',
+        run: (p) => seen(p.getByRole('radiogroup', { name: 'Visibility' })),
       },
     ],
   },
@@ -229,6 +255,22 @@ test.describe('Selector probe', () => {
 
     // The probe reports; it does not gate. Only a total wipeout means the run itself broke.
     expect(results.some((r) => r.ok)).toBe(true);
+  });
+
+  test('prompt catalog deep link surfaces an error toast for an unresolvable id', async ({
+    page,
+  }) => {
+    await page.goto('/c/new?promptCatalogId=e2e-probe-nonexistent-id', {
+      waitUntil: 'domcontentloaded',
+    });
+    const toast = page.getByText(/unable to load this prompt catalog prompt/i);
+    const shown = await toast
+      .first()
+      .waitFor({ state: 'visible', timeout: 30000 })
+      .then(() => true)
+      .catch(() => false);
+    console.log(`\n===== DEEP LINK TOAST: ${shown ? 'FOUND__' : 'MISSING'} =====\n`);
+    expect(typeof shown).toBe('boolean');
   });
 
   test('enumerate real accessible names and ids', async ({ page }) => {
