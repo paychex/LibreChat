@@ -135,8 +135,12 @@ jobs:
           npx playwright install chromium
           test -x "$HOME"/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell
 
+      # Best-effort: this shells out to apt and fails intermittently on the ARC
+      # runners, but chromium_headless_shell runs without the full dependency set
+      # (Playwright only warns). A flaky apt mirror must not fail a deploy check.
       - name: Install Playwright OS dependencies
         timeout-minutes: 10
+        continue-on-error: true
         run: npx playwright install-deps chromium
 
       # Gated on the install step, not always(): a truncated install must never be
