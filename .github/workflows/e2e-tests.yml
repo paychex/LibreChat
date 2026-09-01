@@ -39,6 +39,7 @@ on:
         type: choice
         options:
           - ci
+          - journeys
           - probe
 
 # Serialize runs so overlapping deploys don't collide on the shared test account.
@@ -160,6 +161,8 @@ jobs:
           path: |
             e2e/playwright-report-ci/
             e2e/results-ci/
+            e2e/playwright-report-journeys/
+            e2e/results-journeys/
             e2e/results-probe/
             e2e/auth-failure.png
           retention-days: 14
