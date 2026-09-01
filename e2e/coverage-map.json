@@ -162,8 +162,15 @@
     { "id": "nav.user", "selector": "getByTestId('nav-user')", "verified": "probe" }
   ],
 
-  "openQuestions": [
-    "RAG file upload round-trip — not configured locally (no File Search upload option appeared); needs n2a verification."
+  "openQuestions": [],
+
+  "outOfScope": [
+    {
+      "id": "rag.fileUpload",
+      "what": "RAG / File Search document upload round-trip",
+      "reason": "Not reachable from the chat composer. Enumerated on n2a (run 33502080397): the attach-file menu offers ONLY 'Upload Image' and 'Upload as Text'. File Search upload is exposed only for agents that enable the file_search capability, inside Agent Builder.",
+      "revisitIf": "The composer starts offering a File Search upload option, or a deploy gate for Agent Builder file_search is wanted (note: that would create persistent agent data in the target environment)."
+    }
   ],
 
   "localVsDeployedDifferences": [
