@@ -181,6 +181,8 @@ Run `scripts/check-forbidden-upstream-workflows.sh` after resolving conflicts �
 
 **Why the GitNexus set and `a11y.yml` were removed:** GitNexus (upstream `01a1bc168`, "experimental", 2026-04-08) deploys a code-search index to a DigitalOcean droplet that Paychex does not own; all four workflows plus `.do/gitnexus/` are upstream-only infrastructure. `a11y.yml` gates on `github.event.pull_request.head.repo.full_name == 'danny-avila/LibreChat'`, so it can never execute in a fork — it was skipped 87 consecutive times. The Playwright a11y suite (`npm run e2e:a11y`) is unaffected and still available locally.
 
+**Retired Paychex workflow (not upstream):** `migrate-prompts-to-catalog.yml` was removed on 2026-09-01 — the migration is complete (a prod dry run reported `alreadyMigrated: 6718`, `eligible: 0`). The migration logic itself is retained at `config/migrate-prompts-to-catalog.js` with npm scripts `migrate:prompts-to-catalog{,:dry-run,:batch}`, so it can still be run manually or rewrapped in a workflow if ever needed.
+
 ### Upstream Branch Filters — Rewrite to Paychex Branches
 Upstream workflows gate on `main`, `dev`, `dev-staging`. Paychex uses `develop` and `release/*`. A workflow that keeps the upstream branch list will register, report green, and silently never run. After a merge, check every `pull_request.branches:` list and rewrite it.
 
