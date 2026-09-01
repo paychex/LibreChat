@@ -35,12 +35,21 @@ const PROBES: Probe[] = [
   {
     id: 'pendo.window',
     what: 'window.pendo is initialized',
-    run: (p) => p.evaluate(() => typeof (window as unknown as { pendo?: unknown }).pendo === 'object'),
+    run: (p) =>
+      p.evaluate(() => typeof (window as unknown as { pendo?: unknown }).pendo === 'object'),
   },
-  { id: 'pendo.agentUsers', what: '#agentUsers tracking span', run: (p) => seen(p.locator('#agentUsers')) },
+  {
+    id: 'pendo.agentUsers',
+    what: '#agentUsers tracking span',
+    run: (p) => seen(p.locator('#agentUsers')),
+  },
 
   // --- Paychex Changelog ---
-  { id: 'changelog.navUser', what: 'nav-user trigger', run: (p) => seen(p.getByTestId('nav-user')) },
+  {
+    id: 'changelog.navUser',
+    what: 'nav-user trigger',
+    run: (p) => seen(p.getByTestId('nav-user')),
+  },
   {
     id: 'changelog.footerLink',
     what: 'Changelog link in footer',
@@ -48,7 +57,11 @@ const PROBES: Probe[] = [
   },
 
   // --- Prompt Catalog (Paychex) ---
-  { id: 'promptCatalog.navById', what: '#prompt-catalog side-nav button', run: (p) => seen(p.locator('#prompt-catalog')) },
+  {
+    id: 'promptCatalog.navById',
+    what: '#prompt-catalog side-nav button',
+    run: (p) => seen(p.locator('#prompt-catalog')),
+  },
   {
     id: 'promptCatalog.navByName',
     what: 'button named "Prompt Catalog"',
@@ -73,8 +86,16 @@ const PROBES: Probe[] = [
   },
 
   // --- Composer surfaces (upstream testids) ---
-  { id: 'composer.textInput', what: 'data-testid=text-input', run: (p) => seen(p.getByTestId('text-input')) },
-  { id: 'composer.sendButton', what: 'data-testid=send-button', run: (p) => seen(p.getByTestId('send-button')) },
+  {
+    id: 'composer.textInput',
+    what: 'data-testid=text-input',
+    run: (p) => seen(p.getByTestId('text-input')),
+  },
+  {
+    id: 'composer.sendButton',
+    what: 'data-testid=send-button',
+    run: (p) => seen(p.getByTestId('send-button')),
+  },
   {
     id: 'composer.attachFileButton',
     what: 'Attach File Options button',
@@ -95,11 +116,31 @@ const PROBES: Probe[] = [
 
   // --- Side-nav entries ---
   { id: 'sidebar.nav', what: 'data-testid=nav', run: (p) => seen(p.getByTestId('nav')) },
-  { id: 'sidebar.navRole', what: 'navigation landmark (any name)', run: (p) => seen(p.getByRole('navigation')) },
-  { id: 'sidebar.newChat', what: 'data-testid=new-chat-button', run: (p) => seen(p.getByTestId('new-chat-button')) },
-  { id: 'sideNav.mcpBuilder', what: 'data-testid=nav-panel-mcp-builder', run: (p) => seen(p.getByTestId('nav-panel-mcp-builder')) },
-  { id: 'sideNav.files', what: 'data-testid=nav-panel-files', run: (p) => seen(p.getByTestId('nav-panel-files')) },
-  { id: 'sideNav.skillsById', what: '#skills side-nav entry', run: (p) => seen(p.locator('#skills')) },
+  {
+    id: 'sidebar.navRole',
+    what: 'navigation landmark (any name)',
+    run: (p) => seen(p.getByRole('navigation')),
+  },
+  {
+    id: 'sidebar.newChat',
+    what: 'data-testid=new-chat-button',
+    run: (p) => seen(p.getByTestId('new-chat-button')),
+  },
+  {
+    id: 'sideNav.mcpBuilder',
+    what: 'data-testid=nav-panel-mcp-builder',
+    run: (p) => seen(p.getByTestId('nav-panel-mcp-builder')),
+  },
+  {
+    id: 'sideNav.files',
+    what: 'data-testid=nav-panel-files',
+    run: (p) => seen(p.getByTestId('nav-panel-files')),
+  },
+  {
+    id: 'sideNav.skillsById',
+    what: '#skills side-nav entry',
+    run: (p) => seen(p.locator('#skills')),
+  },
   {
     id: 'sideNav.skillsByName',
     what: 'control named "Skills" (new in v0.8.7)',
@@ -131,7 +172,10 @@ const MENU_GROUPS: Group[] = [
     open: async (p) => {
       await p.getByTestId('model-selector-button').click();
       await p.waitForTimeout(700);
-      await p.getByRole('option', { name: /Azure OpenAI/i }).first().click();
+      await p
+        .getByRole('option', { name: /Azure OpenAI/i })
+        .first()
+        .click();
     },
     probes: [
       {
@@ -166,7 +210,11 @@ const MENU_GROUPS: Group[] = [
     name: 'Attach file menu opened',
     open: (p) => p.locator('#attach-file-menu-button').click(),
     probes: [
-      { id: 'attachMenu.anyItem', what: 'any menu item', run: (p) => seen(p.getByRole('menuitem')) },
+      {
+        id: 'attachMenu.anyItem',
+        what: 'any menu item',
+        run: (p) => seen(p.getByRole('menuitem')),
+      },
       {
         id: 'attachMenu.imageDescription',
         what: 'image upload description copy (Paychex UX)',
@@ -230,8 +278,7 @@ test.describe('Selector probe', () => {
     await record('Landing (no interaction)', PROBES, true);
 
     for (const group of MENU_GROUPS) {
-      const opened = await group
-        .open!(page)
+      const opened = await group.open!(page)
         .then(() => true)
         .catch(() => false);
       await page.waitForTimeout(500);

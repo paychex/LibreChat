@@ -48,10 +48,52 @@ FORBIDDEN_PATHS=(
     ".github/scripts/sync-helm-chart-tags.sh"
 )
 
+# Repo gates that can never be true in a fork, so the job is permanently skipped.
+FORK_GATE_MARKERS=("danny-avila/LibreChat")
+
 # Upstream branch names. A workflow keeping these registers but never runs on a Paychex PR.
-STALE_BRANCHES=("dev-staging" "danny-avila/LibreChat")
+UPSTREAM_BRANCHES_AWK='^(main|dev|dev-staging)$'
 
 FAIL_COUNT=0
+
+# Reports upstream branch names that appear inside a `branches:` filter. Scoped to
+# that block so an unrelated `- main` under paths:/tags: is not flagged.
+scan_branch_filters() {
+    awk -v pattern="$UPSTREAM_BRANCHES_AWK" '
+        function report(value) { print FILENAME ":" FNR ": " value }
+        function unquote(v) { gsub(/[\047\042]/, "", v); return v }
+
+        /^[[:space:]]*branches:[[:space:]]*\[/ {
+            line = $0
+            sub(/^[^[]*\[/, "", line)
+            sub(/\].*$/, "", line)
+            n = split(line, entries, /[[:space:]]*,[[:space:]]*/)
+            for (i = 1; i <= n; i++) {
+                value = unquote(entries[i])
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+                if (value ~ pattern) report(value)
+            }
+            next
+        }
+
+        /^[[:space:]]*branches:[[:space:]]*$/ { in_block = 1; next }
+
+        # Blank lines and comments do not end the list.
+        in_block && /^[[:space:]]*(#.*)?$/ { next }
+
+        in_block && /^[[:space:]]*-[[:space:]]*[^[:space:]]/ {
+            value = $0
+            sub(/^[[:space:]]*-[[:space:]]*/, "", value)
+            sub(/[[:space:]]*#.*$/, "", value)
+            value = unquote(value)
+            gsub(/[[:space:]]+$/, "", value)
+            if (value ~ pattern) report(value)
+            next
+        }
+
+        in_block { in_block = 0 }
+    ' "$1"
+}
 
 echo "======================================"
 echo "Forbidden Upstream Workflow Check"
@@ -73,14 +115,23 @@ for path in "${FORBIDDEN_PATHS[@]}"; do
 done
 
 if [ -d "$WORKFLOW_DIR" ]; then
-    for marker in "${STALE_BRANCHES[@]}"; do
+    for marker in "${FORK_GATE_MARKERS[@]}"; do
         while IFS= read -r match; do
             [ -z "$match" ] && continue
-            echo -e "${RED}FAIL${NC}: upstream branch/repo reference '$marker' in $match"
-            echo "        Rewrite to 'develop' / 'release/*' or the workflow will silently never run."
+            echo -e "${RED}FAIL${NC}: upstream repo gate '$marker' in $match"
+            echo "        The job can never run in this fork - delete the workflow."
             FAIL_COUNT=$((FAIL_COUNT + 1))
         done < <(grep -rl "$marker" "$WORKFLOW_DIR" 2>/dev/null)
     done
+
+    while IFS= read -r workflow; do
+        while IFS= read -r hit; do
+            [ -z "$hit" ] && continue
+            echo -e "${RED}FAIL${NC}: upstream branch filter at $hit"
+            echo "        Rewrite to 'develop' / 'release/*' or the workflow will silently never run."
+            FAIL_COUNT=$((FAIL_COUNT + 1))
+        done < <(scan_branch_filters "$workflow")
+    done < <(find "$WORKFLOW_DIR" -type f \( -name '*.yml' -o -name '*.yaml' \) 2>/dev/null)
 fi
 
 echo ""

@@ -43,8 +43,10 @@ on:
           - probe
 
 # Serialize runs so overlapping deploys don't collide on the shared test account.
+# ref_name is the short form, so a scheduled run lands in the same group as a
+# deploy-triggered run on the same branch.
 concurrency:
-  group: e2e-tests-${{ github.event.workflow_run.head_branch || github.ref }}
+  group: e2e-tests-${{ github.event.workflow_run.head_branch || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -101,11 +103,14 @@ jobs:
           key: node-modules-e2e-ci-${{ runner.os }}-20-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
+        id: install-deps
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: bash scripts/ci-npm-install.sh
 
+      # Gated on install success: a partial node_modules must never be cached, or
+      # every later run restores the broken state and skips the install entirely.
       - name: Save node_modules cache
-        if: always() && steps.cache-node-modules.outputs.cache-hit != 'true'
+        if: steps.install-deps.outcome == 'success' && steps.cache-node-modules.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
           path: |
@@ -177,6 +182,9 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: test-results-${{ matrix.environment }}
-          path: e2e/test-results-ci/
+          path: |
+            e2e/test-results-ci/
+            e2e/test-results-journeys/
+            e2e/test-results-probe/
           retention-days: 7
           if-no-files-found: ignore

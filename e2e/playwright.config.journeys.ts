@@ -15,7 +15,10 @@ export default defineConfig({
   outputDir: path.resolve(__dirname, 'test-results-journeys'),
   reporter: [
     ['list'],
-    ['html', { outputFolder: path.resolve(__dirname, 'playwright-report-journeys'), open: 'never' }],
+    [
+      'html',
+      { outputFolder: path.resolve(__dirname, 'playwright-report-journeys'), open: 'never' },
+    ],
     ['json', { outputFile: path.resolve(__dirname, 'results-journeys', 'results.json') }],
   ],
 });

@@ -91,9 +91,11 @@ Expected response: title `Example Domain`, H1 `Example Domain`. If you see this,
 
 With your local dev server running, prompt the agent something like:
 
-> Use the playwright tools to navigate to http://localhost:3000, snapshot the page, and generate a Playwright spec saved to `e2e/specs/mcp-landing.spec.ts` that asserts the main visible elements are present. Use `getByRole` locators throughout.
+> Use the playwright tools to navigate to http://localhost:3000, snapshot the page, and generate a Playwright spec saved to `e2e/specs/mock/landing.spec.ts` that asserts the main visible elements are present. Use `getByRole` locators throughout.
 
 The agent will explore the page, then write the spec file.
+
+Only specs under `e2e/specs/mock/`, `ci/`, `journeys/`, or `probe/` are collected by a config — a spec written anywhere else runs in no suite. See the table in `PAYCHEX_README.md` → *Generating new specs*.
 
 ## Step 8 — Run the generated spec
 
@@ -107,7 +109,7 @@ npx playwright install chromium
 Run the spec:
 
 ```bash
-npx playwright test e2e/specs/mcp-landing.spec.ts
+npx playwright test e2e/specs/mock/landing.spec.ts
 ```
 
 ---
@@ -188,7 +190,7 @@ For SSO-protected apps (Azure Entra, Okta, etc. with MFA): the agent can't auton
 ## Tips for getting good output
 
 - **Use Agent mode, not Ask mode** — only Agent mode can call tools.
-- **Be specific about file paths** — *"save the spec to `e2e/specs/mcp-foo.spec.ts`"* works better than *"create a test file."*
+- **Be specific about file paths** — *"save the spec to `e2e/specs/mock/foo.spec.ts`"* works better than *"create a test file."*
 - **Tell it which locators to prefer** — *"use `getByRole` throughout, no CSS selectors"* prevents brittle output.
 - **Have the agent explore first, then generate** — *"navigate to X, snapshot the page, then generate a spec asserting…"* yields better-grounded tests than *"generate a spec for X."*
 - **Always review the generated spec** — the agent can over-assert from a single observation. Treat its output like a Copilot suggestion, not a finished PR.

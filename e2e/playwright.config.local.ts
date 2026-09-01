@@ -15,6 +15,8 @@ Object.assign(process.env, e2eEnv);
 const config: PlaywrightTestConfig = {
   ...mainConfig,
   retries: 0,
+  // ci/journeys/probe/real target a deployed environment and have their own configs and auth state.
+  testIgnore: ['**/mock/**', '**/ci/**', '**/journeys/**', '**/probe/**', '**/real/**'],
   globalSetup: require.resolve('./setup/global-setup.local'),
   globalTeardown: require.resolve('./setup/global-teardown.local'),
   webServer: {

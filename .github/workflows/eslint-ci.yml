@@ -9,9 +9,24 @@ on:
       - 'api/**'
       - 'client/**'
       - 'packages/**'
-      - '.github/workflows/eslint-ci.yml'
+      - 'e2e/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+      - '.do/**'
 
 jobs:
+  workflow_guards:
+    name: Forbidden Upstream Workflows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Check for reintroduced upstream workflows and stale branch filters
+        run: bash scripts/check-forbidden-upstream-workflows.sh
+
   eslint_checks:
     name: Run ESLint Linting
     runs-on: ubuntu-latest
@@ -41,10 +56,10 @@ jobs:
           BASE_SHA=$(jq --raw-output .pull_request.base.sha "$GITHUB_EVENT_PATH")
           echo "Base commit SHA: $BASE_SHA"
 
-          # Get changed files (only JS/TS files in api/, client/, or packages/)
+          # Get changed files (only JS/TS files in api/, client/, packages/, e2e/, or scripts/)
           mapfile -d '' -t CHANGED_FILES < <(
             git diff -z --name-only --diff-filter=ACMRTUXB "$BASE_SHA" HEAD |
-              grep -zE '^(api|client|packages)/.*\.(js|jsx|ts|tsx)$' || true
+              grep -zE '^(api|client|packages|e2e|scripts)/.*\.(js|jsx|mjs|cjs|ts|tsx)$' || true
           )
 
           # Debug output
@@ -71,7 +86,7 @@ jobs:
           BASE_SHA=$(jq --raw-output .pull_request.base.sha "$GITHUB_EVENT_PATH")
           mapfile -d '' -t CHANGED_FILES < <(
             git diff -z --name-only --diff-filter=ACMRTUXB "$BASE_SHA" HEAD |
-              grep -zE '^(api|client|packages)/.*\.(js|jsx|ts|tsx)$' || true
+              grep -zE '^(api|client|packages|e2e|scripts)/.*\.(js|jsx|mjs|cjs|ts|tsx)$' || true
           )
 
           if [[ ${#CHANGED_FILES[@]} -eq 0 ]]; then
@@ -101,7 +116,7 @@ jobs:
           BASE_SHA=$(jq --raw-output .pull_request.base.sha "$GITHUB_EVENT_PATH")
           mapfile -d '' -t CHANGED_FILES < <(
             git diff -z --name-only --diff-filter=ACMRTUXB "$BASE_SHA" HEAD |
-              grep -zE '^(api|client|packages)/.*\.(js|jsx|ts|tsx)$' || true
+              grep -zE '^(api|client|packages|e2e|scripts)/.*\.(js|jsx|mjs|cjs|ts|tsx)$' || true
           )
 
           if [[ ${#CHANGED_FILES[@]} -eq 0 ]]; then

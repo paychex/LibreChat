@@ -183,8 +183,15 @@ Run `scripts/check-forbidden-upstream-workflows.sh` after resolving conflicts �
 
 **Retired Paychex workflow (not upstream):** `migrate-prompts-to-catalog.yml` was removed on 2026-09-01 — the migration is complete (a prod dry run reported `alreadyMigrated: 6718`, `eligible: 0`). The migration logic itself is retained at `config/migrate-prompts-to-catalog.js` with npm scripts `migrate:prompts-to-catalog{,:dry-run,:batch}`, so it can still be run manually or rewrapped in a workflow if ever needed.
 
+**Retired Paychex workflow (not upstream):** `sync_tags.yml` was removed on 2026-09-01. It was a `workflow_dispatch`-only job that fetched upstream tags and pushed them to `paychex/LibreChat` using a `SYNC_TAGS_PAT_TOKEN` PAT with push access. Upstream tags are already fetched by hand during every merge (see the pre-merge checklist above), so the workflow added nothing but a standing push-capable credential. **Revoke `SYNC_TAGS_PAT_TOKEN` in repo secrets** — nothing consumes it any more. To sync tags manually:
+
+```bash
+git fetch upstream --tags
+git push origin --tags
+```
+
 ### Upstream Branch Filters — Rewrite to Paychex Branches
-Upstream workflows gate on `main`, `dev`, `dev-staging`. Paychex uses `develop` and `release/*`. A workflow that keeps the upstream branch list will register, report green, and silently never run. After a merge, check every `pull_request.branches:` list and rewrite it.
+Upstream workflows gate on `main`, `dev`, `dev-staging`. Paychex uses `develop` and `release/*`. A workflow that keeps the upstream branch list will register, report green, and silently never run. After a merge, check every `pull_request.branches:` list and rewrite it. `scripts/check-forbidden-upstream-workflows.sh` scans every `branches:` filter for these names and also runs as the `Forbidden Upstream Workflows` job on every PR to `develop` / `release/*`.
 
 ### Medium-Risk Conflicts (Check History)
 - [ ] File: _________________ → Decision: □ Ours □ Theirs □ Manual

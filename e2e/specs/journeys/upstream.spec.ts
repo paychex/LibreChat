@@ -28,12 +28,16 @@ test.describe('Upstream v0.8.7 features', () => {
     await closeOverlay(page);
   });
 
-  test('MCP servers control is present in the composer', {
-    tag: ['@upstream'],
-  }, async ({ page }) => {
-    await gotoChat(page);
-    await expect(page.getByRole('button', { name: 'MCP Servers' })).toBeVisible();
-  });
+  test(
+    'MCP servers control is present in the composer',
+    {
+      tag: ['@upstream'],
+    },
+    async ({ page }) => {
+      await gotoChat(page);
+      await expect(page.getByRole('button', { name: 'MCP Servers' })).toBeVisible();
+    },
+  );
 
   test('Agent Builder panel opens', { tag: ['@upstream'] }, async ({ page }) => {
     await gotoChat(page);

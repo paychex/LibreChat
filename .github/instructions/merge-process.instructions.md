@@ -125,7 +125,7 @@ The following upstream-only workflow files were deliberately deleted (`chore(ci)
 
 Upstream workflows trigger on `main`, `dev`, and `dev-staging`. Paychex uses `develop` and `release/*`. A workflow that keeps the upstream branch list still registers in the Actions tab and never reports a failure — it simply never runs. `eslint-ci.yml` and `cache-integration-tests.yml` were both silently inert for months this way.
 
-**Action:** After every merge, review each `pull_request:` → `branches:` list and rewrite upstream branch names to `develop` / `release/*`. Then confirm the workflow actually fires on the next PR rather than trusting a green checkmark.
+**Action:** After every merge, review each `pull_request:` → `branches:` list and rewrite upstream branch names to `develop` / `release/*`. Then confirm the workflow actually fires on the next PR rather than trusting a green checkmark. The `Forbidden Upstream Workflows` job in `eslint-ci.yml` runs `scripts/check-forbidden-upstream-workflows.sh` on every PR and fails on any `branches:` filter still naming `main`, `dev`, or `dev-staging`.
 
 ## Common Merge Scenarios
 

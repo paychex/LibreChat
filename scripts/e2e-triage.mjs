@@ -85,7 +85,9 @@ console.log('='.repeat(72));
 console.log('E2E TRIAGE');
 console.log('='.repeat(72));
 console.log(`baseline : ${path.relative(process.cwd(), baselinePath)}`);
-console.log(`           ${baseline.environment ?? 'unknown env'} @ ${baseline.commit ?? 'unknown'}`);
+console.log(
+  `           ${baseline.environment ?? 'unknown env'} @ ${baseline.commit ?? 'unknown'}`,
+);
 console.log(`captured : ${baseline.capturedAt ?? 'unknown'}`);
 console.log(`current  : ${path.relative(process.cwd(), reportPath)} (${current.tests.size} tests)`);
 
@@ -101,7 +103,7 @@ section('HARD STOP - Paychex customization regressed', paychexRegressions, (r) =
 section('Upstream behaviour regressed', upstreamRegressions, (r) => `${r.key}`);
 section('Platform / environment regressed', platformRegressions, (r) => `${r.key}`);
 section('Untagged regressions', otherRegressions, (r) => `${r.tag} ${r.key}`);
-section('Newly failing coverage that was already failing', stillFailing, (r) => `${r.tag} ${r.key}`);
+section('Still failing (also failing in baseline)', stillFailing, (r) => `${r.tag} ${r.key}`);
 section('Fixed since baseline', fixed, (r) => `${r.tag} ${r.key}`);
 section('Flaky in this run', nowFlaky, (r) => `${r.tag} ${r.key}`);
 section('New tests (not in baseline)', added, (r) => `${r.tag} ${r.key}`);

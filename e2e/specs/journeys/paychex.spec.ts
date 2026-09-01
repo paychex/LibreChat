@@ -10,40 +10,48 @@ import { closeOverlay, gotoChat } from './helpers';
  * but do NOT work.
  */
 test.describe('Paychex customizations', () => {
-  test('Pendo analytics initializes for the authenticated session', {
-    tag: ['@paychex', '@critical'],
-  }, async ({ page }) => {
-    await gotoChat(page);
+  test(
+    'Pendo analytics initializes for the authenticated session',
+    {
+      tag: ['@paychex', '@critical'],
+    },
+    async ({ page }) => {
+      await gotoChat(page);
 
-    // PendoInitializer must wrap the authenticated layout; without it the
-    // Resource Center ("See newest features") and all tracking disappear.
-    await expect
-      .poll(
-        () =>
-          page.evaluate(() => {
-            const pendo = (window as unknown as { pendo?: Record<string, unknown> }).pendo;
-            return typeof pendo === 'object' && pendo !== null;
-          }),
-        { timeout: 20000, message: 'window.pendo was never initialized' },
-      )
-      .toBe(true);
-  });
+      // PendoInitializer must wrap the authenticated layout; without it the
+      // Resource Center ("See newest features") and all tracking disappear.
+      await expect
+        .poll(
+          () =>
+            page.evaluate(() => {
+              const pendo = (window as unknown as { pendo?: Record<string, unknown> }).pendo;
+              return typeof pendo === 'object' && pendo !== null;
+            }),
+          { timeout: 20000, message: 'window.pendo was never initialized' },
+        )
+        .toBe(true);
+    },
+  );
 
   test('Agent usage tracking element is rendered', { tag: ['@paychex'] }, async ({ page }) => {
     await gotoChat(page);
     await expect(page.locator('#agentUsers')).toBeAttached();
   });
 
-  test('Paychex Changelog is reachable from the account menu', {
-    tag: ['@paychex'],
-  }, async ({ page }) => {
-    await gotoChat(page);
+  test(
+    'Paychex Changelog is reachable from the account menu',
+    {
+      tag: ['@paychex'],
+    },
+    async ({ page }) => {
+      await gotoChat(page);
 
-    await page.getByTestId('nav-user').click();
-    await expect(page.getByRole('menuitem', { name: 'Paychex Changelog' })).toBeVisible();
+      await page.getByTestId('nav-user').click();
+      await expect(page.getByRole('menuitem', { name: 'Paychex Changelog' })).toBeVisible();
 
-    await closeOverlay(page);
-  });
+      await closeOverlay(page);
+    },
+  );
 
   test('Paychex Changelog is linked from the footer', { tag: ['@paychex'] }, async ({ page }) => {
     await gotoChat(page);
@@ -59,7 +67,10 @@ test.describe('Paychex customizations', () => {
     await page.getByTestId('model-selector-button').click();
 
     // The badge lives in the endpoint submenu; the top level lists endpoints only.
-    await page.getByRole('option', { name: /Azure OpenAI/i }).first().click();
+    await page
+      .getByRole('option', { name: /Azure OpenAI/i })
+      .first()
+      .click();
 
     await expect(page.getByLabel('Default model').first()).toBeVisible();
 
@@ -101,18 +112,24 @@ test.describe('Paychex customizations', () => {
     await expect(page.getByRole('radiogroup', { name: 'Visibility' })).toBeVisible();
   });
 
-  test('Prompt Catalog deep link reports an unresolvable prompt', {
-    tag: ['@paychex'],
-  }, async ({ page }) => {
-    // A bogus id deterministically exercises the failure path, so this needs no
-    // seeded catalog entry. Silence here means the resolver hangs instead of
-    // surfacing the error to the user.
-    await page.goto('/c/new?promptCatalogId=e2e-journey-nonexistent-id', {
-      waitUntil: 'domcontentloaded',
-    });
+  test(
+    'Prompt Catalog deep link reports an unresolvable prompt',
+    {
+      tag: ['@paychex'],
+    },
+    async ({ page }) => {
+      // A bogus id deterministically exercises the failure path, so this needs no
+      // seeded catalog entry. Silence here means the resolver hangs instead of
+      // surfacing the error to the user.
+      await page.goto('/c/new?promptCatalogId=e2e-journey-nonexistent-id', {
+        waitUntil: 'domcontentloaded',
+      });
 
-    await expect(page.getByText(/unable to load this prompt catalog prompt/i).first()).toBeVisible({
-      timeout: 30000,
-    });
-  });
+      await expect(
+        page.getByText(/unable to load this prompt catalog prompt/i).first(),
+      ).toBeVisible({
+        timeout: 30000,
+      });
+    },
+  );
 });

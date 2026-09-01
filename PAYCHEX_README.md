@@ -262,6 +262,13 @@ In Copilot Chat (Agent mode) with the playwright tools enabled, prompt the agent
 
 1. Log in to http://localhost:3090
 2. Explore the feature you want covered
-3. Save a new spec to `e2e/specs/mcp-<feature-name>.spec.ts`
+3. Save the new spec into the directory matching the suite that should own it — no other location is picked up by a config:
+
+| Directory | Suite / config | Runs against |
+|-----------|----------------|--------------|
+| `e2e/specs/mock/` | `playwright.config.mock.ts` | Mocked backend, every PR |
+| `e2e/specs/ci/` | `playwright.config.ci.ts` | Deployed env, post-deploy smoke |
+| `e2e/specs/journeys/` | `playwright.config.journeys.ts` | Deployed env, merge-triage journeys (tag `@paychex` / `@upstream` / `@platform`) |
+| `e2e/specs/probe/` | `playwright.config.probe.ts` | Deployed env, non-failing selector probe |
 
 Then review the generated spec like any other PR — the agent can over-assert from a single observation, so a human pass is required before committing.
