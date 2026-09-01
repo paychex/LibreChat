@@ -172,6 +172,16 @@ const MENU_GROUPS: Group[] = [
         what: 'image upload description copy (Paychex UX)',
         run: (p) => seen(p.getByText(/add an image for analysis/i)),
       },
+      {
+        id: 'attachMenu.fileSearchOption',
+        what: 'File Search (RAG) upload option',
+        run: (p) => seen(p.getByRole('menuitem', { name: /file search/i })),
+      },
+      {
+        id: 'attachMenu.codeInterpreterOption',
+        what: 'Code Interpreter upload option',
+        run: (p) => seen(p.getByRole('menuitem', { name: /code interpreter/i })),
+      },
     ],
   },
   {
@@ -312,6 +322,26 @@ test.describe('Selector probe', () => {
 
     const out: string[] = ['', '===== ACCESSIBLE NAME DUMP ====='];
     out.push('--- landing ---', ...(await dump('landing')));
+
+    // Enumerate the real upload options, incl. whether File Search (RAG) is offered.
+    const openedAttach = await page
+      .locator('#attach-file-menu-button')
+      .click()
+      .then(() => true)
+      .catch(() => false);
+    if (openedAttach) {
+      await page.waitForTimeout(800);
+      const items = await page
+        .getByRole('menuitem')
+        .allInnerTexts()
+        .catch(() => [] as string[]);
+      out.push('--- attach file menu items ---');
+      out.push(...items.map((t, i) => `  [attach] ${i}: ${JSON.stringify(t)}`));
+      await page.keyboard.press('Escape').catch(() => undefined);
+      await page.waitForTimeout(400);
+    } else {
+      out.push('--- attach file menu FAILED to open ---');
+    }
 
     // The model menu is where the Paychex DEFAULT badge should render.
     const openedModel = await page
