@@ -13,8 +13,10 @@ test.describe('Upstream v0.8.7 features', () => {
     const skills = page.getByTestId('nav-panel-skills');
     await expect(skills).toBeVisible();
 
+    // Assert the toggle, not a "Skills" accessible name — the nav button itself
+    // carries that name, so matching on it would pass even if nothing opened.
     await skills.click();
-    await expect(page.getByRole('button', { name: /^skills$/i }).first()).toBeVisible();
+    await expect(skills).toHaveAttribute('aria-pressed', 'true');
   });
 
   test('Skills is offered as a tool in the composer', { tag: ['@upstream'] }, async ({ page }) => {

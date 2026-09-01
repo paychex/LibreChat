@@ -24,7 +24,7 @@
       "selector": "page.evaluate(() => typeof window.pendo === 'object')",
       "verified": "probe",
       "tag": "@paychex",
-      "spec": "TODO:phase3/pendo.spec.ts"
+      "spec": "e2e/specs/journeys/paychex.spec.ts"
     },
     {
       "id": "pendo.agentUsers",
@@ -34,7 +34,7 @@
       "selector": "#agentUsers",
       "verified": "probe",
       "tag": "@paychex",
-      "spec": "TODO:phase3/pendo.spec.ts"
+      "spec": "e2e/specs/journeys/paychex.spec.ts"
     },
     {
       "id": "changelog.accountMenu",
@@ -44,7 +44,7 @@
       "selector": "getByTestId('nav-user').click() -> getByRole('menuitem', { name: 'Paychex Changelog' })",
       "verified": "probe",
       "tag": "@paychex",
-      "spec": "TODO:phase3/changelog.spec.ts"
+      "spec": "e2e/specs/journeys/paychex.spec.ts"
     },
     {
       "id": "changelog.footer",
@@ -55,7 +55,7 @@
       "verified": "probe",
       "note": "Footer also exposes a 'LibreChat v0.8.7' link — useful as a version assertion after upgrades.",
       "tag": "@paychex",
-      "spec": "TODO:phase3/changelog.spec.ts"
+      "spec": "e2e/specs/journeys/paychex.spec.ts"
     },
     {
       "id": "promptCatalog.sideNav",
@@ -73,7 +73,7 @@
       "verified": "probe",
       "note": "#prompt-catalog does NOT exist. The panel is NOT its own navigation landmark — assert the searchbox instead.",
       "tag": "@paychex",
-      "spec": "TODO:phase3/prompt-catalog.spec.ts"
+      "spec": "e2e/specs/journeys/paychex.spec.ts"
     },
     {
       "id": "promptCatalog.deepLink",
@@ -84,7 +84,7 @@
       "verified": "probe",
       "note": "Deterministic without a real catalog entry: a bogus id always takes the failure path. Toast copy = com_ui_prompt_catalog_insert_error.",
       "tag": "@paychex",
-      "spec": "TODO:phase3/prompt-catalog.spec.ts"
+      "spec": "e2e/specs/journeys/paychex.spec.ts"
     },
     {
       "id": "toolsDropdown.descriptions",
@@ -95,7 +95,7 @@
       "verified": "probe",
       "note": "Trigger is named 'Tools Options', NOT 'Tools'. Only File Search / Web Search / Code Interpreter use the declarative path; Skills and Artifacts render custom submenus and have no description BY DESIGN — do not assert one for them. data-testid='tools-menu-skills' exists on the Skills item.",
       "tag": "@paychex",
-      "spec": "TODO:phase3/menu-descriptions.spec.ts"
+      "spec": "e2e/specs/journeys/paychex.spec.ts"
     },
     {
       "id": "attachFileMenu.descriptions",
@@ -106,7 +106,7 @@
       "verified": "probe",
       "note": "Do NOT locate the trigger by /attach file/i — it also matches the 'Attach Files' nav panel and trips strict mode. Visible items depend on enabled capabilities; locally only Upload Image + Upload as Text appear.",
       "tag": "@paychex",
-      "spec": "TODO:phase3/menu-descriptions.spec.ts"
+      "spec": "e2e/specs/journeys/paychex.spec.ts"
     },
     {
       "id": "modelSelector.defaultBadge",
@@ -117,7 +117,7 @@
       "verified": "probe",
       "note": "Badge lives in the ENDPOINT SUBMENU, not the top-level list — the top level shows endpoints only, which is why the n2a probe missed it. Badge renders the star and DEFAULT inside ONE span, so getByText('DEFAULT', {exact:true}) can never match; use the 'Default model' accessible name.",
       "tag": "@paychex",
-      "spec": "TODO:phase3/model-selector.spec.ts"
+      "spec": "e2e/specs/journeys/paychex.spec.ts"
     }
   ],
 
