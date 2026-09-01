@@ -1,0 +1,153 @@
+{
+  "capturedAt": "2026-09-01T12:07:53.349Z",
+  "environment": "n2a",
+  "commit": "30c53158974db671a97183708147992dfcc9d8fd",
+  "stats": {
+    "startTime": "2026-09-01T11:47:59.744Z",
+    "duration": 48188.229,
+    "expected": 17,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "tests": {
+    "journeys/paychex.spec.ts :: Paychex customizations > Agent usage tracking element is rendered": {
+      "status": "passed",
+      "tag": "@paychex",
+      "tags": [
+        "@paychex"
+      ],
+      "file": "journeys/paychex.spec.ts"
+    },
+    "journeys/paychex.spec.ts :: Paychex customizations > Attach file menu items show descriptions": {
+      "status": "passed",
+      "tag": "@paychex",
+      "tags": [
+        "@paychex"
+      ],
+      "file": "journeys/paychex.spec.ts"
+    },
+    "journeys/paychex.spec.ts :: Paychex customizations > Default model is badged in the model selector": {
+      "status": "passed",
+      "tag": "@paychex",
+      "tags": [
+        "@paychex"
+      ],
+      "file": "journeys/paychex.spec.ts"
+    },
+    "journeys/paychex.spec.ts :: Paychex customizations > Paychex Changelog is linked from the footer": {
+      "status": "passed",
+      "tag": "@paychex",
+      "tags": [
+        "@paychex"
+      ],
+      "file": "journeys/paychex.spec.ts"
+    },
+    "journeys/paychex.spec.ts :: Paychex customizations > Paychex Changelog is reachable from the account menu": {
+      "status": "passed",
+      "tag": "@paychex",
+      "tags": [
+        "@paychex"
+      ],
+      "file": "journeys/paychex.spec.ts"
+    },
+    "journeys/paychex.spec.ts :: Paychex customizations > Pendo analytics initializes for the authenticated session": {
+      "status": "passed",
+      "tag": "@paychex",
+      "tags": [
+        "@paychex",
+        "@critical"
+      ],
+      "file": "journeys/paychex.spec.ts"
+    },
+    "journeys/paychex.spec.ts :: Paychex customizations > Prompt Catalog deep link reports an unresolvable prompt": {
+      "status": "passed",
+      "tag": "@paychex",
+      "tags": [
+        "@paychex"
+      ],
+      "file": "journeys/paychex.spec.ts"
+    },
+    "journeys/paychex.spec.ts :: Paychex customizations > Prompt Catalog panel opens with its controls": {
+      "status": "passed",
+      "tag": "@paychex",
+      "tags": [
+        "@paychex"
+      ],
+      "file": "journeys/paychex.spec.ts"
+    },
+    "journeys/paychex.spec.ts :: Paychex customizations > Tools menu items show descriptions": {
+      "status": "passed",
+      "tag": "@paychex",
+      "tags": [
+        "@paychex"
+      ],
+      "file": "journeys/paychex.spec.ts"
+    },
+    "journeys/platform.spec.ts :: Platform health > Composer accepts input and enables sending": {
+      "status": "passed",
+      "tag": "@platform",
+      "tags": [
+        "@platform",
+        "@critical"
+      ],
+      "file": "journeys/platform.spec.ts"
+    },
+    "journeys/platform.spec.ts :: Platform health > Control Panel landmark is present": {
+      "status": "passed",
+      "tag": "@platform",
+      "tags": [
+        "@platform"
+      ],
+      "file": "journeys/platform.spec.ts"
+    },
+    "journeys/platform.spec.ts :: Platform health > Model selector lists selectable endpoints": {
+      "status": "passed",
+      "tag": "@platform",
+      "tags": [
+        "@platform"
+      ],
+      "file": "journeys/platform.spec.ts"
+    },
+    "journeys/platform.spec.ts :: Platform health > Side navigation exposes the expected panels": {
+      "status": "passed",
+      "tag": "@platform",
+      "tags": [
+        "@platform"
+      ],
+      "file": "journeys/platform.spec.ts"
+    },
+    "journeys/upstream.spec.ts :: Upstream v0.8.7 features > Agent Builder panel opens": {
+      "status": "passed",
+      "tag": "@upstream",
+      "tags": [
+        "@upstream"
+      ],
+      "file": "journeys/upstream.spec.ts"
+    },
+    "journeys/upstream.spec.ts :: Upstream v0.8.7 features > MCP servers control is present in the composer": {
+      "status": "passed",
+      "tag": "@upstream",
+      "tags": [
+        "@upstream"
+      ],
+      "file": "journeys/upstream.spec.ts"
+    },
+    "journeys/upstream.spec.ts :: Upstream v0.8.7 features > Skills is offered as a tool in the composer": {
+      "status": "passed",
+      "tag": "@upstream",
+      "tags": [
+        "@upstream"
+      ],
+      "file": "journeys/upstream.spec.ts"
+    },
+    "journeys/upstream.spec.ts :: Upstream v0.8.7 features > Skills panel is available in the side nav": {
+      "status": "passed",
+      "tag": "@upstream",
+      "tags": [
+        "@upstream"
+      ],
+      "file": "journeys/upstream.spec.ts"
+    }
+  }
+}
