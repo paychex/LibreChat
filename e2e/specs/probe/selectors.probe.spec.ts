@@ -330,6 +330,44 @@ test.describe('Selector probe', () => {
     expect(typeof shown).toBe('boolean');
   });
 
+  test('report the configured default model spec', async ({ page }) => {
+    await page.goto('/c/new', { waitUntil: 'domcontentloaded' });
+
+    const response = await page.request.get('/api/config');
+    const body = response.ok()
+      ? ((await response.json()) as {
+          modelSpecs?: {
+            list?: Array<{
+              name: string;
+              label?: string;
+              default?: boolean;
+              group?: string;
+              preset?: { endpoint?: string };
+            }>;
+          };
+        })
+      : null;
+
+    const list = body?.modelSpecs?.list ?? [];
+    const spec = list.find((entry) => entry.default === true);
+
+    // Confirms the values the journey suite navigates by are actually present in the
+    // deployed config, and shows what to compare against the rendered submenu labels.
+    console.log(
+      [
+        '',
+        '===== DEFAULT MODEL SPEC (/api/config) =====',
+        `  status:   ${response.status()}`,
+        `  specs:    ${list.length}`,
+        `  default:  ${spec ? JSON.stringify({ name: spec.name, label: spec.label, group: spec.group, endpoint: spec.preset?.endpoint }) : '<NONE FLAGGED>'}`,
+        '============================================',
+        '',
+      ].join('\n'),
+    );
+
+    expect(typeof list.length).toBe('number');
+  });
+
   test('enumerate real accessible names and ids', async ({ page }) => {
     test.setTimeout(180000);
 

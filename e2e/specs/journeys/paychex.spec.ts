@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { closeOverlay, gotoChat } from './helpers';
+import { closeOverlay, getDefaultModelSpec, gotoChat, openModelSpecOption } from './helpers';
 
 /**
  * Paychex-owned customizations. A failure here means a merge or deploy removed
@@ -64,15 +64,22 @@ test.describe('Paychex customizations', () => {
   test('Default model is badged in the model selector', { tag: ['@paychex'] }, async ({ page }) => {
     await gotoChat(page);
 
-    await page.getByTestId('model-selector-button').click();
+    const spec = await getDefaultModelSpec(page);
+    if (!spec) {
+      throw new Error(
+        'No model spec is flagged `default: true` in the deployed config. This is an ' +
+          'environment/config problem, not a missing Paychex customization.',
+      );
+    }
 
-    // The badge lives in the endpoint submenu; the top level lists endpoints only.
-    await page
-      .getByRole('option', { name: /Azure OpenAI/i })
-      .first()
-      .click();
+    const option = await openModelSpecOption(page, spec);
 
-    await expect(page.getByLabel('Default model').first()).toBeVisible();
+    // Scoped to the resolved spec: an unscoped badge lookup would pass even if the
+    // star landed on the wrong model.
+    await expect(
+      option.getByLabel('Default model'),
+      `"${spec.label}" is flagged default but renders no DEFAULT badge`,
+    ).toBeVisible();
 
     await closeOverlay(page);
   });

@@ -112,10 +112,10 @@
       "id": "modelSelector.defaultBadge",
       "owner": "paychex",
       "critical": false,
-      "what": "Star + DEFAULT badge on the model spec flagged default:true (azure-gpt-5.4-mini)",
-      "selector": "getByTestId('model-selector-button') -> getByRole('option', { name: /Azure OpenAI/ }) -> getByLabel('Default model')",
+      "what": "Star + DEFAULT badge on the model spec flagged default:true",
+      "selector": "GET /api/config -> modelSpecs.list.find(s => s.default) -> open its group/endpoint submenu -> option(spec.label) contains getByLabel('Default model')",
       "verified": "probe",
-      "note": "Badge lives in the ENDPOINT SUBMENU, not the top-level list — the top level shows endpoints only, which is why the n2a probe missed it. Badge renders the star and DEFAULT inside ONE span, so getByText('DEFAULT', {exact:true}) can never match; use the 'Default model' accessible name.",
+      "note": "Which spec is default comes from /api/config, NOT hardcoded - a model or endpoint rename must not read as a Paychex regression. Badge lives in the ENDPOINT SUBMENU when preset.endpoint maps to a rendered endpoint (top level shows endpoints only), in a CUSTOM GROUP submenu when spec.group is set, otherwise at top level; submenus mount lazily, so the badge is not in the DOM until opened. Search results do NOT render the badge (SearchResults.tsx has its own markup), so the search box cannot be used to shortcut navigation. Badge renders the star and DEFAULT inside ONE span, so getByText('DEFAULT', {exact:true}) can never match; use the 'Default model' accessible name.",
       "tag": "@paychex",
       "spec": "e2e/specs/journeys/paychex.spec.ts"
     }
