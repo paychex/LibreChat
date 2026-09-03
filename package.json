@@ -54,6 +54,8 @@
     "frontend:ci": "npm run build:data-provider && npm run build:client-package && cd client && npm run build:ci",
     "frontend:dev": "cd client && npm run dev",
     "e2e:prepare": "npm run frontend",
+    "e2e:seed": "node e2e/setup/seed-test-account.js",
+    "e2e:ci:deployed": "playwright test --config=e2e/playwright.config.ci.ts",
     "e2e:journeys": "playwright test --config=e2e/playwright.config.journeys.ts",
     "e2e:probe": "playwright test --config=e2e/playwright.config.probe.ts",
     "e2e:baseline": "node scripts/e2e-baseline.mjs",

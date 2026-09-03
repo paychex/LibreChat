@@ -95,7 +95,7 @@ With your local dev server running, prompt the agent something like:
 
 The agent will explore the page, then write the spec file.
 
-Only specs under `e2e/specs/mock/`, `ci/`, `journeys/`, or `probe/` are collected by a config — a spec written anywhere else runs in no suite. See the table in `PAYCHEX_README.md` → *Generating new specs*.
+Only specs under `e2e/specs/mock/`, `ci/`, `journeys/`, `probe/`, or `real/` are collected by a suite config — a spec left directly in `e2e/specs/` runs only in the legacy local suite. See the table in `PAYCHEX_README.md` → *Generating new specs*.
 
 ## Step 8 — Run the generated spec
 

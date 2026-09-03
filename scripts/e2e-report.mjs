@@ -19,7 +19,9 @@ function statusOf(spec) {
 function walk(suites, ancestry, out) {
   for (const suite of suites ?? []) {
     // Playwright names the outermost suite after the file, which is already in the key.
-    const isFileSuite = suite.title === suite.file;
+    // `title` uses OS-native separators while `file` is always POSIX, so a report
+    // generated on Windows only matches a Linux-captured baseline after normalising.
+    const isFileSuite = (suite.title ?? '').replace(/\\/g, '/') === suite.file;
     const path = suite.title && !isFileSuite ? [...ancestry, suite.title] : ancestry;
 
     for (const spec of suite.specs ?? []) {

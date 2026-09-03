@@ -158,7 +158,10 @@ jobs:
           key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Run E2E Tests
-        run: npx playwright test --config=e2e/playwright.config.${{ github.event.inputs.suite || 'ci' }}.ts
+        # Passed through env rather than interpolated into the script body.
+        env:
+          SUITE: ${{ github.event.inputs.suite || 'ci' }}
+        run: npx playwright test --config="e2e/playwright.config.$SUITE.ts"
 
       # always() rather than failure(): a job cancelled by timeout is not a failure,
       # and that is exactly when the report is most needed.
