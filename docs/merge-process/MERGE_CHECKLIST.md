@@ -19,6 +19,9 @@
   1. Run the journey suite against a healthy env (Actions → E2E Tests → `suite: journeys`)
   2. Download the run artifact, then:
      `npm run e2e:baseline -- --report <artifact>/results-journeys/results.json --env n2a`
+     Capture refuses to run if any test failed or was skipped — fix the environment and
+     re-run rather than reaching for `--allow-dirty`, because a test baselined as
+     non-passing can never report a regression again.
   3. Commit the refreshed `e2e/baseline.json` on the integration branch
 
 ---

@@ -7,6 +7,9 @@
  *
  * Usage:
  *   node scripts/e2e-baseline.mjs [--report <results.json>] [--out <baseline.json>] [--env n2a]
+ *                                 [--allow-dirty]
+ *
+ * Exit codes: 0 = baseline written, 1 = report unusable or not known-good.
  */
 import fs from 'fs';
 import path from 'path';
@@ -21,6 +24,7 @@ function arg(name, fallback) {
 const reportPath = path.resolve(arg('report', 'e2e/results-journeys/results.json'));
 const outPath = path.resolve(arg('out', 'e2e/baseline.json'));
 const environment = arg('env', process.env.E2E_ENVIRONMENT ?? 'unknown');
+const allowDirty = process.argv.includes('--allow-dirty');
 
 function gitRev() {
   try {
@@ -37,13 +41,32 @@ if (tests.size === 0) {
   process.exit(1);
 }
 
-const failing = [...tests.values()].filter((t) => t.status === 'failed');
-if (failing.length > 0) {
-  console.warn(
-    `WARNING: baselining ${failing.length} FAILING test(s). ` +
-      'A baseline should normally be captured from a healthy run.',
+// A failed or skipped entry is recorded as "not passing", and triage only reports a
+// regression on pass -> fail. Baselining either state therefore permanently disables
+// the HARD STOP for that test, which is the one guarantee this tooling exists to give.
+const notKnownGood = [...tests.values()].filter(
+  (t) => t.status === 'failed' || t.status === 'skipped',
+);
+if (notKnownGood.length > 0) {
+  const log = allowDirty ? console.warn : console.error;
+  log(
+    `${allowDirty ? 'WARNING' : 'Refusing to write baseline'}: ${notKnownGood.length} test(s) ` +
+      'did not pass. A baseline must be captured from a healthy run, or these tests can ' +
+      'never report a regression again.',
   );
-  for (const t of failing) console.warn(`  failing: ${t.key}`);
+  for (const t of notKnownGood) log(`  ${t.status.padEnd(7)} ${tagOf(t)} ${t.key}`);
+  if (!allowDirty) {
+    console.error('\nFix the environment and re-run, or pass --allow-dirty to accept this state.');
+    process.exit(1);
+  }
+}
+
+// Flaky is deliberately accepted: triage counts it as a pass, so a flaky baseline entry
+// still hard-stops if it turns into a hard failure after a merge.
+const flaky = [...tests.values()].filter((t) => t.status === 'flaky');
+if (flaky.length > 0) {
+  console.warn(`WARNING: baselining ${flaky.length} FLAKY test(s) as passing.`);
+  for (const t of flaky) console.warn(`  flaky: ${t.key}`);
 }
 
 const baseline = {

@@ -77,6 +77,13 @@ jobs:
 
     steps:
       - name: Checkout
+        # This selects the TEST CODE only; the system under test is the already-deployed
+        # E2E_BASE_URL, so a mismatch costs signal quality, not correctness.
+        # Two known drifts: `head_branch` is a mutable branch name, so it resolves to the
+        # branch tip rather than the built commit; and a manual deploy dispatch that sets
+        # `branch:` still reports the ref it was launched from, so specs from that ref run
+        # against an image built from another. Pinning the built SHA needs the deploy to
+        # publish it as an artifact - job outputs are not exposed on workflow_run.
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.test_branch || github.event.workflow_run.head_branch || 'develop' }}

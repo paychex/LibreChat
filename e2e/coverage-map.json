@@ -20,8 +20,8 @@
       "id": "pendo.initializer",
       "owner": "paychex",
       "critical": true,
-      "what": "PendoInitializer wraps AuthLayout; SDK loaded for authenticated session",
-      "selector": "page.evaluate(() => typeof window.pendo === 'object')",
+      "what": "PendoInitializer wraps AuthLayout; the injector runs for the authenticated session (window.pendo queue stub + #pendo-script tag). Does NOT assert the CDN agent loaded or that pendo.isReady() is true — that would make a @paychex hard stop depend on cdn.pendo.io being reachable.",
+      "selector": "page.evaluate(() => typeof window.pendo === 'object') + script#pendo-script[src^=https://cdn.pendo.io/agent/static/]",
       "verified": "probe",
       "tag": "@paychex",
       "spec": "e2e/specs/journeys/paychex.spec.ts"

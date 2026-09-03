@@ -30,6 +30,15 @@ test.describe('Paychex customizations', () => {
           { timeout: 20000, message: 'window.pendo was never initialized' },
         )
         .toBe(true);
+
+      // injectPendoScript() installs the window.pendo queue stub synchronously, so the
+      // check above alone would also pass if the script tag were never appended.
+      // Asserting the tag proves the initializer ran end to end without making this
+      // @paychex hard stop depend on cdn.pendo.io being reachable from the runner.
+      await expect(page.locator('script#pendo-script')).toHaveAttribute(
+        'src',
+        /^https:\/\/cdn\.pendo\.io\/agent\/static\/.+\/pendo\.js$/,
+      );
     },
   );
 

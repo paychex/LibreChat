@@ -31,15 +31,31 @@ if (!fs.existsSync(baselinePath)) {
 }
 
 let current;
+let baseline;
 try {
   current = readReport(reportPath);
+  baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
 } catch (err) {
   console.error(String(err.message ?? err));
   process.exit(2);
 }
 
-const baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
-const baseTests = baseline.tests ?? {};
+// An empty or malformed test map would make every current test read as "new", so a run
+// full of failures would report a clean bill of health.
+if (
+  baseline === null ||
+  typeof baseline !== 'object' ||
+  baseline.tests === null ||
+  typeof baseline.tests !== 'object' ||
+  Array.isArray(baseline.tests) ||
+  Object.keys(baseline.tests).length === 0
+) {
+  console.error(`Baseline at ${baselinePath} has no usable "tests" map. Recapture it:`);
+  console.error('  node scripts/e2e-baseline.mjs --env n2a');
+  process.exit(2);
+}
+
+const baseTests = baseline.tests;
 
 const isPass = (status) => status === 'passed' || status === 'flaky';
 
@@ -49,15 +65,24 @@ const added = [];
 const removed = [];
 const stillFailing = [];
 const nowFlaky = [];
+const retagged = [];
+
+const baselineTagOf = (before) => before.tag ?? tagOf({ tags: before.tags ?? [] });
 
 for (const [key, entry] of current.tests) {
   const before = baseTests[key];
-  const tag = tagOf(entry);
 
   if (!before) {
-    added.push({ key, tag, status: entry.status });
+    added.push({ key, tag: tagOf(entry), status: entry.status });
     continue;
   }
+
+  // Ownership comes from the baseline: a merge that strips '@paychex' off an existing
+  // spec must not be able to downgrade its own hard stop.
+  const tag = baselineTagOf(before);
+  const currentTag = tagOf(entry);
+  if (currentTag !== tag) retagged.push({ key, from: tag, to: currentTag });
+
   if (entry.status === 'flaky') nowFlaky.push({ key, tag });
 
   if (isPass(before.status) && !isPass(entry.status)) {
@@ -71,7 +96,7 @@ for (const [key, entry] of current.tests) {
 
 for (const [key, before] of Object.entries(baseTests)) {
   if (!current.tests.has(key)) {
-    removed.push({ key, tag: before.tag ?? tagOf({ tags: before.tags ?? [] }) });
+    removed.push({ key, tag: baselineTagOf(before) });
   }
 }
 
@@ -107,6 +132,13 @@ section('Still failing (also failing in baseline)', stillFailing, (r) => `${r.ta
 section('Fixed since baseline', fixed, (r) => `${r.tag} ${r.key}`);
 section('Flaky in this run', nowFlaky, (r) => `${r.tag} ${r.key}`);
 section('New tests (not in baseline)', added, (r) => `${r.tag} ${r.key}`);
+// Classification still uses the baseline tag, so drift is informational — but losing
+// '@paychex' off a spec is itself a sign the merge touched a Paychex-owned test.
+section(
+  'Audience tag changed since baseline (classified using the baseline tag)',
+  retagged,
+  (r) => `${r.from} -> ${r.to}  ${r.key}`,
+);
 
 // Coverage deleted during a merge is as dangerous as coverage failing.
 const removedPaychex = removed.filter((r) => r.tag === '@paychex');

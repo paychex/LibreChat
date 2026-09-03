@@ -12,6 +12,9 @@ on:
       - 'e2e/**'
       - 'scripts/**'
       - '.github/workflows/**'
+      # check-forbidden-upstream-workflows.sh also guards support scripts and .do/,
+      # so a PR restoring only those must still trigger this workflow.
+      - '.github/scripts/**'
       - '.do/**'
 
 jobs:
