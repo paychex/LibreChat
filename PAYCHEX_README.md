@@ -227,7 +227,7 @@ The MCP server is pre-configured in [.vscode/mcp.json](.vscode/mcp.json). To act
 
 ### Run generated specs
 
-Generated specs live alongside the existing suite at [e2e/specs/](e2e/specs/) with an `mcp-` prefix. Run them with:
+Generated specs live in the suite directory that owns them under [e2e/specs/](e2e/specs/) — see the table in *Generating new specs* below. Run them with:
 
 ```bash
 npm run e2e:seed             # create test account in local MongoDB (first time only)
@@ -262,6 +262,18 @@ In Copilot Chat (Agent mode) with the playwright tools enabled, prompt the agent
 
 1. Log in to http://localhost:3090
 2. Explore the feature you want covered
-3. Save a new spec to `e2e/specs/mcp-<feature-name>.spec.ts`
+3. Save the new spec into the directory matching the suite that should own it:
+
+| Directory | Suite / config | Runs against |
+|-----------|----------------|--------------|
+| `e2e/specs/mock/` | `playwright.config.mock.ts` | Mocked backend, every PR |
+| `e2e/specs/ci/` | `playwright.config.ci.ts` | Deployed env, post-deploy smoke |
+| `e2e/specs/journeys/` | `playwright.config.journeys.ts` | Deployed env, merge-triage journeys (tag `@paychex` / `@upstream` / `@platform`) |
+| `e2e/specs/probe/` | `playwright.config.probe.ts` | Deployed env, non-failing selector probe |
+| `e2e/specs/real/` | `playwright.config.real.ts` | Deployed env, credentialed manual runs |
+
+Specs left directly in `e2e/specs/` fall into the legacy local suite (`npm run e2e`,
+`playwright.config.local.ts`) and the a11y suite. Prefer one of the directories above
+so the spec has an owning suite that actually runs in CI.
 
 Then review the generated spec like any other PR — the agent can over-assert from a single observation, so a human pass is required before committing.

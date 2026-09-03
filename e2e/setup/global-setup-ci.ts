@@ -11,7 +11,7 @@
  *   E2E_USERNAME  — Test account email (e.g. libre_playwright_np@paychex.com)
  *   E2E_PASSWORD  — Test account password
  */
-import { chromium, FullConfig, Page } from '@playwright/test';
+import { chromium, Page } from '@playwright/test';
 import path from 'path';
 
 const BASE_URL = process.env.E2E_BASE_URL;
@@ -179,7 +179,7 @@ async function loginAzureAD(
   console.log('  ✓ Successfully authenticated via Azure AD — LibreChat loaded');
 }
 
-export default async function globalSetup(_config: FullConfig): Promise<void> {
+export default async function globalSetup(): Promise<void> {
   if (!BASE_URL) {
     throw new Error('E2E_BASE_URL environment variable is required');
   }
@@ -199,6 +199,8 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
   // the username/password form that headless automation requires.
   const browser = await chromium.launch({
     headless: true,
+    // Must match the project channel; CI has no bundled Chromium to fall back on.
+    ...(process.env.E2E_CHROMIUM_CHANNEL ? { channel: process.env.E2E_CHROMIUM_CHANNEL } : {}),
     args: ['--auth-server-allowlist="_"'],
   });
   const context = await browser.newContext({ ignoreHTTPSErrors: true });

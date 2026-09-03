@@ -36,7 +36,7 @@ jobs:
         outputs:
           commit_sha: ${{ steps.commit_sha.outputs.sha }}
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v5
               with:
                 fetch-depth: 0 # fetch all branches and tags
                 ref: ${{ github.event.inputs.branch || github.ref }}
@@ -101,7 +101,7 @@ jobs:
           group: n2a-deploy
           cancel-in-progress: false
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v5
               with:
                 fetch-depth: 0
                 ref: ${{ github.event.inputs.branch || github.ref }}

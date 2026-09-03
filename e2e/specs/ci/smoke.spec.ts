@@ -38,7 +38,7 @@ test.describe('Smoke Tests — Deployed Environment', () => {
     await settingsItem.click();
 
     // Headless UI dialog may report hidden to the accessibility tree;
-    // validate via the heading inside the modal (proven pattern from mcp-helpers)
+    // validate via the heading inside the modal instead.
     const heading = page.getByRole('heading', { name: 'Settings', level: 2 });
     await expect(heading).toBeVisible({ timeout: 5000 });
   });

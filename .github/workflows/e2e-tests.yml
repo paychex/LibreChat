@@ -1,18 +1,18 @@
+# Post-deploy verification. This workflow runs AFTER a deploy has already gone live and
+# MUST NOT be made a required status check or a `needs:` of any deploy job - a red run
+# here must never block or roll back a deployment.
 name: E2E Tests
 
 on:
-  # Run after N2A deploy completes
+  # Runs after a deploy completes. A workflow may declare only one `workflow_run` key,
+  # so both deploy workflows are listed here; the matrix below picks the environment.
   workflow_run:
-    workflows: ["N2A - Build and Push"]
+    workflows: ["N2A - Build and Push", "N1 - Build and Push"]
     types: [completed]
-    branches: [develop]
+    branches: [develop, 'release/*']
 
-  # Run after N1 deploy completes
-  # workflow_run:
-  #   workflows: ["N1 - Build and Push"]
-  #   types: [completed]
-
-  # Nightly schedule (UTC) — 6 AM UTC = ~1-2 AM ET
+  # Nightly schedule (UTC) — 6 AM UTC = ~1-2 AM ET. Catches environment drift
+  # (expired test-account passwords, cert rotation, MCP outages) between deploys.
   schedule:
     - cron: '0 6 * * *'
 
@@ -32,6 +32,22 @@ on:
         required: false
         default: 'develop'
         type: string
+      suite:
+        description: 'Which suite to run'
+        required: false
+        default: 'ci'
+        type: choice
+        options:
+          - ci
+          - journeys
+          - probe
+
+# Serialize runs so overlapping deploys don't collide on the shared test account.
+# ref_name is the short form, so a scheduled run lands in the same group as a
+# deploy-triggered run on the same branch.
+concurrency:
+  group: e2e-tests-${{ github.event.workflow_run.head_branch || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   e2e:
@@ -41,13 +57,15 @@ jobs:
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'success'
-    timeout-minutes: 15
+    # Cold-cache runs pay the full browser download; warm runs finish in ~2 min.
+    timeout-minutes: 35
 
     strategy:
       fail-fast: false
       matrix:
         environment: ${{ fromJSON(
           github.event_name == 'workflow_dispatch' && format('["{0}"]', github.event.inputs.environment) ||
+          github.event.workflow_run.name == 'N1 - Build and Push' && '["n1"]' ||
           github.event_name == 'workflow_run' && '["n2a"]' ||
           '["n2a", "n1"]'
           ) }}
@@ -59,38 +77,124 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        # This selects the TEST CODE only; the system under test is the already-deployed
+        # E2E_BASE_URL, so a mismatch costs signal quality, not correctness.
+        # Two known drifts: `head_branch` is a mutable branch name, so it resolves to the
+        # branch tip rather than the built commit; and a manual deploy dispatch that sets
+        # `branch:` still reports the ref it was launched from, so specs from that ref run
+        # against an image built from another. Pinning the built SHA needs the deploy to
+        # publish it as an artifact - job outputs are not exposed on workflow_run.
+        uses: actions/checkout@v5
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.test_branch || 'develop' }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.test_branch || github.event.workflow_run.head_branch || 'develop' }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
+          # Pinned to 20: Playwright 1.56's installer hangs during extraction under
+          # Node 24.16.0 on these runners. The same command installs in 10s on Node 20.
           node-version: '20'
 
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            node_modules
+            client/node_modules
+            packages/client/node_modules
+            packages/data-provider/node_modules
+            packages/data-schemas/node_modules
+            packages/api/node_modules
+            api/node_modules
+          key: node-modules-e2e-ci-${{ runner.os }}-20-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        id: install-deps
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: bash scripts/ci-npm-install.sh
 
+      # Gated on install success: a partial node_modules must never be cached, or
+      # every later run restores the broken state and skips the install entirely.
+      - name: Save node_modules cache
+        if: steps.install-deps.outcome == 'success' && steps.cache-node-modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            node_modules
+            client/node_modules
+            packages/client/node_modules
+            packages/data-provider/node_modules
+            packages/data-schemas/node_modules
+            packages/api/node_modules
+            api/node_modules
+          key: node-modules-e2e-ci-${{ runner.os }}-20-${{ hashFiles('package-lock.json') }}
+
+      - name: Restore Playwright browser cache
+        id: cache-playwright
+        uses: actions/cache/restore@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      # Plain install: on Node 20 this lands both chromium and the headless shell.
+      # Verify the executable itself, not the directory - a truncated install leaves
+      # the directory behind, so only the missing binary reveals it.
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        id: install-browsers
+        timeout-minutes: 10
+        run: |
+          npx playwright install chromium
+          test -x "$HOME"/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell
+
+      # Best-effort: this shells out to apt and fails intermittently on the ARC
+      # runners, but chromium_headless_shell runs without the full dependency set
+      # (Playwright only warns). A flaky apt mirror must not fail a deploy check.
+      - name: Install Playwright OS dependencies
+        timeout-minutes: 10
+        continue-on-error: true
+        run: npx playwright install-deps chromium
+
+      # Gated on the install step, not always(): a truncated install must never be
+      # cached, or every later run restores the broken state.
+      - name: Save Playwright browser cache
+        if: steps.install-browsers.outcome == 'success' && steps.cache-playwright.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Run E2E Tests
-        run: npx playwright test --config=e2e/playwright.config.ci.ts
+        # Passed through env rather than interpolated into the script body.
+        env:
+          SUITE: ${{ github.event.inputs.suite || 'ci' }}
+        run: npx playwright test --config="e2e/playwright.config.$SUITE.ts"
 
+      # always() rather than failure(): a job cancelled by timeout is not a failure,
+      # and that is exactly when the report is most needed.
       - name: Upload Playwright Report
-        if: failure()
-        uses: actions/upload-artifact@v4
+        if: always()
+        uses: actions/upload-artifact@v5
         with:
           name: playwright-report-${{ matrix.environment }}
           path: |
             e2e/playwright-report-ci/
+            e2e/results-ci/
+            e2e/playwright-report-journeys/
+            e2e/results-journeys/
+            e2e/results-probe/
             e2e/auth-failure.png
           retention-days: 14
+          if-no-files-found: warn
 
       - name: Upload Test Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-results-${{ matrix.environment }}
-          path: e2e/specs/.test-results-ci/
+          path: |
+            e2e/test-results-ci/
+            e2e/test-results-journeys/
+            e2e/test-results-probe/
           retention-days: 7
+          if-no-files-found: ignore

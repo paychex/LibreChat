@@ -4,6 +4,9 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:3080';
+// Set to 'chrome' in CI to use the runner's system Chrome instead of downloading
+// Playwright's bundled Chromium; see playwright.config.mock.ts for the same pattern.
+const chromiumChannel = process.env.E2E_CHROMIUM_CHANNEL || undefined;
 const isLocal = (() => {
   try {
     const { hostname } = new URL(BASE_URL);
@@ -32,8 +35,9 @@ const absolutePath = path.resolve(process.cwd(), 'api/server/index.js');
 export default defineConfig({
   globalSetup: path.resolve(__dirname, 'setup', 'global-setup-ci.ts'),
   testDir: path.resolve(__dirname, 'specs'),
-  outputDir: path.resolve(__dirname, 'specs', '.test-results-ci'),
-  testMatch: /(?:mcp-.*\.spec|ci\/.*\.spec)\.ts/,
+  // Not a hidden directory: actions/upload-artifact skips dot-prefixed paths by default.
+  outputDir: path.resolve(__dirname, 'test-results-ci'),
+  testMatch: /ci[\\/].*\.spec\.ts$/,
   fullyParallel: false,
   forbidOnly: true,
   retries: 2,
@@ -41,6 +45,8 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['html', { outputFolder: path.resolve(__dirname, 'playwright-report-ci'), open: 'never' }],
+    // Consumed by scripts/e2e-triage.mjs to attribute failures across upstream upgrades.
+    ['json', { outputFile: path.resolve(__dirname, 'results-ci', 'results.json') }],
   ],
   use: {
     baseURL: BASE_URL,
@@ -52,6 +58,8 @@ export default defineConfig({
      * crashes the first retry instead of recording it. Traces cover debugging. */
     video: 'off',
     storageState: path.resolve(__dirname, 'storageState.ci.json'),
+    // Without this a removed element burns the full 30s test timeout instead of failing fast.
+    actionTimeout: 10000,
   },
   expect: {
     timeout: 15000,
@@ -75,8 +83,11 @@ export default defineConfig({
     : {}),
   projects: [
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: chromiumChannel ?? 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        ...(chromiumChannel ? { channel: chromiumChannel } : {}),
+      },
     },
   ],
 });

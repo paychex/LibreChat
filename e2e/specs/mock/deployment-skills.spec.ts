@@ -98,9 +98,7 @@ async function getAccessToken(page: Page): Promise<string> {
     }
   }
   if (!result) {
-    throw lastError instanceof Error
-      ? lastError
-      : new Error('getAccessToken: exhausted retries');
+    throw lastError instanceof Error ? lastError : new Error('getAccessToken: exhausted retries');
   }
 
   if (!result.ok) {

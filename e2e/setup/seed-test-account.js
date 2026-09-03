@@ -41,10 +41,7 @@ async function seedTestAccount() {
     const existing = await users.findOne({ email });
 
     if (existing) {
-      await users.updateOne(
-        { email },
-        { $set: { password: hashedPassword, role: 'ADMIN' } },
-      );
+      await users.updateOne({ email }, { $set: { password: hashedPassword, role: 'ADMIN' } });
       console.log(`✓ Updated password and role for existing test account: ${email} (role: ADMIN)`);
     } else {
       await users.insertOne({

@@ -132,9 +132,7 @@ function stripPendoStateFromStorageFile(storageStatePath: string) {
         continue;
       }
       const before = origin.localStorage.length;
-      origin.localStorage = origin.localStorage.filter(
-        (entry) => !entry.name.startsWith('_pendo'),
-      );
+      origin.localStorage = origin.localStorage.filter((entry) => !entry.name.startsWith('_pendo'));
       stripped += before - origin.localStorage.length;
     }
     if (stripped > 0) {
