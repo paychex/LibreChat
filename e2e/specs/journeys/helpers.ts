@@ -39,9 +39,26 @@ export type ModelSpecSummary = {
  * whatever is actually configured instead of a hardcoded endpoint and model name.
  * Returns null when no spec is flagged, which is a config problem rather than a
  * missing customization — callers should report the two differently.
+ *
+ * `GET /api/config` runs under `optionalJwtAuth` and answers anonymous callers with a
+ * 200 that omits `modelSpecs` entirely. The bearer token lives only in the app's axios
+ * defaults, so `page.request` — which replays cookies but no Authorization header —
+ * always gets the anonymous payload. We therefore navigate and read the authenticated
+ * response the app itself receives; callers do not need to call `gotoChat` first.
  */
 export async function getDefaultModelSpec(page: Page): Promise<ModelSpecSummary | null> {
-  const response = await page.request.get('/api/config');
+  // Each load fires /api/config twice (once before the session is restored, once after),
+  // and only the second carries the token — hence the header predicate.
+  const authenticated = page.waitForResponse(
+    async (response) =>
+      new URL(response.url()).pathname === '/api/config' &&
+      response.request().method() === 'GET' &&
+      (await response.request().headerValue('authorization')) != null,
+    { timeout: 30000 },
+  );
+
+  const [response] = await Promise.all([authenticated, gotoChat(page)]);
+
   if (!response.ok()) {
     throw new Error(`GET /api/config failed: ${response.status()} ${response.statusText()}`);
   }

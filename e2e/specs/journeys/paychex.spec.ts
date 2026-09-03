@@ -71,8 +71,8 @@ test.describe('Paychex customizations', () => {
   });
 
   test('Default model is badged in the model selector', { tag: ['@paychex'] }, async ({ page }) => {
-    await gotoChat(page);
-
+    // getDefaultModelSpec navigates itself so it can read the app's authenticated
+    // /api/config response; no gotoChat call is needed beforehand.
     const spec = await getDefaultModelSpec(page);
     if (!spec) {
       throw new Error(
